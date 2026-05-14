@@ -13,6 +13,7 @@ import {
   TrendingUp,
   TrendingDown,
   Wifi,
+  X,
 } from "lucide-react";
 import CryptoChart from "./CryptoChart";
 import {
@@ -42,6 +43,8 @@ export default function App() {
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [theme, setTheme] = useState(readStoredTheme);
+  const [chartOverlayOpen, setChartOverlayOpen] = useState(false);
+  const isCompactLayout = useMediaQuery("(max-width: 820px)");
   const [scanState, setScanState] = useState("idle");
   const [progress, setProgress] = useState({ checked: 0, total: 0 });
   const [lastScan, setLastScan] = useState(null);
@@ -55,7 +58,10 @@ export default function App() {
     setSelectedSymbol(symbol);
     setChartError("");
     setLiveStatus("loading");
-  }, []);
+    if (isCompactLayout) {
+      setChartOverlayOpen(true);
+    }
+  }, [isCompactLayout]);
 
   const toggleFavorite = useCallback((symbol) => {
     setFavoriteSymbols((current) => {
@@ -392,7 +398,12 @@ export default function App() {
           </div>
         </aside>
 
-        <section className="detail-panel">
+        <section className={chartOverlayOpen ? "detail-panel mobile-chart-open" : "detail-panel"}>
+          <button className="mobile-chart-close" type="button" onClick={() => setChartOverlayOpen(false)}>
+            <X size={18} />
+            Fechar
+          </button>
+
           <div className="selected-strip">
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
@@ -510,6 +521,26 @@ async function fetchCandlesWithRetry(symbol, signal) {
 
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function useMediaQuery(query) {
+  const readMatch = () => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(readMatch);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQuery.matches);
+
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [query]);
+
+  return matches;
 }
 
 function readStoredFavorites() {
