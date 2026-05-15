@@ -25,6 +25,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const emaSeriesRef = useRef(null);
   const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
+  const migratedStoredDrawingsRef = useRef(false);
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [drawings, setDrawings] = useState(() => readStoredDrawings(storageSymbol));
   const [draftDrawing, setDraftDrawing] = useState(null);
@@ -32,6 +33,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
+  const chartMeta = useMemo(() => buildChartMeta(candles), [candles]);
 
   const stats = useMemo(() => {
     const last = candles.at(-1);
@@ -179,6 +181,17 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   }, [drawings, storageSymbol]);
 
   useEffect(() => {
+    if (!chartMeta || migratedStoredDrawingsRef.current) return undefined;
+    migratedStoredDrawingsRef.current = true;
+
+    queueMicrotask(() => {
+      setDrawings((current) => migrateDrawingsToTime(current, chartMeta));
+    });
+
+    return undefined;
+  }, [chartMeta]);
+
+  useEffect(() => {
     if (!draftDrawing) return undefined;
 
     const cancelDraft = (event) => {
@@ -193,7 +206,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
-    const point = readChartPoint(event, overlayRef.current, chartRef.current, candleSeriesRef.current);
+    const point = readChartPoint(event, overlayRef.current, chartRef.current, candleSeriesRef.current, chartMeta);
     if (!point) return;
 
     event.preventDefault();
@@ -222,7 +235,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
 
   const handleToolPointerMove = (event) => {
     if (!draftDrawing) return;
-    const point = readChartPoint(event, overlayRef.current, chartRef.current, candleSeriesRef.current);
+    const point = readChartPoint(event, overlayRef.current, chartRef.current, candleSeriesRef.current, chartMeta);
     if (!point) return;
 
     setDraftDrawing((current) => (current ? { ...current, end: point } : current));
@@ -311,6 +324,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
               drawing={drawing}
               chart={drawingContext.chart}
               series={drawingContext.series}
+              chartMeta={chartMeta}
               draft={drawing.id.startsWith("draft")}
             />
           ))}
@@ -343,13 +357,13 @@ function ToolButton({ active = false, children, label, onClick }) {
   );
 }
 
-function DrawingLayer({ drawing, chart, series, draft }) {
-  const start = toScreenPoint(drawing.start, chart, series);
-  const end = toScreenPoint(drawing.end, chart, series);
+function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
+  const start = toScreenPoint(drawing.start, chart, series, chartMeta);
+  const end = toScreenPoint(drawing.end, chart, series, chartMeta);
   if (!start || !end) return null;
 
   const color = drawing.type === TOOLS.ruler ? "#6bb4ff" : "#f6c85f";
-  const label = drawing.type === TOOLS.ruler ? buildRulerLabel(drawing.start, drawing.end) : null;
+  const label = drawing.type === TOOLS.ruler ? buildRulerLabel(drawing.start, drawing.end, chartMeta) : null;
   const midX = (start.x + end.x) / 2;
   const midY = (start.y + end.y) / 2;
 
@@ -379,7 +393,7 @@ function DrawingLayer({ drawing, chart, series, draft }) {
   );
 }
 
-function readChartPoint(event, overlay, chart, series) {
+function readChartPoint(event, overlay, chart, series, chartMeta) {
   if (!overlay || !chart || !series) return null;
 
   const rect = overlay.getBoundingClientRect();
@@ -389,13 +403,16 @@ function readChartPoint(event, overlay, chart, series) {
   const price = series.coordinateToPrice(y);
 
   if (logical == null || !Number.isFinite(price)) return null;
-  return { x, y, logical, price };
+  return { x, y, logical, time: logicalToTime(logical, chartMeta), price };
 }
 
-function toScreenPoint(point, chart, series) {
+function toScreenPoint(point, chart, series, chartMeta) {
   if (!point || !chart || !series) return null;
 
-  const x = chart.timeScale().logicalToCoordinate(point.logical);
+  const logical = pointToLogical(point, chartMeta);
+  if (!Number.isFinite(logical)) return null;
+
+  const x = chart.timeScale().logicalToCoordinate(logical);
   const y = series.priceToCoordinate(point.price);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
@@ -406,13 +423,38 @@ function getPointDistance(start, end) {
   return Math.hypot((end?.x || 0) - (start?.x || 0), (end?.y || 0) - (start?.y || 0));
 }
 
-function buildRulerLabel(start, end) {
+function buildRulerLabel(start, end, chartMeta) {
   const priceChange = end.price - start.price;
   const percent = start.price ? (priceChange / start.price) * 100 : 0;
-  const hours = Math.round(Number(end.logical) - Number(start.logical));
+  const hours = Math.round(pointToLogical(end, chartMeta) - pointToLogical(start, chartMeta));
   const direction = priceChange >= 0 ? "+" : "";
 
   return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${hours}h`;
+}
+
+function buildChartMeta(candles) {
+  const first = candles?.[0];
+  const second = candles?.[1];
+  if (!first?.openTime) return null;
+
+  const firstTime = Math.floor(first.openTime / 1000);
+  const secondTime = second?.openTime ? Math.floor(second.openTime / 1000) : null;
+  const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : 3600;
+
+  return { firstTime, intervalSeconds };
+}
+
+function logicalToTime(logical, chartMeta) {
+  if (!chartMeta || !Number.isFinite(logical)) return null;
+  return chartMeta.firstTime + logical * chartMeta.intervalSeconds;
+}
+
+function pointToLogical(point, chartMeta) {
+  if (Number.isFinite(point?.time) && chartMeta?.intervalSeconds) {
+    return (point.time - chartMeta.firstTime) / chartMeta.intervalSeconds;
+  }
+
+  return Number.isFinite(point?.logical) ? Number(point.logical) : null;
 }
 
 function showRecentCandles(chart, visibleCandles, totalDataPoints) {
@@ -473,8 +515,10 @@ function writeStoredDrawings(symbol, drawings) {
     const parsed = JSON.parse(raw || "{}");
     const next = { ...parsed };
 
-    if (drawings.length > 0) {
-      next[symbol] = drawings.filter(isValidDrawing);
+    const cleanDrawings = drawings.map(sanitizeDrawing).filter(Boolean);
+
+    if (cleanDrawings.length > 0) {
+      next[symbol] = cleanDrawings;
     } else {
       delete next[symbol];
     }
@@ -495,5 +539,55 @@ function isValidDrawing(drawing) {
 }
 
 function isValidDrawingPoint(point) {
-  return point && Number.isFinite(point.logical) && Number.isFinite(point.price);
+  return point && (Number.isFinite(point.time) || Number.isFinite(point.logical)) && Number.isFinite(point.price);
+}
+
+function sanitizeDrawing(drawing) {
+  if (!isValidDrawing(drawing)) return null;
+
+  return {
+    id: typeof drawing.id === "string" ? drawing.id : `${drawing.type}-${Date.now()}`,
+    type: drawing.type,
+    start: sanitizeDrawingPoint(drawing.start),
+    end: sanitizeDrawingPoint(drawing.end),
+  };
+}
+
+function sanitizeDrawingPoint(point) {
+  const cleanPoint = {
+    price: Number(point.price),
+  };
+
+  if (Number.isFinite(point.time)) {
+    cleanPoint.time = Number(point.time);
+  } else if (Number.isFinite(point.logical)) {
+    cleanPoint.logical = Number(point.logical);
+  }
+
+  return cleanPoint;
+}
+
+function migrateDrawingsToTime(drawings, chartMeta) {
+  let changed = false;
+
+  const nextDrawings = drawings.map((drawing) => {
+    const start = migratePointToTime(drawing.start, chartMeta);
+    const end = migratePointToTime(drawing.end, chartMeta);
+
+    if (start !== drawing.start || end !== drawing.end) {
+      changed = true;
+      return { ...drawing, start, end };
+    }
+
+    return drawing;
+  });
+
+  return changed ? nextDrawings : drawings;
+}
+
+function migratePointToTime(point, chartMeta) {
+  if (Number.isFinite(point?.time) || !Number.isFinite(point?.logical)) return point;
+  const time = logicalToTime(point.logical, chartMeta);
+  if (!Number.isFinite(time)) return point;
+  return { ...point, time };
 }
