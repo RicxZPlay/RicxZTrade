@@ -271,7 +271,7 @@ export default function App() {
           <div className="desktop-controls-slot">{scannerControls}</div>
 
           <div className="coins-stage">
-            <div className="table-card">
+            <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
                 <span>{filteredBelowResults.length} abaixo da EMA</span>
@@ -299,7 +299,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="table-card secondary-table">
+            <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
                 <span>{filteredAboveResults.length} acima da EMA</span>
@@ -492,7 +492,9 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
     <div
       role="button"
       tabIndex={0}
-      className={item.symbol === selectedSymbol ? "coin-row active" : "coin-row"}
+      className={["coin-row", isAbove ? "above" : "below", item.symbol === selectedSymbol ? "active" : ""]
+        .filter(Boolean)
+        .join(" ")}
       onClick={selectCurrent}
       onKeyDown={selectByKeyboard}
     >
