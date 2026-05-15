@@ -14,8 +14,10 @@ const TOOLS = {
   trend: "trend",
   ruler: "ruler",
 };
+const DRAWINGS_STORAGE_KEY = "ricxz.chartDrawings.v1";
 
 export default function CryptoChart({ symbol, candles, liveStatus, error, theme }) {
+  const storageSymbol = symbol || "default";
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
@@ -24,7 +26,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
-  const [drawings, setDrawings] = useState([]);
+  const [drawings, setDrawings] = useState(() => readStoredDrawings(storageSymbol));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
@@ -171,6 +173,10 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       lastCenteredSymbolRef.current = symbol;
     }
   }, [candles, symbol]);
+
+  useEffect(() => {
+    writeStoredDrawings(storageSymbol, drawings);
+  }, [drawings, storageSymbol]);
 
   useEffect(() => {
     if (!draftDrawing) return undefined;
@@ -447,4 +453,47 @@ function getChartPalette(theme) {
     border: "rgba(255, 255, 255, 0.12)",
     ema: "#f6c85f",
   };
+}
+
+function readStoredDrawings(symbol) {
+  try {
+    const raw = window.localStorage.getItem(DRAWINGS_STORAGE_KEY);
+    const parsed = JSON.parse(raw || "{}");
+    const symbolDrawings = parsed?.[symbol];
+    if (!Array.isArray(symbolDrawings)) return [];
+    return symbolDrawings.filter(isValidDrawing);
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredDrawings(symbol, drawings) {
+  try {
+    const raw = window.localStorage.getItem(DRAWINGS_STORAGE_KEY);
+    const parsed = JSON.parse(raw || "{}");
+    const next = { ...parsed };
+
+    if (drawings.length > 0) {
+      next[symbol] = drawings.filter(isValidDrawing);
+    } else {
+      delete next[symbol];
+    }
+
+    window.localStorage.setItem(DRAWINGS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // localStorage can fail in private modes; drawing still works for the open session.
+  }
+}
+
+function isValidDrawing(drawing) {
+  return (
+    drawing &&
+    (drawing.type === TOOLS.trend || drawing.type === TOOLS.ruler) &&
+    isValidDrawingPoint(drawing.start) &&
+    isValidDrawingPoint(drawing.end)
+  );
+}
+
+function isValidDrawingPoint(point) {
+  return point && Number.isFinite(point.logical) && Number.isFinite(point.price);
 }
