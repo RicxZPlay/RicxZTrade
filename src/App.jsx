@@ -108,11 +108,11 @@ export default function App() {
   }, [filters.autoRefresh, runScan]);
 
   useEffect(() => {
-    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSymbols));
+    writeLocalStorage(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSymbols));
   }, [favoriteSymbols]);
 
   useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    writeLocalStorage(THEME_STORAGE_KEY, theme);
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
@@ -579,8 +579,13 @@ function useMediaQuery(query) {
     const handleChange = () => setMatches(mediaQuery.matches);
 
     handleChange();
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
   }, [query]);
 
   return matches;
@@ -602,5 +607,13 @@ function readStoredTheme() {
     return stored === "dark" ? "dark" : "light";
   } catch {
     return "light";
+  }
+}
+
+function writeLocalStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Storage can be unavailable on some mobile/private browser sessions.
   }
 }
