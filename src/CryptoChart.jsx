@@ -128,7 +128,8 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     lastCenteredSymbolRef.current = "";
 
     const syncPaneHeight = () => {
-      setPricePaneHeight(chart.paneSize(0).height);
+      const height = getPricePaneHeight(chart);
+      if (height) setPricePaneHeight(height);
       forceOverlayUpdate((value) => value + 1);
     };
 
@@ -163,7 +164,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     candleSeriesRef.current.setData(chartCandles);
     emaSeriesRef.current.setData(emaData);
     dpoSeriesRef.current.setData(dpoData);
-    setPricePaneHeight(chartRef.current?.paneSize(0).height ?? null);
+    setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, 220, chartCandles.length);
@@ -418,6 +419,14 @@ function showRecentCandles(chart, visibleCandles, totalDataPoints) {
     from: Math.max(0, right - visibleCandles),
     to: right,
   });
+}
+
+function getPricePaneHeight(chart) {
+  try {
+    return chart?.paneSize(0)?.height ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function getChartPalette(theme) {

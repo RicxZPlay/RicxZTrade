@@ -344,14 +344,16 @@ export default function App() {
             <SelectedMetric label="Ultimo candle" value={formatClock(selected?.lastCandleTime)} />
           </div>
 
-          <CryptoChart
-            key={chartSymbol || "empty-chart"}
-            symbol={chartSymbol || selectedSymbol}
-            candles={chartCandles}
-            liveStatus={liveStatus}
-            error={chartError}
-            theme={theme}
-          />
+          {!isCompactLayout || chartOverlayOpen ? (
+            <CryptoChart
+              key={chartSymbol || "empty-chart"}
+              symbol={chartSymbol || selectedSymbol}
+              candles={chartCandles}
+              liveStatus={liveStatus}
+              error={chartError}
+              theme={theme}
+            />
+          ) : null}
         </section>
       </section>
     </main>
