@@ -214,186 +214,117 @@ export default function App() {
 
   const progressPercent = progress.total ? Math.round((progress.checked / progress.total) * 100) : 0;
   const visibleFavoriteCount = results.filter((item) => favoriteSet.has(item.symbol)).length;
+  const scannerControls = (
+    <ScannerControls
+      filters={filters}
+      setFilters={setFilters}
+      showFavoritesOnly={showFavoritesOnly}
+      setShowFavoritesOnly={setShowFavoritesOnly}
+      favoriteSymbols={favoriteSymbols}
+      visibleFavoriteCount={visibleFavoriteCount}
+      query={query}
+      setQuery={setQuery}
+      scanState={scanState}
+      progress={progress}
+      progressPercent={progressPercent}
+      error={error}
+    />
+  );
 
   return (
     <main className={`app-shell theme-${theme}`}>
-      <header className="topbar">
-        <div className="top-spacer" />
-        <h1 className="brand-title">RicxZ</h1>
+      <section className="mobile-scanner-screen">
+        <header className="topbar">
+          <div className="top-spacer" />
+          <h1 className="brand-title">RicxZ</h1>
 
-        <div className="top-actions">
-          <StatusPill icon={<Wifi size={16} />} label={scanState === "loading" ? "Buscando" : "Online"} />
-          <StatusPill icon={<Clock3 size={16} />} label={lastScan ? formatClock(lastScan) : "Aguardando"} />
-          <button
-            className="ghost-action"
-            type="button"
-            onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
-          >
-            {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
-            {theme === "light" ? "Escuro" : "Claro"}
-          </button>
-          <button className="primary-action" type="button" onClick={runScan} disabled={scanState === "loading"}>
-            <RefreshCcw size={17} />
-            Atualizar
-          </button>
-        </div>
-      </header>
+          <div className="top-actions">
+            <StatusPill icon={<Wifi size={16} />} label={scanState === "loading" ? "Buscando" : "Online"} />
+            <StatusPill icon={<Clock3 size={16} />} label={lastScan ? formatClock(lastScan) : "Aguardando"} />
+            <button
+              className="ghost-action"
+              type="button"
+              onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
+            >
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === "light" ? "Escuro" : "Claro"}
+            </button>
+            <button className="primary-action" type="button" onClick={runScan} disabled={scanState === "loading"}>
+              <RefreshCcw size={17} />
+              Atualizar
+            </button>
+          </div>
+        </header>
 
-      <section className="stats-grid">
-        <StatCard icon={<TrendingDown size={20} />} label="Abaixo da EMA" value={summary.below} />
-        <StatCard icon={<TrendingUp size={20} />} label="Acima da EMA" value={summary.above} />
-        <StatCard icon={<Activity size={20} />} label="RSI abaixo de 35" value={summary.oversold} />
-        <StatCard icon={<Bell size={20} />} label="DPO 120 positivo" value={summary.dpoPositive} />
+        <section className="stats-grid">
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da EMA" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima da EMA" value={summary.above} />
+          <StatCard icon={<Activity size={20} />} label="RSI abaixo de 35" value={summary.oversold} />
+          <StatCard icon={<Bell size={20} />} label="DPO 120 positivo" value={summary.dpoPositive} />
+        </section>
+
+        <div className="mobile-controls-slot">{scannerControls}</div>
       </section>
 
       <section className="workspace">
         <aside className="scanner-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Scanner</p>
-              <h2>Filtros</h2>
-            </div>
-            <SlidersHorizontal size={20} />
-          </div>
+          <div className="desktop-controls-slot">{scannerControls}</div>
 
-          <div className="filter-grid">
-            <label>
-              <span>Universo</span>
-              <select
-                value={filters.universeSize}
-                onChange={(event) => setFilters((current) => ({ ...current, universeSize: Number(event.target.value) }))}
-              >
-                <option value={30}>Top 30 volume</option>
-                <option value={60}>Top 60 volume</option>
-                <option value={100}>Top 100 volume</option>
-                <option value={150}>Top 150 volume</option>
-              </select>
-            </label>
-
-            <label>
-              <span>Volume 24h minimo</span>
-              <select
-                value={filters.minQuoteVolume}
-                onChange={(event) => setFilters((current) => ({ ...current, minQuoteVolume: Number(event.target.value) }))}
-              >
-                <option value={5_000_000}>US$ 5M</option>
-                <option value={20_000_000}>US$ 20M</option>
-                <option value={50_000_000}>US$ 50M</option>
-                <option value={100_000_000}>US$ 100M</option>
-              </select>
-            </label>
-
-            <label>
-              <span>Spread maximo</span>
-              <select
-                value={filters.maxSpreadPercent}
-                onChange={(event) => setFilters((current) => ({ ...current, maxSpreadPercent: Number(event.target.value) }))}
-              >
-                <option value={0.2}>0,20%</option>
-                <option value={0.45}>0,45%</option>
-                <option value={0.8}>0,80%</option>
-              </select>
-            </label>
-
-            <button
-              className={showFavoritesOnly ? "favorite-filter active" : "favorite-filter"}
-              type="button"
-              onClick={() => setShowFavoritesOnly((current) => !current)}
-              title="Mostrar apenas moedas favoritadas nas duas listas"
-            >
-              <Star size={16} />
-              <span>Favoritos</span>
-              <strong>{showFavoritesOnly ? visibleFavoriteCount : favoriteSymbols.length}</strong>
-            </button>
-
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={filters.autoRefresh}
-                onChange={(event) => setFilters((current) => ({ ...current, autoRefresh: event.target.checked }))}
-              />
-              <span>Atualizar a cada 4 minutos</span>
-            </label>
-          </div>
-
-          <div className="search-box">
-            <Search size={18} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar BTC, ETH, SOL..."
-            />
-          </div>
-
-          {scanState === "loading" ? (
-            <div className="progress-card">
-              <div>
-                <strong>{progressPercent}%</strong>
-                <span>
-                  {progress.checked}/{progress.total || filters.universeSize} moedas
-                </span>
+          <div className="coins-stage">
+            <div className="table-card">
+              <div className="table-title">
+                <Filter size={18} />
+                <span>{filteredBelowResults.length} abaixo da EMA</span>
               </div>
-              <div className="progress-track">
-                <div style={{ width: `${progressPercent}%` }} />
+
+              <div className="coin-list">
+                {filteredBelowResults.map((item) => (
+                  <CoinRow
+                    key={item.symbol}
+                    item={item}
+                    selectedSymbol={selectedSymbol}
+                    favorite={favoriteSet.has(item.symbol)}
+                    onSelect={selectSymbol}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+
+                {scanState !== "loading" && filteredBelowResults.length === 0 ? (
+                  <div className="empty-state">
+                    {showFavoritesOnly
+                      ? "Nenhuma favorita abaixo da EMA apareceu nos filtros atuais."
+                      : "Nenhuma moeda abaixo da EMA passou pelos filtros atuais."}
+                  </div>
+                ) : null}
               </div>
             </div>
-          ) : null}
 
-          {error ? <div className="error-card">{error}</div> : null}
+            <div className="table-card secondary-table">
+              <div className="table-title">
+                <TrendingUp size={18} />
+                <span>{filteredAboveResults.length} acima da EMA</span>
+              </div>
 
-          <div className="table-card">
-            <div className="table-title">
-              <Filter size={18} />
-              <span>{filteredBelowResults.length} abaixo da EMA</span>
-            </div>
+              <div className="coin-list secondary-list">
+                {filteredAboveResults.map((item) => (
+                  <CoinRow
+                    key={item.symbol}
+                    item={item}
+                    selectedSymbol={selectedSymbol}
+                    favorite={favoriteSet.has(item.symbol)}
+                    onSelect={selectSymbol}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
 
-            <div className="coin-list">
-              {filteredBelowResults.map((item) => (
-                <CoinRow
-                  key={item.symbol}
-                  item={item}
-                  selectedSymbol={selectedSymbol}
-                  favorite={favoriteSet.has(item.symbol)}
-                  onSelect={selectSymbol}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))}
-
-              {scanState !== "loading" && filteredBelowResults.length === 0 ? (
-                <div className="empty-state">
-                  {showFavoritesOnly
-                    ? "Nenhuma favorita abaixo da EMA apareceu nos filtros atuais."
-                    : "Nenhuma moeda abaixo da EMA passou pelos filtros atuais."}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="table-card secondary-table">
-            <div className="table-title">
-              <TrendingUp size={18} />
-              <span>{filteredAboveResults.length} acima da EMA</span>
-            </div>
-
-            <div className="coin-list secondary-list">
-              {filteredAboveResults.map((item) => (
-                <CoinRow
-                  key={item.symbol}
-                  item={item}
-                  selectedSymbol={selectedSymbol}
-                  favorite={favoriteSet.has(item.symbol)}
-                  onSelect={selectSymbol}
-                  onToggleFavorite={toggleFavorite}
-                />
-              ))}
-
-              {scanState !== "loading" && filteredAboveResults.length === 0 ? (
-                <div className="empty-state">
-                  {showFavoritesOnly
-                    ? "Nenhuma favorita acima da EMA apareceu nos filtros atuais."
-                    : "Nenhuma moeda acima da EMA passou pelos filtros atuais."}
-                </div>
-              ) : null}
+                {scanState !== "loading" && filteredAboveResults.length === 0 ? (
+                  <div className="empty-state">
+                    {showFavoritesOnly
+                      ? "Nenhuma favorita acima da EMA apareceu nos filtros atuais."
+                      : "Nenhuma moeda acima da EMA passou pelos filtros atuais."}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </aside>
@@ -424,6 +355,114 @@ export default function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function ScannerControls({
+  filters,
+  setFilters,
+  showFavoritesOnly,
+  setShowFavoritesOnly,
+  favoriteSymbols,
+  visibleFavoriteCount,
+  query,
+  setQuery,
+  scanState,
+  progress,
+  progressPercent,
+  error,
+}) {
+  return (
+    <>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Scanner</p>
+          <h2>Filtros</h2>
+        </div>
+        <SlidersHorizontal size={20} />
+      </div>
+
+      <div className="filter-grid">
+        <label>
+          <span>Universo</span>
+          <select
+            value={filters.universeSize}
+            onChange={(event) => setFilters((current) => ({ ...current, universeSize: Number(event.target.value) }))}
+          >
+            <option value={30}>Top 30 volume</option>
+            <option value={60}>Top 60 volume</option>
+            <option value={100}>Top 100 volume</option>
+            <option value={150}>Top 150 volume</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Volume 24h minimo</span>
+          <select
+            value={filters.minQuoteVolume}
+            onChange={(event) => setFilters((current) => ({ ...current, minQuoteVolume: Number(event.target.value) }))}
+          >
+            <option value={5_000_000}>US$ 5M</option>
+            <option value={20_000_000}>US$ 20M</option>
+            <option value={50_000_000}>US$ 50M</option>
+            <option value={100_000_000}>US$ 100M</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Spread maximo</span>
+          <select
+            value={filters.maxSpreadPercent}
+            onChange={(event) => setFilters((current) => ({ ...current, maxSpreadPercent: Number(event.target.value) }))}
+          >
+            <option value={0.2}>0,20%</option>
+            <option value={0.45}>0,45%</option>
+            <option value={0.8}>0,80%</option>
+          </select>
+        </label>
+
+        <button
+          className={showFavoritesOnly ? "favorite-filter active" : "favorite-filter"}
+          type="button"
+          onClick={() => setShowFavoritesOnly((current) => !current)}
+          title="Mostrar apenas moedas favoritadas nas duas listas"
+        >
+          <Star size={16} />
+          <span>Favoritos</span>
+          <strong>{showFavoritesOnly ? visibleFavoriteCount : favoriteSymbols.length}</strong>
+        </button>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            checked={filters.autoRefresh}
+            onChange={(event) => setFilters((current) => ({ ...current, autoRefresh: event.target.checked }))}
+          />
+          <span>Atualizar a cada 4 minutos</span>
+        </label>
+      </div>
+
+      <div className="search-box">
+        <Search size={18} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar BTC, ETH, SOL..." />
+      </div>
+
+      {scanState === "loading" ? (
+        <div className="progress-card">
+          <div>
+            <strong>{progressPercent}%</strong>
+            <span>
+              {progress.checked}/{progress.total || filters.universeSize} moedas
+            </span>
+          </div>
+          <div className="progress-track">
+            <div style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
+      ) : null}
+
+      {error ? <div className="error-card">{error}</div> : null}
+    </>
   );
 }
 
