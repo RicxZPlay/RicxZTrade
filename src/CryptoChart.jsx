@@ -6,7 +6,7 @@ import {
   HistogramSeries,
   LineSeries,
 } from "lightweight-charts";
-import { MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
+import { MousePointer2, Ruler, Slash, Trash2 } from "lucide-react";
 import { formatIndicator, formatPercent, formatPrice, toChartCandles, toChartDpo, toChartEma } from "./market";
 
 const TOOLS = {
@@ -26,14 +26,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
-  const alertSideRef = useRef(new Map());
-  const alertedCrossingsRef = useRef(new Set());
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [drawings, setDrawings] = useState(() => readStoredDrawings(storageSymbol));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
-  const [trendAlert, setTrendAlert] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
   const chartMeta = useMemo(() => buildChartMeta(candles), [candles]);
@@ -184,35 +181,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   }, [drawings, storageSymbol]);
 
   useEffect(() => {
-    alertSideRef.current = new Map();
-    alertedCrossingsRef.current = new Set();
-    queueMicrotask(() => setTrendAlert(null));
-  }, [storageSymbol]);
-
-  useEffect(() => {
-    const alert = findTrendlineCrossing({
-      candles,
-      chartMeta,
-      drawings,
-      sideByDrawing: alertSideRef.current,
-      alertedCrossings: alertedCrossingsRef.current,
-    });
-
-    if (!alert) return;
-
-    const nextAlert = {
-      id: `${alert.drawingId}-${Date.now()}`,
-      symbol,
-      direction: alert.direction,
-      price: alert.price,
-      linePrice: alert.linePrice,
-      createdAt: Date.now(),
-    };
-
-    setTrendAlert(nextAlert);
-  }, [candles, chartMeta, drawings, symbol]);
-
-  useEffect(() => {
     if (!chartMeta || migratedStoredDrawingsRef.current) return undefined;
     migratedStoredDrawingsRef.current = true;
 
@@ -342,21 +310,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       <div className="chart-area">
         <div ref={containerRef} className="chart-canvas" />
         {error ? <div className="chart-error">{error}</div> : null}
-        {trendAlert ? (
-          <div className="trend-alert">
-            <div>
-              <strong>{trendAlert.message || `${trendAlert.symbol} cruzou a linha de tendencia`}</strong>
-              {!trendAlert.message ? (
-                <span>
-                  Preco {trendAlert.direction}: {formatPrice(trendAlert.price)} | Linha {formatPrice(trendAlert.linePrice)}
-                </span>
-              ) : null}
-            </div>
-            <button type="button" onClick={() => setTrendAlert(null)} aria-label="Fechar alerta">
-              <X size={14} />
-            </button>
-          </div>
-        ) : null}
         <svg
           ref={overlayRef}
           className={activeTool === TOOLS.cursor ? "drawing-overlay idle" : "drawing-overlay active"}
@@ -477,71 +430,6 @@ function buildRulerLabel(start, end, chartMeta) {
   const direction = priceChange >= 0 ? "+" : "";
 
   return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${hours}h`;
-}
-
-function findTrendlineCrossing({ candles, chartMeta, drawings, sideByDrawing, alertedCrossings }) {
-  if (!chartMeta || candles.length < 1) return null;
-
-  const last = candles.at(-1);
-  const lastTime = Math.floor(last.openTime / 1000);
-  const lastLogical = timeToLogical(lastTime, chartMeta);
-  if (!Number.isFinite(lastLogical) || !Number.isFinite(last.close)) return null;
-
-  for (const drawing of drawings) {
-    if (drawing.type !== TOOLS.trend) continue;
-
-    const linePrice = linePriceAtLogical(drawing, lastLogical, chartMeta);
-    if (!Number.isFinite(linePrice)) continue;
-
-    const diff = last.close - linePrice;
-    const side = diff > 0 ? 1 : diff < 0 ? -1 : 0;
-    const previousSide = sideByDrawing.get(drawing.id);
-
-    if (previousSide == null) {
-      sideByDrawing.set(drawing.id, side);
-      continue;
-    }
-
-    sideByDrawing.set(drawing.id, side);
-    if (previousSide === 0 || side === 0 || previousSide === side) continue;
-
-    const direction = side > 0 ? "para cima" : "para baixo";
-    const alertKey = `${drawing.id}-${last.openTime}-${direction}`;
-    if (alertedCrossings.has(alertKey)) continue;
-
-    pruneAlertedCrossings(alertedCrossings);
-    alertedCrossings.add(alertKey);
-
-    return {
-      drawingId: drawing.id,
-      direction,
-      price: last.close,
-      linePrice,
-    };
-  }
-
-  return null;
-}
-
-function linePriceAtLogical(drawing, logical, chartMeta) {
-  const startLogical = pointToLogical(drawing.start, chartMeta);
-  const endLogical = pointToLogical(drawing.end, chartMeta);
-  if (!Number.isFinite(startLogical) || !Number.isFinite(endLogical) || startLogical === endLogical) return null;
-
-  const progress = (logical - startLogical) / (endLogical - startLogical);
-  return drawing.start.price + progress * (drawing.end.price - drawing.start.price);
-}
-
-function timeToLogical(time, chartMeta) {
-  if (!chartMeta?.intervalSeconds || !Number.isFinite(time)) return null;
-  return (time - chartMeta.firstTime) / chartMeta.intervalSeconds;
-}
-
-function pruneAlertedCrossings(alertedCrossings) {
-  if (alertedCrossings.size <= 120) return;
-  const recent = Array.from(alertedCrossings).slice(-60);
-  alertedCrossings.clear();
-  recent.forEach((item) => alertedCrossings.add(item));
 }
 
 function buildChartMeta(candles) {
