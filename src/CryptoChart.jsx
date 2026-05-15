@@ -6,7 +6,7 @@ import {
   HistogramSeries,
   LineSeries,
 } from "lightweight-charts";
-import { MousePointer2, Ruler, Slash, Trash2 } from "lucide-react";
+import { Bell, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import { formatIndicator, formatPercent, formatPrice, toChartCandles, toChartDpo, toChartEma } from "./market";
 
 const TOOLS = {
@@ -15,6 +15,8 @@ const TOOLS = {
   ruler: "ruler",
 };
 const DRAWINGS_STORAGE_KEY = "ricxz.chartDrawings.v1";
+const ALERTS_STORAGE_KEY = "ricxz.trendlineAlerts";
+const ALERT_COOLDOWN_MS = 60_000;
 
 export default function CryptoChart({ symbol, candles, liveStatus, error, theme }) {
   const storageSymbol = symbol || "default";
@@ -26,11 +28,15 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
+  const alertSideRef = useRef(new Map());
+  const alertedCrossingsRef = useRef(new Set());
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [drawings, setDrawings] = useState(() => readStoredDrawings(storageSymbol));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
+  const [trendAlert, setTrendAlert] = useState(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(readAlertsPreference);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
   const chartMeta = useMemo(() => buildChartMeta(candles), [candles]);
@@ -181,6 +187,40 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   }, [drawings, storageSymbol]);
 
   useEffect(() => {
+    window.localStorage.setItem(ALERTS_STORAGE_KEY, notificationsEnabled ? "on" : "off");
+  }, [notificationsEnabled]);
+
+  useEffect(() => {
+    alertSideRef.current = new Map();
+    alertedCrossingsRef.current = new Set();
+    queueMicrotask(() => setTrendAlert(null));
+  }, [storageSymbol]);
+
+  useEffect(() => {
+    const alert = findTrendlineCrossing({
+      candles,
+      chartMeta,
+      drawings,
+      sideByDrawing: alertSideRef.current,
+      alertedCrossings: alertedCrossingsRef.current,
+    });
+
+    if (!alert) return;
+
+    const nextAlert = {
+      id: `${alert.drawingId}-${Date.now()}`,
+      symbol,
+      direction: alert.direction,
+      price: alert.price,
+      linePrice: alert.linePrice,
+      createdAt: Date.now(),
+    };
+
+    setTrendAlert(nextAlert);
+    sendBrowserNotification(nextAlert, notificationsEnabled);
+  }, [candles, chartMeta, drawings, notificationsEnabled, symbol]);
+
+  useEffect(() => {
     if (!chartMeta || migratedStoredDrawingsRef.current) return undefined;
     migratedStoredDrawingsRef.current = true;
 
@@ -241,6 +281,27 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     setDraftDrawing((current) => (current ? { ...current, end: point } : current));
   };
 
+  const enableNotifications = async () => {
+    if (!("Notification" in window)) {
+      setTrendAlert({
+        id: `notification-${Date.now()}`,
+        symbol,
+        direction: "indisponivel",
+        message: "Este navegador nao permite notificacoes.",
+        createdAt: Date.now(),
+      });
+      return;
+    }
+
+    if (Notification.permission === "granted") {
+      setNotificationsEnabled((current) => !current);
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotificationsEnabled(permission === "granted");
+  };
+
   const renderedDrawings = [...drawings, draftDrawing].filter(Boolean);
 
   return (
@@ -283,6 +344,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
               <Ruler size={15} />
             </ToolButton>
             <ToolButton
+              label={notificationsEnabled ? "Desativar alertas" : "Ativar alertas"}
+              active={notificationsEnabled}
+              onClick={enableNotifications}
+            >
+              <Bell size={15} />
+            </ToolButton>
+            <ToolButton
               label="Limpar desenhos"
               onClick={() => {
                 setDrawings([]);
@@ -310,6 +378,21 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       <div className="chart-area">
         <div ref={containerRef} className="chart-canvas" />
         {error ? <div className="chart-error">{error}</div> : null}
+        {trendAlert ? (
+          <div className="trend-alert">
+            <div>
+              <strong>{trendAlert.message || `${trendAlert.symbol} cruzou a linha de tendencia`}</strong>
+              {!trendAlert.message ? (
+                <span>
+                  Preco {trendAlert.direction}: {formatPrice(trendAlert.price)} | Linha {formatPrice(trendAlert.linePrice)}
+                </span>
+              ) : null}
+            </div>
+            <button type="button" onClick={() => setTrendAlert(null)} aria-label="Fechar alerta">
+              <X size={14} />
+            </button>
+          </div>
+        ) : null}
         <svg
           ref={overlayRef}
           className={activeTool === TOOLS.cursor ? "drawing-overlay idle" : "drawing-overlay active"}
@@ -432,6 +515,83 @@ function buildRulerLabel(start, end, chartMeta) {
   return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${hours}h`;
 }
 
+function findTrendlineCrossing({ candles, chartMeta, drawings, sideByDrawing, alertedCrossings }) {
+  if (!chartMeta || candles.length < 1) return null;
+
+  const last = candles.at(-1);
+  const lastTime = Math.floor(last.openTime / 1000);
+  const lastLogical = timeToLogical(lastTime, chartMeta);
+  if (!Number.isFinite(lastLogical) || !Number.isFinite(last.close)) return null;
+
+  for (const drawing of drawings) {
+    if (drawing.type !== TOOLS.trend) continue;
+
+    const linePrice = linePriceAtLogical(drawing, lastLogical, chartMeta);
+    if (!Number.isFinite(linePrice)) continue;
+
+    const diff = last.close - linePrice;
+    const side = diff > 0 ? 1 : diff < 0 ? -1 : 0;
+    const previousSide = sideByDrawing.get(drawing.id);
+
+    if (previousSide == null) {
+      sideByDrawing.set(drawing.id, side);
+      continue;
+    }
+
+    sideByDrawing.set(drawing.id, side);
+    if (previousSide === 0 || side === 0 || previousSide === side) continue;
+
+    const direction = side > 0 ? "para cima" : "para baixo";
+    const alertKey = `${drawing.id}-${last.openTime}-${direction}`;
+    if (alertedCrossings.has(alertKey)) continue;
+
+    pruneAlertedCrossings(alertedCrossings);
+    alertedCrossings.add(alertKey);
+
+    return {
+      drawingId: drawing.id,
+      direction,
+      price: last.close,
+      linePrice,
+    };
+  }
+
+  return null;
+}
+
+function linePriceAtLogical(drawing, logical, chartMeta) {
+  const startLogical = pointToLogical(drawing.start, chartMeta);
+  const endLogical = pointToLogical(drawing.end, chartMeta);
+  if (!Number.isFinite(startLogical) || !Number.isFinite(endLogical) || startLogical === endLogical) return null;
+
+  const progress = (logical - startLogical) / (endLogical - startLogical);
+  return drawing.start.price + progress * (drawing.end.price - drawing.start.price);
+}
+
+function timeToLogical(time, chartMeta) {
+  if (!chartMeta?.intervalSeconds || !Number.isFinite(time)) return null;
+  return (time - chartMeta.firstTime) / chartMeta.intervalSeconds;
+}
+
+function pruneAlertedCrossings(alertedCrossings) {
+  if (alertedCrossings.size <= 120) return;
+  const recent = Array.from(alertedCrossings).slice(-60);
+  alertedCrossings.clear();
+  recent.forEach((item) => alertedCrossings.add(item));
+}
+
+function sendBrowserNotification(alert, enabled) {
+  if (!enabled || !("Notification" in window) || Notification.permission !== "granted") return;
+
+  const now = Date.now();
+  if (now - (sendBrowserNotification.lastSentAt || 0) < ALERT_COOLDOWN_MS) return;
+  sendBrowserNotification.lastSentAt = now;
+
+  new Notification("RicxZ alerta", {
+    body: `${alert.symbol} cruzou ${alert.direction} a linha de tendencia em ${formatPrice(alert.price)}.`,
+  });
+}
+
 function buildChartMeta(candles) {
   const first = candles?.[0];
   const second = candles?.[1];
@@ -506,6 +666,14 @@ function readStoredDrawings(symbol) {
     return symbolDrawings.filter(isValidDrawing);
   } catch {
     return [];
+  }
+}
+
+function readAlertsPreference() {
+  try {
+    return window.localStorage.getItem(ALERTS_STORAGE_KEY) === "on";
+  } catch {
+    return false;
   }
 }
 

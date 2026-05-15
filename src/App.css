@@ -653,6 +653,56 @@ input:focus,
   backdrop-filter: blur(8px);
 }
 
+.trend-alert {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(430px, calc(100% - 28px));
+  border: 1px solid color-mix(in srgb, var(--warning) 50%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--text-main);
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.22);
+  padding: 10px 11px;
+  backdrop-filter: blur(10px);
+}
+
+.trend-alert strong,
+.trend-alert span {
+  display: block;
+}
+
+.trend-alert strong {
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.trend-alert span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.trend-alert button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 0;
+}
+
 .drawing-overlay.idle {
   pointer-events: none;
 }
@@ -1002,6 +1052,13 @@ input:focus,
   .detail-panel.mobile-chart-open .chart-canvas {
     height: 100%;
     min-height: 0;
+  }
+
+  .detail-panel.mobile-chart-open .trend-alert {
+    left: 8px;
+    top: 8px;
+    width: calc(100% - 16px);
+    padding: 8px 9px;
   }
 }
 
