@@ -26,7 +26,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
+  const activeToolRef = useRef(TOOLS.cursor);
+  const drawingsRef = useRef([]);
+  const chartMetaRef = useRef(null);
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
+  const [selectedDrawingId, setSelectedDrawingId] = useState(null);
   const [drawings, setDrawings] = useState(() => readStoredDrawings(storageSymbol));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
@@ -146,10 +150,26 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       forceOverlayUpdate((value) => value + 1);
     });
+
+    const handleChartClick = (param) => {
+      if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
+
+      const drawing = findNearestDrawing(
+        param.point,
+        drawingsRef.current,
+        chartRef.current,
+        candleSeriesRef.current,
+        chartMetaRef.current
+      );
+      setSelectedDrawingId(drawing?.id || null);
+    };
+
+    chart.subscribeClick(handleChartClick);
     window.requestAnimationFrame(syncPaneHeight);
 
     return () => {
       observer.disconnect();
+      chart.unsubscribeClick(handleChartClick);
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -157,6 +177,18 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       dpoSeriesRef.current = null;
     };
   }, [chartPalette]);
+
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
+
+  useEffect(() => {
+    drawingsRef.current = drawings;
+  }, [drawings]);
+
+  useEffect(() => {
+    chartMetaRef.current = chartMeta;
+  }, [chartMeta]);
 
   useEffect(() => {
     if (!candleSeriesRef.current || candles.length === 0) return;
@@ -212,6 +244,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     event.preventDefault();
 
     if (!draftDrawing || draftDrawing.type !== activeTool) {
+      setSelectedDrawingId(null);
       setDraftDrawing({
         id: `draft-${Date.now()}`,
         type: activeTool,
@@ -229,6 +262,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
 
     if (getPointDistance(completed.start, completed.end) > 4) {
       setDrawings((current) => [...current, completed]);
+      setSelectedDrawingId(completed.id);
     }
     setDraftDrawing(null);
   };
@@ -242,6 +276,20 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   };
 
   const renderedDrawings = [...drawings, draftDrawing].filter(Boolean);
+  const hasSelectedDrawing = drawings.some((drawing) => drawing.id === selectedDrawingId);
+  const overlayMode = activeTool === TOOLS.cursor ? "drawing-overlay idle" : "drawing-overlay active";
+  const handleTrashClick = () => {
+    setDraftDrawing(null);
+
+    if (hasSelectedDrawing) {
+      setDrawings((current) => current.filter((drawing) => drawing.id !== selectedDrawingId));
+      setSelectedDrawingId(null);
+      return;
+    }
+
+    setDrawings([]);
+    setSelectedDrawingId(null);
+  };
 
   return (
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
@@ -268,6 +316,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
               onClick={() => {
                 setActiveTool(TOOLS.trend);
                 setDraftDrawing(null);
+                setSelectedDrawingId(null);
               }}
             >
               <Slash size={15} />
@@ -278,16 +327,14 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
               onClick={() => {
                 setActiveTool(TOOLS.ruler);
                 setDraftDrawing(null);
+                setSelectedDrawingId(null);
               }}
             >
               <Ruler size={15} />
             </ToolButton>
             <ToolButton
-              label="Limpar desenhos"
-              onClick={() => {
-                setDrawings([]);
-                setDraftDrawing(null);
-              }}
+              label={hasSelectedDrawing ? "Apagar desenho selecionado" : "Limpar desenhos"}
+              onClick={handleTrashClick}
             >
               <Trash2 size={15} />
             </ToolButton>
@@ -312,7 +359,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
         {error ? <div className="chart-error">{error}</div> : null}
         <svg
           ref={overlayRef}
-          className={activeTool === TOOLS.cursor ? "drawing-overlay idle" : "drawing-overlay active"}
+          className={overlayMode}
           style={pricePaneHeight ? { height: `${pricePaneHeight}px` } : undefined}
           onClick={handleToolClick}
           onPointerMove={handleToolPointerMove}
@@ -326,6 +373,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
               series={drawingContext.series}
               chartMeta={chartMeta}
               draft={drawing.id.startsWith("draft")}
+              selected={drawing.id === selectedDrawingId}
             />
           ))}
         </svg>
@@ -357,7 +405,7 @@ function ToolButton({ active = false, children, label, onClick }) {
   );
 }
 
-function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
+function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
   const start = toScreenPoint(drawing.start, chart, series, chartMeta);
   const end = toScreenPoint(drawing.end, chart, series, chartMeta);
   if (!start || !end) return null;
@@ -368,18 +416,45 @@ function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
   const midY = (start.y + end.y) / 2;
 
   return (
-    <g opacity={draft ? 0.72 : 1}>
+    <g opacity={draft ? 0.72 : 1} className={selected ? "drawing-layer selected" : "drawing-layer"}>
+      {selected ? (
+        <line
+          x1={start.x}
+          y1={start.y}
+          x2={end.x}
+          y2={end.y}
+          stroke={color}
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeOpacity={0.18}
+        />
+      ) : null}
       <line
         x1={start.x}
         y1={start.y}
         x2={end.x}
         y2={end.y}
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={selected ? 3 : 2}
         strokeDasharray={drawing.type === TOOLS.ruler ? "6 5" : "0"}
+        strokeLinecap="round"
       />
-      <circle cx={start.x} cy={start.y} r={4} fill={color} />
-      <circle cx={end.x} cy={end.y} r={4} fill={color} />
+      <circle
+        cx={start.x}
+        cy={start.y}
+        r={selected ? 5 : 4}
+        fill={color}
+        stroke={selected ? "#ffffff" : "transparent"}
+        strokeWidth={selected ? 1.5 : 0}
+      />
+      <circle
+        cx={end.x}
+        cy={end.y}
+        r={selected ? 5 : 4}
+        fill={color}
+        stroke={selected ? "#ffffff" : "transparent"}
+        strokeWidth={selected ? 1.5 : 0}
+      />
       {drawing.type === TOOLS.ruler ? (
         <>
           <line x1={start.x} y1={start.y} x2={end.x} y2={start.y} stroke={color} strokeWidth={1} opacity={0.45} />
@@ -421,6 +496,45 @@ function toScreenPoint(point, chart, series, chartMeta) {
 
 function getPointDistance(start, end) {
   return Math.hypot((end?.x || 0) - (start?.x || 0), (end?.y || 0) - (start?.y || 0));
+}
+
+function findNearestDrawing(point, drawings, chart, series, chartMeta) {
+  if (!point || !drawings.length || !chart || !series) return null;
+
+  let nearest = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  const hitRadius = 14;
+
+  for (const drawing of drawings) {
+    const start = toScreenPoint(drawing.start, chart, series, chartMeta);
+    const end = toScreenPoint(drawing.end, chart, series, chartMeta);
+    if (!start || !end) continue;
+
+    const distance = getDistanceToSegment(point, start, end);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = drawing;
+    }
+  }
+
+  return nearestDistance <= hitRadius ? nearest : null;
+}
+
+function getDistanceToSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+
+  const rawT = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+  const t = Math.max(0, Math.min(1, rawT));
+  const projection = {
+    x: start.x + t * dx,
+    y: start.y + t * dy,
+  };
+
+  return Math.hypot(point.x - projection.x, point.y - projection.y);
 }
 
 function buildRulerLabel(start, end, chartMeta) {
