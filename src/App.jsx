@@ -549,7 +549,7 @@ async function fetchCandlesWithRetry(symbol, signal) {
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await fetchCandles(symbol, 1000, signal);
+      return await fetchCandles(symbol, undefined, signal);
     } catch (error) {
       lastError = error;
       if (signal.aborted) throw error;

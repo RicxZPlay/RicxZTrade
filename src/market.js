@@ -38,6 +38,7 @@ export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 15;
 export const INTERVAL = "15m";
+export const RENKO_HISTORY_LIMIT = 3000;
 
 function toQuery(params = {}) {
   const query = new URLSearchParams();
@@ -101,18 +102,33 @@ export async function loadTradableUniverse(filters, signal) {
     .slice(0, filters.universeSize);
 }
 
-export async function fetchCandles(symbol, limit = 1000, signal) {
-  const rows = await fetchBinance(
-    "/klines",
-    {
-      symbol,
-      interval: INTERVAL,
-      limit,
-    },
-    signal
-  );
+export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal) {
+  const candles = [];
+  let endTime;
 
-  return rows.map(normalizeCandle);
+  while (candles.length < limit) {
+    const batchLimit = Math.min(1000, limit - candles.length);
+    const rows = await fetchBinance(
+      "/klines",
+      {
+        symbol,
+        interval: INTERVAL,
+        limit: batchLimit,
+        endTime,
+      },
+      signal
+    );
+
+    if (!Array.isArray(rows) || rows.length === 0) break;
+
+    const batch = rows.map(normalizeCandle);
+    candles.unshift(...batch);
+    endTime = batch[0].openTime - 1;
+
+    if (rows.length < batchLimit) break;
+  }
+
+  return candles.slice(-limit);
 }
 
 export async function scanMarket(filters, signal, onProgress) {
@@ -146,7 +162,7 @@ export async function scanMarket(filters, signal, onProgress) {
 }
 
 export async function buildSignal(ticker, signal) {
-  const candles = await fetchCandles(ticker.symbol, 1000, signal);
+  const candles = await fetchCandles(ticker.symbol, RENKO_HISTORY_LIMIT, signal);
   const bricks = buildRenkoBricks(candles);
   const closes = bricks.map((brick) => brick.close);
   const bands = calculateBollingerBands(closes, BB_PERIOD, BB_MULTIPLIER);
@@ -206,7 +222,7 @@ export function mergeLiveCandle(candles, payload) {
     return [...current.slice(0, -1), next];
   }
 
-  return [...current.slice(-999), next];
+  return [...current.slice(-(RENKO_HISTORY_LIMIT - 1)), next];
 }
 
 export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
