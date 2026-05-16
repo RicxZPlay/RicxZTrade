@@ -12,6 +12,8 @@ import {
   formatPrice,
   ALT_FAST_EMA,
   ALT_SLOW_EMA,
+  BTC_RENKO_INTERVALS,
+  DEFAULT_BTC_RENKO_TIMEFRAME,
   getLatestAltChartStats,
   getLatestBollingerStats,
   toChartBollingerBands,
@@ -31,7 +33,7 @@ const CHART_MODES = {
   alt: "alt",
 };
 
-export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc }) {
+export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
   const storageSymbol = symbol || "default";
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
@@ -54,8 +56,12 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
   const isAltChart = mode === CHART_MODES.alt;
+  const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
   const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
-  const chartMeta = useMemo(() => buildChartMeta(chartData, isAltChart ? 3600 : 900), [chartData, isAltChart]);
+  const chartMeta = useMemo(
+    () => buildChartMeta(chartData, isAltChart ? 3600 : btcTimeframeConfig.fallbackSeconds),
+    [btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
+  );
 
   const stats = useMemo(() => {
     return isAltChart ? getLatestAltChartStats(candles) : getLatestBollingerStats(candles);
@@ -302,7 +308,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
       <div className="chart-header">
         <div>
-          <p className="eyebrow">{isAltChart ? "Altcoin 1H" : "Renko 15m"}</p>
+          <p className="eyebrow">{isAltChart ? "Altcoin 1H" : `Renko ${timeframe}`}</p>
           <h2>{symbol || "Selecione uma moeda"}</h2>
         </div>
         <div className="chart-controls">

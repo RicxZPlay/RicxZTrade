@@ -37,8 +37,13 @@ export const BB_PERIOD = 137;
 export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 15;
-export const RENKO_INTERVAL = "15m";
-export const RENKO_HISTORY_LIMIT = 3000;
+export const BTC_RENKO_INTERVALS = {
+  "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
+  "1h": { interval: "1h", historyLimit: 1200, fallbackSeconds: 3600 },
+};
+export const DEFAULT_BTC_RENKO_TIMEFRAME = "1h";
+export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
+export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "1h";
 export const ALT_HISTORY_LIMIT = 600;
 export const ALT_FAST_EMA = 50;
