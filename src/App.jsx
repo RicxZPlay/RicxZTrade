@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
-  Bell,
   Clock3,
   Filter,
   RefreshCcw,
@@ -21,7 +20,6 @@ import {
   DEFAULT_FILTERS,
   fetchCandles,
   formatClock,
-  formatIndicator,
   formatPercent,
   formatPrice,
   mergeLiveCandle,
@@ -87,7 +85,7 @@ export default function App() {
 
       setSelectedSymbol((current) => {
         if (current && signals.some((item) => item.symbol === current)) return current;
-        return signals.find((item) => item.belowEma)?.symbol || signals[0]?.symbol || current || "BTCUSDT";
+        return signals.find((item) => item.belowLowerBand)?.symbol || signals[0]?.symbol || current || "BTCUSDT";
       });
     } catch (scanError) {
       if (controller.signal.aborted) return;
@@ -174,8 +172,8 @@ export default function App() {
   }, [selectedSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
-  const belowResults = useMemo(() => results.filter((item) => item.belowEma), [results]);
-  const aboveResults = useMemo(() => results.filter((item) => item.aboveEma), [results]);
+  const belowResults = useMemo(() => results.filter((item) => item.belowLowerBand), [results]);
+  const aboveResults = useMemo(() => results.filter((item) => item.aboveUpperBand), [results]);
 
   const filteredBelowResults = useMemo(() => {
     const term = query.trim().toUpperCase();
@@ -201,14 +199,14 @@ export default function App() {
   );
 
   const summary = useMemo(() => {
-    const oversold = results.filter((item) => item.rsi < 35).length;
-    const dpoPositive = results.filter((item) => item.dpo120 > 0).length;
+    const totalBricks = results.reduce((sum, item) => sum + (item.renkoBricksCount || 0), 0);
+    const averageBricks = results.length ? Math.round(totalBricks / results.length) : 0;
 
     return {
       below: belowResults.length,
       above: aboveResults.length,
-      oversold,
-      dpoPositive,
+      signals: results.length,
+      averageBricks,
     };
   }, [aboveResults.length, belowResults, results]);
 
@@ -257,10 +255,10 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da EMA" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da EMA" value={summary.above} />
-          <StatCard icon={<Activity size={20} />} label="RSI abaixo de 35" value={summary.oversold} />
-          <StatCard icon={<Bell size={20} />} label="DPO 120 positivo" value={summary.dpoPositive} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da BB inferior" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima da BB superior" value={summary.above} />
+          <StatCard icon={<Activity size={20} />} label="Sinais BB" value={summary.signals} />
+          <StatCard icon={<Clock3 size={20} />} label="Media de bricks" value={summary.averageBricks} />
         </section>
 
         <div className="mobile-controls-slot">{scannerControls}</div>
@@ -274,7 +272,7 @@ export default function App() {
             <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
-                <span>{filteredBelowResults.length} abaixo da EMA</span>
+                <span>{filteredBelowResults.length} abaixo da BB inferior</span>
               </div>
 
               <div className="coin-list">
@@ -292,8 +290,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da EMA apareceu nos filtros atuais."
-                      : "Nenhuma moeda abaixo da EMA passou pelos filtros atuais."}
+                      ? "Nenhuma favorita abaixo da BB inferior apareceu nos filtros atuais."
+                      : "Nenhuma moeda abaixo da BB inferior passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -302,7 +300,7 @@ export default function App() {
             <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
-                <span>{filteredAboveResults.length} acima da EMA</span>
+                <span>{filteredAboveResults.length} acima da BB superior</span>
               </div>
 
               <div className="coin-list secondary-list">
@@ -320,8 +318,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da EMA apareceu nos filtros atuais."
-                      : "Nenhuma moeda acima da EMA passou pelos filtros atuais."}
+                      ? "Nenhuma favorita acima da BB superior apareceu nos filtros atuais."
+                      : "Nenhuma moeda acima da BB superior passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -337,11 +335,11 @@ export default function App() {
 
           <div className="selected-strip">
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
-            <SelectedMetric label="Distancia" value={formatPercent(selected?.distancePercent)} danger />
-            <SelectedMetric label="DPO 120" value={formatIndicator(selected?.dpo120)} danger={selected?.dpo120 < 0} />
-            <SelectedMetric label="RSI 14" value={Number.isFinite(selected?.rsi) ? selected.rsi.toFixed(1) : "-"} />
-            <SelectedMetric label="Ultimo candle" value={formatClock(selected?.lastCandleTime)} />
+            <SelectedMetric label="BB Sup" value={formatPrice(selected?.upperBand)} />
+            <SelectedMetric label="BB Media" value={formatPrice(selected?.middleBand)} />
+            <SelectedMetric label="BB Inf" value={formatPrice(selected?.lowerBand)} />
+            <SelectedMetric label="Distancia BB" value={formatPercent(selected?.bandDistancePercent)} danger={selected?.bandDistancePercent < 0} />
+            <SelectedMetric label="Ultimo brick" value={formatClock(selected?.lastCandleTime)} />
           </div>
 
           {!isCompactLayout || chartOverlayOpen ? (
@@ -479,7 +477,7 @@ function StatCard({ icon, label, value }) {
 }
 
 function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite }) {
-  const isAbove = item.distancePercent >= 0;
+  const isAbove = item.aboveUpperBand;
   const selectCurrent = () => onSelect(item.symbol);
   const selectByKeyboard = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -516,12 +514,12 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
           <Star size={15} fill={favorite ? "currentColor" : "none"} />
         </button>
         <strong>{formatPrice(item.price)}</strong>
-        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.distancePercent)}</span>
+        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.bandDistancePercent)}</span>
       </div>
       <div className="coin-tags">
         <span>{item.trend}</span>
-        <span className={item.dpo120 >= 0 ? "tag-positive" : "tag-negative"}>
-          DPO {formatIndicator(item.dpo120)}
+        <span className={isAbove ? "tag-positive" : "tag-negative"}>
+          BB {formatPrice(item.activeBand)}
         </span>
       </div>
     </div>

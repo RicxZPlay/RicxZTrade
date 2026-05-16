@@ -33,9 +33,11 @@ export const DEFAULT_FILTERS = {
   autoRefresh: true,
 };
 
-export const PERIOD = 450;
-export const DPO_PERIOD = 120;
-export const INTERVAL = "1h";
+export const BB_PERIOD = 137;
+export const BB_MULTIPLIER = 1.001;
+export const BB_OFFSET = -2;
+export const RENKO_BOX_SIZE = 15;
+export const INTERVAL = "15m";
 
 function toQuery(params = {}) {
   const query = new URLSearchParams();
@@ -139,42 +141,46 @@ export async function scanMarket(filters, signal, onProgress) {
 
   return results
     .filter((item) => !item.isFlatMarket)
-    .sort((a, b) => a.distancePercent - b.distancePercent);
+    .filter((item) => item.belowLowerBand || item.aboveUpperBand)
+    .sort((a, b) => a.bandDistancePercent - b.bandDistancePercent);
 }
 
 export async function buildSignal(ticker, signal) {
   const candles = await fetchCandles(ticker.symbol, 1000, signal);
-  const closes = candles.map((candle) => candle.close);
-  const emaSeries = calculateEMA(closes, PERIOD);
-  const ema450 = emaSeries.at(-1);
-  const price = closes.at(-1);
+  const bricks = buildRenkoBricks(candles);
+  const closes = bricks.map((brick) => brick.close);
+  const bands = calculateBollingerBands(closes, BB_PERIOD, BB_MULTIPLIER);
+  const latestBand = bands.at(-1);
+  const latestBrick = bricks.at(-1);
+  const price = latestBrick?.close;
 
-  if (!Number.isFinite(price) || !Number.isFinite(ema450)) {
+  if (!Number.isFinite(price) || !latestBand) {
     return null;
   }
 
-  const distancePercent = ((price - ema450) / ema450) * 100;
-  const rsi = calculateRSI(closes, 14);
-  const dpoSeries = calculateDPO(closes, DPO_PERIOD);
-  const dpo120 = dpoSeries.at(-1);
-  const dpoPercent = Number.isFinite(dpo120) && price > 0 ? (dpo120 / price) * 100 : null;
+  const belowLowerBand = price < latestBand.lower;
+  const aboveUpperBand = price > latestBand.upper;
+  const activeBand = belowLowerBand ? latestBand.lower : aboveUpperBand ? latestBand.upper : latestBand.middle;
+  const bandDistancePercent = activeBand ? ((price - activeBand) / activeBand) * 100 : null;
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getTrendLabel(distancePercent, rsi, dpoPercent);
+  const trend = getBandSignalLabel(price, latestBand);
 
   return {
     ...ticker,
     price,
-    ema450,
-    distancePercent,
-    rsi,
-    dpo120,
-    dpoPercent,
+    actualPrice: ticker.lastPrice,
+    upperBand: latestBand.upper,
+    middleBand: latestBand.middle,
+    lowerBand: latestBand.lower,
+    activeBand,
+    bandDistancePercent,
     trend,
     isFlatMarket,
     candlesLoaded: candles.length,
-    lastCandleTime: candles.at(-1)?.openTime,
-    belowEma: price < ema450,
-    aboveEma: price >= ema450,
+    renkoBricksCount: bricks.length,
+    lastCandleTime: latestBrick?.sourceOpenTime || candles.at(-1)?.openTime,
+    belowLowerBand,
+    aboveUpperBand,
   };
 }
 
@@ -203,53 +209,63 @@ export function mergeLiveCandle(candles, payload) {
   return [...current.slice(-999), next];
 }
 
-export function calculateEMA(values, period = PERIOD) {
-  if (!Array.isArray(values) || values.length < period) return [];
+export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
+  if (!Array.isArray(candles) || candles.length === 0 || boxSize <= 0) return [];
 
-  const multiplier = 2 / (period + 1);
-  const result = Array(values.length).fill(null);
-  let previous = average(values.slice(0, period));
-  result[period - 1] = previous;
+  const bricks = [];
+  let anchorClose = candles[0].close;
+  let lastChartTime = Math.floor(candles[0].openTime / 1000);
 
-  for (let index = period; index < values.length; index += 1) {
-    previous = (values[index] - previous) * multiplier + previous;
-    result[index] = previous;
+  for (const candle of candles.slice(1)) {
+    const close = candle.close;
+    if (!Number.isFinite(close)) continue;
+
+    let diff = close - anchorClose;
+    let bricksInCandle = 0;
+
+    while (Math.abs(diff) >= boxSize) {
+      const direction = diff > 0 ? 1 : -1;
+      const open = anchorClose;
+      const brickClose = anchorClose + direction * boxSize;
+      const sourceTime = Math.floor(candle.openTime / 1000);
+      lastChartTime = Math.max(lastChartTime + 1, sourceTime + bricksInCandle);
+
+      bricks.push({
+        openTime: lastChartTime * 1000,
+        sourceOpenTime: candle.openTime,
+        open,
+        high: Math.max(open, brickClose),
+        low: Math.min(open, brickClose),
+        close: brickClose,
+        direction,
+      });
+
+      anchorClose = brickClose;
+      diff = close - anchorClose;
+      bricksInCandle += 1;
+    }
   }
 
-  return result;
+  return bricks;
 }
 
-export function calculateRSI(values, period = 14) {
-  if (!Array.isArray(values) || values.length <= period) return null;
-
-  let gains = 0;
-  let losses = 0;
-  const start = values.length - period;
-
-  for (let index = start; index < values.length; index += 1) {
-    const change = values[index] - values[index - 1];
-    if (change >= 0) gains += change;
-    else losses += Math.abs(change);
-  }
-
-  if (losses === 0) return 100;
-  const relativeStrength = gains / period / (losses / period);
-  return 100 - 100 / (1 + relativeStrength);
-}
-
-export function calculateDPO(values, period = DPO_PERIOD) {
+export function calculateBollingerBands(values, period = BB_PERIOD, multiplier = BB_MULTIPLIER) {
   if (!Array.isArray(values) || values.length < period) return [];
 
-  const shift = Math.floor(period / 2) + 1;
-  const result = Array(values.length).fill(null);
+  return values.map((value, index) => {
+    if (!Number.isFinite(value) || index < period - 1) return null;
 
-  for (let index = period - 1 + shift; index < values.length; index += 1) {
-    const smaIndex = index - shift;
-    const sma = average(values.slice(smaIndex - period + 1, smaIndex + 1));
-    result[index] = values[index] - sma;
-  }
+    const window = values.slice(index - period + 1, index + 1);
+    const middle = average(window);
+    const variance = average(window.map((item) => (item - middle) ** 2));
+    const deviation = Math.sqrt(variance);
 
-  return result;
+    return {
+      middle,
+      upper: middle + deviation * multiplier,
+      lower: middle - deviation * multiplier,
+    };
+  });
 }
 
 export function toChartCandles(candles) {
@@ -262,33 +278,65 @@ export function toChartCandles(candles) {
   }));
 }
 
-export function toChartEma(candles) {
-  const ema = calculateEMA(
-    candles.map((candle) => candle.close),
-    PERIOD
-  );
-
-  return candles
-    .map((candle, index) => ({
-      time: Math.floor(candle.openTime / 1000),
-      value: ema[index],
-    }))
-    .filter((item) => Number.isFinite(item.value));
+export function toChartRenko(candles) {
+  return buildRenkoBricks(candles).map((brick) => ({
+    time: Math.floor(brick.openTime / 1000),
+    open: brick.open,
+    high: brick.high,
+    low: brick.low,
+    close: brick.close,
+  }));
 }
 
-export function toChartDpo(candles) {
-  const dpo = calculateDPO(
-    candles.map((candle) => candle.close),
-    DPO_PERIOD
+export function toChartBollingerBands(candles) {
+  const bricks = toChartRenko(candles);
+  const bands = calculateBollingerBands(
+    bricks.map((brick) => brick.close),
+    BB_PERIOD,
+    BB_MULTIPLIER
   );
 
-  return candles
-    .map((candle, index) => ({
-      time: Math.floor(candle.openTime / 1000),
-      value: dpo[index],
-      color: dpo[index] >= 0 ? "rgba(31, 191, 117, 0.55)" : "rgba(239, 91, 91, 0.55)",
-    }))
-    .filter((item) => Number.isFinite(item.value));
+  return {
+    upper: toChartBandLine(bricks, bands, "upper"),
+    middle: toChartBandLine(bricks, bands, "middle"),
+    lower: toChartBandLine(bricks, bands, "lower"),
+  };
+}
+
+export function getLatestBollingerStats(candles) {
+  const bricks = toChartRenko(candles);
+  const bands = calculateBollingerBands(
+    bricks.map((brick) => brick.close),
+    BB_PERIOD,
+    BB_MULTIPLIER
+  );
+  const latestBrick = bricks.at(-1);
+  const latestBand = bands.at(-1);
+  const previousBrick = bricks.at(-2);
+
+  if (!latestBrick || !latestBand) {
+    return {
+      price: latestBrick?.close,
+      upperBand: null,
+      middleBand: null,
+      lowerBand: null,
+      distance: null,
+      change: null,
+      bricksCount: bricks.length,
+    };
+  }
+
+  const activeBand = latestBrick.close < latestBand.lower ? latestBand.lower : latestBrick.close > latestBand.upper ? latestBand.upper : latestBand.middle;
+
+  return {
+    price: latestBrick.close,
+    upperBand: latestBand.upper,
+    middleBand: latestBand.middle,
+    lowerBand: latestBand.lower,
+    distance: activeBand ? ((latestBrick.close - activeBand) / activeBand) * 100 : null,
+    change: previousBrick ? ((latestBrick.close - previousBrick.close) / previousBrick.close) * 100 : null,
+    bricksCount: bricks.length,
+  };
 }
 
 export function formatPrice(value) {
@@ -370,14 +418,27 @@ function normalizeCandle(row) {
   };
 }
 
-function getTrendLabel(distancePercent, rsi, dpoPercent) {
-  if (distancePercent <= -8 && rsi < 35) return "queda esticada";
-  if (distancePercent >= 4 && dpoPercent > 0) return "acima com DPO positivo";
-  if (distancePercent <= -4 && dpoPercent < 0) return "abaixo com DPO negativo";
-  if (distancePercent > -2 && rsi >= 40) return "perto da EMA";
-  if (rsi < 35) return "sobrevenda";
-  if (distancePercent >= 0) return "acima da media";
-  return "abaixo da media";
+function toChartBandLine(bricks, bands, key) {
+  return bands
+    .map((band, index) => {
+      if (!band || !Number.isFinite(band[key])) return null;
+
+      const targetIndex = index + BB_OFFSET;
+      const targetBrick = bricks[targetIndex];
+      if (!targetBrick) return null;
+
+      return {
+        time: targetBrick.time,
+        value: band[key],
+      };
+    })
+    .filter(Boolean);
+}
+
+function getBandSignalLabel(price, band) {
+  if (price < band.lower) return "abaixo da BB inferior";
+  if (price > band.upper) return "acima da BB superior";
+  return "dentro das bandas";
 }
 
 function average(values) {

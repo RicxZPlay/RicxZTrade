@@ -3,11 +3,17 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
-  HistogramSeries,
   LineSeries,
 } from "lightweight-charts";
 import { MousePointer2, Ruler, Slash, Trash2 } from "lucide-react";
-import { formatIndicator, formatPercent, formatPrice, toChartCandles, toChartDpo, toChartEma } from "./market";
+import {
+  formatIndicator,
+  formatPercent,
+  formatPrice,
+  getLatestBollingerStats,
+  toChartBollingerBands,
+  toChartRenko,
+} from "./market";
 
 const TOOLS = {
   cursor: "cursor",
@@ -22,8 +28,9 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
-  const emaSeriesRef = useRef(null);
-  const dpoSeriesRef = useRef(null);
+  const upperBandSeriesRef = useRef(null);
+  const middleBandSeriesRef = useRef(null);
+  const lowerBandSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -37,23 +44,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
-  const chartMeta = useMemo(() => buildChartMeta(candles), [candles]);
+  const chartData = useMemo(() => toChartRenko(candles), [candles]);
+  const chartMeta = useMemo(() => buildChartMeta(chartData), [chartData]);
 
   const stats = useMemo(() => {
-    const last = candles.at(-1);
-    const previous = candles.at(-2);
-    const ema = toChartEma(candles).at(-1)?.value;
-    const dpo = toChartDpo(candles).at(-1)?.value;
-    const distance = last && ema ? ((last.close - ema) / ema) * 100 : null;
-    const change = last && previous ? ((last.close - previous.close) / previous.close) * 100 : null;
-
-    return {
-      price: last?.close,
-      ema,
-      dpo,
-      distance,
-      change,
-    };
+    return getLatestBollingerStats(candles);
   }, [candles]);
 
   useEffect(() => {
@@ -99,39 +94,35 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       },
     });
 
-    const emaSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.ema,
+    const upperBandSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.upperBand,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: "EMA 450",
+      title: "BB Superior",
     });
 
-    const dpoPane = chart.addPane();
-    const dpoSeries = chart.addSeries(HistogramSeries, {
-      color: "rgba(98, 217, 146, 0.45)",
-      priceFormat: {
-        type: "price",
-        precision: 6,
-        minMove: 0.000001,
-      },
-      title: "DPO 120",
-    }, dpoPane.paneIndex());
-
-    dpoSeries.priceScale().applyOptions({
-      scaleMargins: {
-        top: 0.12,
-        bottom: 0.12,
-      },
+    const middleBandSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.middleBand,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      title: "BB Media",
     });
 
-    chart.panes()[0]?.setStretchFactor(5);
-    dpoPane.setStretchFactor(1);
+    const lowerBandSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.lowerBand,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: "BB Inferior",
+    });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
-    emaSeriesRef.current = emaSeries;
-    dpoSeriesRef.current = dpoSeries;
+    upperBandSeriesRef.current = upperBandSeries;
+    middleBandSeriesRef.current = middleBandSeries;
+    lowerBandSeriesRef.current = lowerBandSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -173,8 +164,9 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
-      emaSeriesRef.current = null;
-      dpoSeriesRef.current = null;
+      upperBandSeriesRef.current = null;
+      middleBandSeriesRef.current = null;
+      lowerBandSeriesRef.current = null;
     };
   }, [chartPalette]);
 
@@ -193,20 +185,19 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   useEffect(() => {
     if (!candleSeriesRef.current || candles.length === 0) return;
 
-    const chartCandles = toChartCandles(candles);
-    const emaData = toChartEma(candles);
-    const dpoData = toChartDpo(candles);
+    const bands = toChartBollingerBands(candles);
 
-    candleSeriesRef.current.setData(chartCandles);
-    emaSeriesRef.current.setData(emaData);
-    dpoSeriesRef.current.setData(dpoData);
+    candleSeriesRef.current.setData(chartData);
+    upperBandSeriesRef.current.setData(bands.upper);
+    middleBandSeriesRef.current.setData(bands.middle);
+    lowerBandSeriesRef.current.setData(bands.lower);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
-      showRecentCandles(chartRef.current, 220, chartCandles.length);
+      showRecentCandles(chartRef.current, 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [candles, symbol]);
+  }, [candles, chartData, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -295,7 +286,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
       <div className="chart-header">
         <div>
-          <p className="eyebrow">Grafico 1h</p>
+          <p className="eyebrow">Renko 15m</p>
           <h2>{symbol || "Selecione uma moeda"}</h2>
         </div>
         <div className="chart-controls">
@@ -348,10 +339,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
 
       <div className="chart-metrics">
         <Metric label="Preco" value={formatPrice(stats.price)} />
-        <Metric label="EMA 450" value={formatPrice(stats.ema)} />
+        <Metric label="BB Sup" value={formatPrice(stats.upperBand)} />
+        <Metric label="BB Media" value={formatPrice(stats.middleBand)} />
+        <Metric label="BB Inf" value={formatPrice(stats.lowerBand)} />
         <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
-        <Metric label="DPO 120" value={formatIndicator(stats.dpo)} intent={stats.dpo < 0 ? "danger" : "success"} />
-        <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
+        <Metric label="Brick atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
       </div>
 
       <div className="chart-area">
@@ -540,20 +532,20 @@ function getDistanceToSegment(point, start, end) {
 function buildRulerLabel(start, end, chartMeta) {
   const priceChange = end.price - start.price;
   const percent = start.price ? (priceChange / start.price) * 100 : 0;
-  const hours = Math.round(pointToLogical(end, chartMeta) - pointToLogical(start, chartMeta));
+  const bars = Math.round(pointToLogical(end, chartMeta) - pointToLogical(start, chartMeta));
   const direction = priceChange >= 0 ? "+" : "";
 
-  return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${hours}h`;
+  return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${bars} bricks`;
 }
 
-function buildChartMeta(candles) {
-  const first = candles?.[0];
-  const second = candles?.[1];
-  if (!first?.openTime) return null;
+function buildChartMeta(data) {
+  const first = data?.[0];
+  const second = data?.[1];
+  if (!first?.time) return null;
 
-  const firstTime = Math.floor(first.openTime / 1000);
-  const secondTime = second?.openTime ? Math.floor(second.openTime / 1000) : null;
-  const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : 3600;
+  const firstTime = first.time;
+  const secondTime = second?.time || null;
+  const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : 900;
 
   return { firstTime, intervalSeconds };
 }
@@ -598,7 +590,9 @@ function getChartPalette(theme) {
       text: "#617086",
       grid: "rgba(24, 35, 54, 0.08)",
       border: "rgba(24, 35, 54, 0.14)",
-      ema: "#c28a18",
+      upperBand: "#d8902d",
+      middleBand: "rgba(81, 103, 135, 0.62)",
+      lowerBand: "#268f6c",
     };
   }
 
@@ -607,7 +601,9 @@ function getChartPalette(theme) {
     text: "#a8b3c7",
     grid: "rgba(255, 255, 255, 0.055)",
     border: "rgba(255, 255, 255, 0.12)",
-    ema: "#f6c85f",
+    upperBand: "#f6c85f",
+    middleBand: "rgba(168, 179, 199, 0.52)",
+    lowerBand: "#62d992",
   };
 }
 
