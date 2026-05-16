@@ -226,6 +226,7 @@ export function mergeLiveCandle(candles, payload, limit = RENKO_HISTORY_LIMIT) {
     kline.q,
     kline.n,
   ]);
+  next.closed = Boolean(kline.x);
 
   const current = candles || [];
   const last = current.at(-1);
@@ -321,6 +322,7 @@ export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
       bricks.push({
         openTime: lastChartTime * 1000,
         sourceOpenTime: candle.openTime,
+        projected: candle.closed === false,
         open,
         high: Math.max(open, brickClose),
         low: Math.min(open, brickClose),
@@ -387,6 +389,7 @@ export function toChartRenko(candles) {
     high: brick.high,
     low: brick.low,
     close: brick.close,
+    ...(brick.projected ? getProjectedRenkoColors(brick.direction) : {}),
   }));
 }
 
@@ -540,6 +543,23 @@ function normalizeCandle(row) {
     closeTime: Number(row[6]),
     quoteVolume: Number(row[7]),
     trades: Number(row[8]),
+    closed: true,
+  };
+}
+
+function getProjectedRenkoColors(direction) {
+  if (direction > 0) {
+    return {
+      color: "rgba(111, 216, 164, 0.36)",
+      borderColor: "rgba(111, 216, 164, 0.72)",
+      wickColor: "rgba(111, 216, 164, 0.52)",
+    };
+  }
+
+  return {
+    color: "rgba(255, 132, 132, 0.34)",
+    borderColor: "rgba(255, 132, 132, 0.72)",
+    wickColor: "rgba(255, 132, 132, 0.52)",
   };
 }
 
