@@ -17,9 +17,9 @@ import {
 import CryptoChart from "./CryptoChart";
 import {
   buildSocketUrl,
-  ALT_HISTORY_LIMIT,
-  ALT_INTERVAL,
+  ALT_CHART_INTERVALS,
   BTC_RENKO_INTERVALS,
+  DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
   DEFAULT_FILTERS,
   fetchCandles,
@@ -48,6 +48,7 @@ export default function App() {
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
   const [btcTimeframe, setBtcTimeframe] = useState(DEFAULT_BTC_RENKO_TIMEFRAME);
+  const [altTimeframe, setAltTimeframe] = useState(DEFAULT_ALT_CHART_TIMEFRAME);
   const [chartCandles, setChartCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -73,6 +74,18 @@ export default function App() {
       setChartOverlayOpen(true);
     }
   }, [isCompactLayout]);
+
+  const showAltChart = useCallback((timeframe = altTimeframe) => {
+    if (!selectedSymbol) return;
+    setAltTimeframe(timeframe);
+    setChartMode(CHART_MODES.alt);
+    setChartSymbol(selectedSymbol);
+    setChartError("");
+    setLiveStatus("loading");
+    if (isCompactLayout) {
+      setChartOverlayOpen(true);
+    }
+  }, [altTimeframe, isCompactLayout, selectedSymbol]);
 
   const showBtcChart = useCallback((timeframe = btcTimeframe) => {
     setBtcTimeframe(timeframe);
@@ -146,9 +159,10 @@ export default function App() {
     const requestId = chartRequestRef.current + 1;
     chartRequestRef.current = requestId;
     const btcTimeframeConfig = BTC_RENKO_INTERVALS[btcTimeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
+    const altTimeframeConfig = ALT_CHART_INTERVALS[altTimeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
     const targetSymbol = chartMode === CHART_MODES.btc ? BTC_CHART_SYMBOL : chartSymbol;
-    const targetInterval = chartMode === CHART_MODES.btc ? btcTimeframeConfig.interval : ALT_INTERVAL;
-    const targetLimit = chartMode === CHART_MODES.btc ? btcTimeframeConfig.historyLimit : ALT_HISTORY_LIMIT;
+    const targetInterval = chartMode === CHART_MODES.btc ? btcTimeframeConfig.interval : altTimeframeConfig.interval;
+    const targetLimit = chartMode === CHART_MODES.btc ? btcTimeframeConfig.historyLimit : altTimeframeConfig.historyLimit;
 
     queueMicrotask(() => {
       if (!controller.signal.aborted) {
@@ -196,7 +210,7 @@ export default function App() {
       controller.abort();
       socket?.close();
     };
-  }, [btcTimeframe, chartMode, chartSymbol]);
+  }, [altTimeframe, btcTimeframe, chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
@@ -328,7 +342,23 @@ export default function App() {
               <div className="table-title">
                 <TrendingUp size={18} />
                 <span>{filteredAboveResults.length} em alta 1H</span>
-                <div className="btc-chart-actions" aria-label="Timeframe do grafico BTC">
+                <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
+                  <button
+                    className={chartMode === CHART_MODES.alt && altTimeframe === "1h" ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => showAltChart("1h")}
+                    disabled={!selectedSymbol}
+                  >
+                    Alt 1H
+                  </button>
+                  <button
+                    className={chartMode === CHART_MODES.alt && altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => showAltChart("4h")}
+                    disabled={!selectedSymbol}
+                  >
+                    Alt 4H
+                  </button>
                   <button
                     className={chartMode === CHART_MODES.btc && btcTimeframe === "15m" ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
@@ -394,7 +424,7 @@ export default function App() {
               error={chartError}
               theme={theme}
               mode={chartMode}
-              timeframe={chartMode === CHART_MODES.btc ? btcTimeframe : ALT_INTERVAL}
+              timeframe={chartMode === CHART_MODES.btc ? btcTimeframe : altTimeframe}
             />
           ) : null}
         </section>

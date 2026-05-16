@@ -12,7 +12,9 @@ import {
   formatPrice,
   ALT_FAST_EMA,
   ALT_SLOW_EMA,
+  ALT_CHART_INTERVALS,
   BTC_RENKO_INTERVALS,
+  DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
   getLatestAltChartStats,
   getLatestBollingerStats,
@@ -34,7 +36,7 @@ const CHART_MODES = {
 };
 
 export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
-  const storageSymbol = symbol || "default";
+  const storageSymbol = `${symbol || "default"}:${mode}:${timeframe}`;
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
@@ -57,10 +59,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
   const isAltChart = mode === CHART_MODES.alt;
   const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
+  const altTimeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
   const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
   const chartMeta = useMemo(
-    () => buildChartMeta(chartData, isAltChart ? 3600 : btcTimeframeConfig.fallbackSeconds),
-    [btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
+    () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds),
+    [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
   );
 
   const stats = useMemo(() => {
@@ -308,7 +311,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
       <div className="chart-header">
         <div>
-          <p className="eyebrow">{isAltChart ? "Altcoin 1H" : `Renko ${timeframe}`}</p>
+          <p className="eyebrow">{isAltChart ? `Altcoin ${timeframe.toUpperCase()}` : `Renko ${timeframe}`}</p>
           <h2>{symbol || "Selecione uma moeda"}</h2>
         </div>
         <div className="chart-controls">
