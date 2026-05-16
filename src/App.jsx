@@ -325,6 +325,9 @@ export default function App() {
               <div className="table-title">
                 <TrendingUp size={18} />
                 <span>{filteredAboveResults.length} em alta 1H</span>
+                <button className="btc-chart-button" type="button" onClick={showBtcChart}>
+                  Grafico BTC
+                </button>
               </div>
 
               <div className="coin-list secondary-list">
@@ -358,9 +361,6 @@ export default function App() {
           </button>
 
           <div className="selected-strip">
-            <button className="btc-chart-button" type="button" onClick={showBtcChart}>
-              Grafico BTC
-            </button>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="EMA 50" value={formatPrice(selected?.ema50)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
