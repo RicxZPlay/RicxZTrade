@@ -30,6 +30,7 @@ import "./App.css";
 const REFRESH_INTERVAL_MS = 240_000;
 const FAVORITES_STORAGE_KEY = "ricxz.cryptoFavorites";
 const THEME_STORAGE_KEY = "ricxz.theme";
+const BTC_CHART_SYMBOL = "BTCUSDT";
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -54,8 +55,6 @@ export default function App() {
 
   const selectSymbol = useCallback((symbol) => {
     setSelectedSymbol(symbol);
-    setChartError("");
-    setLiveStatus("loading");
     if (isCompactLayout) {
       setChartOverlayOpen(true);
     }
@@ -85,7 +84,7 @@ export default function App() {
 
       setSelectedSymbol((current) => {
         if (current && signals.some((item) => item.symbol === current)) return current;
-        return signals.find((item) => item.belowLowerBand)?.symbol || signals[0]?.symbol || current || "BTCUSDT";
+        return signals[0]?.symbol || current || "";
       });
     } catch (scanError) {
       if (controller.signal.aborted) return;
@@ -115,8 +114,6 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (!selectedSymbol) return undefined;
-
     const controller = new AbortController();
     let socket;
     const requestId = chartRequestRef.current + 1;
@@ -129,14 +126,14 @@ export default function App() {
       }
     });
 
-    fetchCandlesWithRetry(selectedSymbol, controller.signal)
+    fetchCandlesWithRetry(BTC_CHART_SYMBOL, controller.signal)
       .then((nextCandles) => {
         if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
-        setChartSymbol(selectedSymbol);
+        setChartSymbol(BTC_CHART_SYMBOL);
         setChartCandles(nextCandles);
         setChartError("");
 
-        socket = new WebSocket(buildSocketUrl(selectedSymbol));
+        socket = new WebSocket(buildSocketUrl(BTC_CHART_SYMBOL));
         socket.onopen = () => {
           if (!controller.signal.aborted && chartRequestRef.current === requestId) {
             setLiveStatus("online");
@@ -145,7 +142,7 @@ export default function App() {
         socket.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== selectedSymbol) return;
+            if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== BTC_CHART_SYMBOL) return;
             setChartCandles((current) => mergeLiveCandle(current, payload));
           } catch {
             if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
@@ -169,11 +166,11 @@ export default function App() {
       controller.abort();
       socket?.close();
     };
-  }, [selectedSymbol]);
+  }, []);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
-  const belowResults = useMemo(() => results.filter((item) => item.belowLowerBand), [results]);
-  const aboveResults = useMemo(() => results.filter((item) => item.aboveUpperBand), [results]);
+  const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
+  const aboveResults = useMemo(() => results.filter((item) => item.trendDirection === "bullish"), [results]);
 
   const filteredBelowResults = useMemo(() => {
     const term = query.trim().toUpperCase();
@@ -199,14 +196,14 @@ export default function App() {
   );
 
   const summary = useMemo(() => {
-    const totalBricks = results.reduce((sum, item) => sum + (item.renkoBricksCount || 0), 0);
-    const averageBricks = results.length ? Math.round(totalBricks / results.length) : 0;
+    const strongTrend = results.filter((item) => item.adx >= 25).length;
+    const strongerThanBtc = results.filter((item) => item.relativeToBtcPercent > 0).length;
 
     return {
       below: belowResults.length,
       above: aboveResults.length,
-      signals: results.length,
-      averageBricks,
+      strongTrend,
+      strongerThanBtc,
     };
   }, [aboveResults.length, belowResults, results]);
 
@@ -255,10 +252,10 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da BB inferior" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da BB superior" value={summary.above} />
-          <StatCard icon={<Activity size={20} />} label="Sinais BB" value={summary.signals} />
-          <StatCard icon={<Clock3 size={20} />} label="Media de bricks" value={summary.averageBricks} />
+          <StatCard icon={<TrendingDown size={20} />} label="Baixa 1H" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Alta 1H" value={summary.above} />
+          <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
+          <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
 
         <div className="mobile-controls-slot">{scannerControls}</div>
@@ -272,7 +269,7 @@ export default function App() {
             <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
-                <span>{filteredBelowResults.length} abaixo da BB inferior</span>
+                <span>{filteredBelowResults.length} em baixa 1H</span>
               </div>
 
               <div className="coin-list">
@@ -290,8 +287,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da BB inferior apareceu nos filtros atuais."
-                      : "Nenhuma moeda abaixo da BB inferior passou pelos filtros atuais."}
+                      ? "Nenhuma favorita em baixa 1H apareceu nos filtros atuais."
+                      : "Nenhuma altcoin em baixa 1H passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -300,7 +297,7 @@ export default function App() {
             <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
-                <span>{filteredAboveResults.length} acima da BB superior</span>
+                <span>{filteredAboveResults.length} em alta 1H</span>
               </div>
 
               <div className="coin-list secondary-list">
@@ -318,8 +315,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da BB superior apareceu nos filtros atuais."
-                      : "Nenhuma moeda acima da BB superior passou pelos filtros atuais."}
+                      ? "Nenhuma favorita em alta 1H apareceu nos filtros atuais."
+                      : "Nenhuma altcoin em alta 1H passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -335,17 +332,17 @@ export default function App() {
 
           <div className="selected-strip">
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="BB Sup" value={formatPrice(selected?.upperBand)} />
-            <SelectedMetric label="BB Media" value={formatPrice(selected?.middleBand)} />
-            <SelectedMetric label="BB Inf" value={formatPrice(selected?.lowerBand)} />
-            <SelectedMetric label="Distancia BB" value={formatPercent(selected?.bandDistancePercent)} danger={selected?.bandDistancePercent < 0} />
-            <SelectedMetric label="Ultimo brick" value={formatClock(selected?.lastCandleTime)} />
+            <SelectedMetric label="EMA 50" value={formatPrice(selected?.ema50)} />
+            <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
+            <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
+            <SelectedMetric label="Vol rel" value={formatRatio(selected?.volumeRelative)} />
+            <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
 
           {!isCompactLayout || chartOverlayOpen ? (
             <CryptoChart
               key={chartSymbol || "empty-chart"}
-              symbol={chartSymbol || selectedSymbol}
+              symbol={chartSymbol || BTC_CHART_SYMBOL}
               candles={chartCandles}
               liveStatus={liveStatus}
               error={chartError}
@@ -477,7 +474,7 @@ function StatCard({ icon, label, value }) {
 }
 
 function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite }) {
-  const isAbove = item.aboveUpperBand;
+  const isAbove = item.trendDirection === "bullish";
   const selectCurrent = () => onSelect(item.symbol);
   const selectByKeyboard = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -514,13 +511,12 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
           <Star size={15} fill={favorite ? "currentColor" : "none"} />
         </button>
         <strong>{formatPrice(item.price)}</strong>
-        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.bandDistancePercent)}</span>
+        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.emaSpreadPercent)}</span>
       </div>
       <div className="coin-tags">
         <span>{item.trend}</span>
-        <span className={isAbove ? "tag-positive" : "tag-negative"}>
-          BB {formatPrice(item.activeBand)}
-        </span>
+        <span className={item.relativeToBtcPercent >= 0 ? "tag-positive" : "tag-negative"}>{item.relativeLabel}</span>
+        <span>ADX {formatNumber(item.adx)}</span>
       </div>
     </div>
   );
@@ -542,6 +538,16 @@ function SelectedMetric({ label, value, danger }) {
       <strong className={danger ? "danger" : ""}>{value || "-"}</strong>
     </div>
   );
+}
+
+function formatNumber(value, digits = 1) {
+  if (!Number.isFinite(value)) return "-";
+  return value.toFixed(digits);
+}
+
+function formatRatio(value) {
+  if (!Number.isFinite(value)) return "-";
+  return `${value.toFixed(2)}x`;
 }
 
 async function fetchCandlesWithRetry(symbol, signal) {

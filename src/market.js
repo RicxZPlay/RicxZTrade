@@ -37,8 +37,14 @@ export const BB_PERIOD = 137;
 export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 15;
-export const INTERVAL = "15m";
+export const RENKO_INTERVAL = "15m";
 export const RENKO_HISTORY_LIMIT = 3000;
+export const ALT_INTERVAL = "1h";
+export const ALT_HISTORY_LIMIT = 600;
+export const ALT_FAST_EMA = 50;
+export const ALT_SLOW_EMA = 450;
+export const ADX_PERIOD = 14;
+export const RELATIVE_LOOKBACK = 24;
 
 function toQuery(params = {}) {
   const query = new URLSearchParams();
@@ -102,7 +108,7 @@ export async function loadTradableUniverse(filters, signal) {
     .slice(0, filters.universeSize);
 }
 
-export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal) {
+export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {
   const candles = [];
   let endTime;
 
@@ -112,7 +118,7 @@ export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal) 
       "/klines",
       {
         symbol,
-        interval: INTERVAL,
+        interval,
         limit: batchLimit,
         endTime,
       },
@@ -132,7 +138,9 @@ export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal) 
 }
 
 export async function scanMarket(filters, signal, onProgress) {
-  const universe = await loadTradableUniverse(filters, signal);
+  const universe = (await loadTradableUniverse(filters, signal)).filter((ticker) => ticker.symbol !== "BTCUSDT");
+  const btcCandles = await fetchCandles("BTCUSDT", ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
+  const btcCloses = btcCandles.map((candle) => candle.close);
   const results = [];
   const batchSize = 6;
 
@@ -141,7 +149,7 @@ export async function scanMarket(filters, signal, onProgress) {
     const analyzed = await Promise.all(
       batch.map(async (ticker) => {
         try {
-          return await buildSignal(ticker, signal);
+          return await buildSignal(ticker, btcCloses, signal);
         } catch {
           return null;
         }
@@ -157,46 +165,49 @@ export async function scanMarket(filters, signal, onProgress) {
 
   return results
     .filter((item) => !item.isFlatMarket)
-    .filter((item) => item.belowLowerBand || item.aboveUpperBand)
-    .sort((a, b) => a.bandDistancePercent - b.bandDistancePercent);
+    .filter((item) => item.trendDirection !== "neutral")
+    .sort(sortAltSignals);
 }
 
-export async function buildSignal(ticker, signal) {
-  const candles = await fetchCandles(ticker.symbol, RENKO_HISTORY_LIMIT, signal);
-  const bricks = buildRenkoBricks(candles);
-  const closes = bricks.map((brick) => brick.close);
-  const bands = calculateBollingerBands(closes, BB_PERIOD, BB_MULTIPLIER);
-  const latestBand = bands.at(-1);
-  const latestBrick = bricks.at(-1);
-  const price = latestBrick?.close;
+export async function buildSignal(ticker, btcCloses, signal) {
+  const candles = await fetchCandles(ticker.symbol, ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
+  const closes = candles.map((candle) => candle.close);
+  const ema50Series = calculateEMA(closes, ALT_FAST_EMA);
+  const ema450Series = calculateEMA(closes, ALT_SLOW_EMA);
+  const adxSeries = calculateADX(candles, ADX_PERIOD);
+  const price = closes.at(-1);
+  const ema50 = ema50Series.at(-1);
+  const ema450 = ema450Series.at(-1);
+  const adx = adxSeries.at(-1);
 
-  if (!Number.isFinite(price) || !latestBand) {
+  if (!Number.isFinite(price) || !Number.isFinite(ema50) || !Number.isFinite(ema450)) {
     return null;
   }
 
-  const belowLowerBand = price < latestBand.lower;
-  const aboveUpperBand = price > latestBand.upper;
-  const activeBand = belowLowerBand ? latestBand.lower : aboveUpperBand ? latestBand.upper : latestBand.middle;
-  const bandDistancePercent = activeBand ? ((price - activeBand) / activeBand) * 100 : null;
+  const trendDirection = getTrendDirection(price, ema50, ema450);
+  const emaSpreadPercent = ((ema50 - ema450) / ema450) * 100;
+  const priceDistancePercent = ((price - ema450) / ema450) * 100;
+  const volumeRelative = calculateVolumeRelative(candles);
+  const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getBandSignalLabel(price, latestBand);
+  const trend = getAltTrendLabel(trendDirection, adx);
 
   return {
     ...ticker,
     price,
-    actualPrice: ticker.lastPrice,
-    upperBand: latestBand.upper,
-    middleBand: latestBand.middle,
-    lowerBand: latestBand.lower,
-    activeBand,
-    bandDistancePercent,
+    ema50,
+    ema450,
+    emaSpreadPercent,
+    priceDistancePercent,
+    adx,
+    volumeRelative,
+    relativeToBtcPercent,
+    relativeLabel: relativeToBtcPercent >= 0 ? "mais forte que BTC" : "mais fraca que BTC",
+    trendDirection,
     trend,
     isFlatMarket,
     candlesLoaded: candles.length,
-    renkoBricksCount: bricks.length,
-    lastCandleTime: latestBrick?.sourceOpenTime || candles.at(-1)?.openTime,
-    belowLowerBand,
-    aboveUpperBand,
+    lastCandleTime: candles.at(-1)?.openTime,
   };
 }
 
@@ -223,6 +234,67 @@ export function mergeLiveCandle(candles, payload) {
   }
 
   return [...current.slice(-(RENKO_HISTORY_LIMIT - 1)), next];
+}
+
+export function calculateEMA(values, period) {
+  if (!Array.isArray(values) || values.length < period) return [];
+
+  const multiplier = 2 / (period + 1);
+  const result = Array(values.length).fill(null);
+  let previous = average(values.slice(0, period));
+  result[period - 1] = previous;
+
+  for (let index = period; index < values.length; index += 1) {
+    previous = (values[index] - previous) * multiplier + previous;
+    result[index] = previous;
+  }
+
+  return result;
+}
+
+export function calculateADX(candles, period = ADX_PERIOD) {
+  if (!Array.isArray(candles) || candles.length <= period * 2) return [];
+
+  const trueRanges = [];
+  const plusDm = [];
+  const minusDm = [];
+
+  for (let index = 1; index < candles.length; index += 1) {
+    const current = candles[index];
+    const previous = candles[index - 1];
+    const upMove = current.high - previous.high;
+    const downMove = previous.low - current.low;
+
+    trueRanges.push(Math.max(
+      current.high - current.low,
+      Math.abs(current.high - previous.close),
+      Math.abs(current.low - previous.close)
+    ));
+    plusDm.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDm.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+
+  const result = Array(candles.length).fill(null);
+  const dxValues = [];
+
+  for (let index = period - 1; index < trueRanges.length; index += 1) {
+    const tr = average(trueRanges.slice(index - period + 1, index + 1));
+    if (!tr) {
+      dxValues.push(null);
+      continue;
+    }
+
+    const plusDi = 100 * (average(plusDm.slice(index - period + 1, index + 1)) / tr);
+    const minusDi = 100 * (average(minusDm.slice(index - period + 1, index + 1)) / tr);
+    const dx = plusDi + minusDi ? (Math.abs(plusDi - minusDi) / (plusDi + minusDi)) * 100 : 0;
+    dxValues.push(dx);
+
+    if (dxValues.length >= period) {
+      result[index + 1] = average(dxValues.slice(-period).filter(Number.isFinite));
+    }
+  }
+
+  return result;
 }
 
 export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
@@ -397,8 +469,8 @@ export function formatClock(value) {
   }).format(new Date(value));
 }
 
-export function buildSocketUrl(symbol) {
-  return `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${INTERVAL}`;
+export function buildSocketUrl(symbol, interval = RENKO_INTERVAL) {
+  return `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_${interval}`;
 }
 
 function normalizeTicker(item) {
@@ -451,10 +523,46 @@ function toChartBandLine(bricks, bands, key) {
     .filter(Boolean);
 }
 
-function getBandSignalLabel(price, band) {
-  if (price < band.lower) return "abaixo da BB inferior";
-  if (price > band.upper) return "acima da BB superior";
-  return "dentro das bandas";
+function getTrendDirection(price, ema50, ema450) {
+  if (price > ema50 && ema50 > ema450) return "bullish";
+  if (price < ema50 && ema50 < ema450) return "bearish";
+  return "neutral";
+}
+
+function getAltTrendLabel(direction, adx) {
+  if (direction === "neutral") return "lateral";
+  const strength = adx >= 25 ? "forte" : "fraca";
+  return direction === "bullish" ? `alta ${strength}` : `baixa ${strength}`;
+}
+
+function calculateVolumeRelative(candles, period = 20) {
+  if (!Array.isArray(candles) || candles.length <= period) return null;
+
+  const last = candles.at(-1)?.quoteVolume;
+  const previous = candles.slice(-(period + 1), -1).map((candle) => candle.quoteVolume);
+  const baseline = average(previous);
+  return Number.isFinite(last) && baseline > 0 ? last / baseline : null;
+}
+
+function calculateRelativePerformance(closes, btcCloses, lookback) {
+  if (!Array.isArray(closes) || !Array.isArray(btcCloses) || closes.length <= lookback || btcCloses.length <= lookback) return null;
+
+  const altNow = closes.at(-1);
+  const altPast = closes.at(-1 - lookback);
+  const btcNow = btcCloses.at(-1);
+  const btcPast = btcCloses.at(-1 - lookback);
+
+  if (!altPast || !btcPast) return null;
+
+  const altChange = (altNow - altPast) / altPast;
+  const btcChange = (btcNow - btcPast) / btcPast;
+  return (altChange - btcChange) * 100;
+}
+
+function sortAltSignals(a, b) {
+  if (a.trendDirection !== b.trendDirection) return a.trendDirection === "bearish" ? -1 : 1;
+  if (a.trendDirection === "bullish") return b.emaSpreadPercent - a.emaSpreadPercent;
+  return a.emaSpreadPercent - b.emaSpreadPercent;
 }
 
 function average(values) {
