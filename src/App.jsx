@@ -475,6 +475,12 @@ function ScannerControls({
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar BTC, ETH, SOL..." />
       </div>
 
+      {progress.total ? (
+        <div className="filter-note">
+          Universo ativo: {progress.total}/{filters.universeSize} moedas apos volume e spread
+        </div>
+      ) : null}
+
       {scanState === "loading" ? (
         <div className="progress-card">
           <div>

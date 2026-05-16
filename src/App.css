@@ -294,10 +294,20 @@ input:focus,
 }
 
 .progress-card,
-.error-card {
+.error-card,
+.filter-note {
   margin: 0 14px 10px;
   border-radius: 8px;
   padding: 10px;
+}
+
+.filter-note {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.25;
 }
 
 .progress-card {
