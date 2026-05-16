@@ -211,7 +211,7 @@ export async function buildSignal(ticker, btcCloses, signal) {
   };
 }
 
-export function mergeLiveCandle(candles, payload) {
+export function mergeLiveCandle(candles, payload, limit = RENKO_HISTORY_LIMIT) {
   const kline = payload?.k;
   if (!kline) return candles;
 
@@ -233,7 +233,7 @@ export function mergeLiveCandle(candles, payload) {
     return [...current.slice(0, -1), next];
   }
 
-  return [...current.slice(-(RENKO_HISTORY_LIMIT - 1)), next];
+  return [...current.slice(-(limit - 1)), next];
 }
 
 export function calculateEMA(values, period) {
@@ -366,6 +366,20 @@ export function toChartCandles(candles) {
   }));
 }
 
+export function toChartEma(candles, period) {
+  const ema = calculateEMA(
+    candles.map((candle) => candle.close),
+    period
+  );
+
+  return candles
+    .map((candle, index) => ({
+      time: Math.floor(candle.openTime / 1000),
+      value: ema[index],
+    }))
+    .filter((item) => Number.isFinite(item.value));
+}
+
 export function toChartRenko(candles) {
   return buildRenkoBricks(candles).map((brick) => ({
     time: Math.floor(brick.openTime / 1000),
@@ -424,6 +438,29 @@ export function getLatestBollingerStats(candles) {
     distance: activeBand ? ((latestBrick.close - activeBand) / activeBand) * 100 : null,
     change: previousBrick ? ((latestBrick.close - previousBrick.close) / previousBrick.close) * 100 : null,
     bricksCount: bricks.length,
+  };
+}
+
+export function getLatestAltChartStats(candles) {
+  const last = candles.at(-1);
+  const previous = candles.at(-2);
+  const ema50 = calculateEMA(
+    candles.map((candle) => candle.close),
+    ALT_FAST_EMA
+  ).at(-1);
+  const ema450 = calculateEMA(
+    candles.map((candle) => candle.close),
+    ALT_SLOW_EMA
+  ).at(-1);
+  const distance = last && ema450 ? ((last.close - ema450) / ema450) * 100 : null;
+  const change = last && previous ? ((last.close - previous.close) / previous.close) * 100 : null;
+
+  return {
+    price: last?.close,
+    ema50,
+    ema450,
+    distance,
+    change,
   };
 }
 

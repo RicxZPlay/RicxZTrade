@@ -17,12 +17,16 @@ import {
 import CryptoChart from "./CryptoChart";
 import {
   buildSocketUrl,
+  ALT_HISTORY_LIMIT,
+  ALT_INTERVAL,
   DEFAULT_FILTERS,
   fetchCandles,
   formatClock,
   formatPercent,
   formatPrice,
   mergeLiveCandle,
+  RENKO_HISTORY_LIMIT,
+  RENKO_INTERVAL,
   scanMarket,
 } from "./market";
 import "./App.css";
@@ -31,13 +35,18 @@ const REFRESH_INTERVAL_MS = 240_000;
 const FAVORITES_STORAGE_KEY = "ricxz.cryptoFavorites";
 const THEME_STORAGE_KEY = "ricxz.theme";
 const BTC_CHART_SYMBOL = "BTCUSDT";
+const CHART_MODES = {
+  btc: "btc",
+  alt: "alt",
+};
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [results, setResults] = useState([]);
   const [query, setQuery] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("");
-  const [chartSymbol, setChartSymbol] = useState("");
+  const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
+  const [chartMode, setChartMode] = useState(CHART_MODES.btc);
   const [chartCandles, setChartCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -55,6 +64,20 @@ export default function App() {
 
   const selectSymbol = useCallback((symbol) => {
     setSelectedSymbol(symbol);
+    setChartMode(CHART_MODES.alt);
+    setChartSymbol(symbol);
+    setChartError("");
+    setLiveStatus("loading");
+    if (isCompactLayout) {
+      setChartOverlayOpen(true);
+    }
+  }, [isCompactLayout]);
+
+  const showBtcChart = useCallback(() => {
+    setChartMode(CHART_MODES.btc);
+    setChartSymbol(BTC_CHART_SYMBOL);
+    setChartError("");
+    setLiveStatus("loading");
     if (isCompactLayout) {
       setChartOverlayOpen(true);
     }
@@ -114,10 +137,15 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!chartSymbol) return undefined;
+
     const controller = new AbortController();
     let socket;
     const requestId = chartRequestRef.current + 1;
     chartRequestRef.current = requestId;
+    const targetSymbol = chartMode === CHART_MODES.btc ? BTC_CHART_SYMBOL : chartSymbol;
+    const targetInterval = chartMode === CHART_MODES.btc ? RENKO_INTERVAL : ALT_INTERVAL;
+    const targetLimit = chartMode === CHART_MODES.btc ? RENKO_HISTORY_LIMIT : ALT_HISTORY_LIMIT;
 
     queueMicrotask(() => {
       if (!controller.signal.aborted) {
@@ -126,14 +154,13 @@ export default function App() {
       }
     });
 
-    fetchCandlesWithRetry(BTC_CHART_SYMBOL, controller.signal)
+    fetchCandlesWithRetry(targetSymbol, controller.signal, targetLimit, targetInterval)
       .then((nextCandles) => {
         if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
-        setChartSymbol(BTC_CHART_SYMBOL);
         setChartCandles(nextCandles);
         setChartError("");
 
-        socket = new WebSocket(buildSocketUrl(BTC_CHART_SYMBOL));
+        socket = new WebSocket(buildSocketUrl(targetSymbol, targetInterval));
         socket.onopen = () => {
           if (!controller.signal.aborted && chartRequestRef.current === requestId) {
             setLiveStatus("online");
@@ -142,8 +169,8 @@ export default function App() {
         socket.onmessage = (event) => {
           try {
             const payload = JSON.parse(event.data);
-            if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== BTC_CHART_SYMBOL) return;
-            setChartCandles((current) => mergeLiveCandle(current, payload));
+            if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== targetSymbol) return;
+            setChartCandles((current) => mergeLiveCandle(current, payload, targetLimit));
           } catch {
             if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
           }
@@ -166,7 +193,7 @@ export default function App() {
       controller.abort();
       socket?.close();
     };
-  }, []);
+  }, [chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
@@ -331,6 +358,9 @@ export default function App() {
           </button>
 
           <div className="selected-strip">
+            <button className="btc-chart-button" type="button" onClick={showBtcChart}>
+              Grafico BTC
+            </button>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="EMA 50" value={formatPrice(selected?.ema50)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
@@ -341,12 +371,13 @@ export default function App() {
 
           {!isCompactLayout || chartOverlayOpen ? (
             <CryptoChart
-              key={chartSymbol || "empty-chart"}
+              key={`${chartMode}-${chartSymbol || "empty-chart"}`}
               symbol={chartSymbol || BTC_CHART_SYMBOL}
               candles={chartCandles}
               liveStatus={liveStatus}
               error={chartError}
               theme={theme}
+              mode={chartMode}
             />
           ) : null}
         </section>
@@ -550,12 +581,12 @@ function formatRatio(value) {
   return `${value.toFixed(2)}x`;
 }
 
-async function fetchCandlesWithRetry(symbol, signal) {
+async function fetchCandlesWithRetry(symbol, signal, limit, interval) {
   let lastError;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      return await fetchCandles(symbol, undefined, signal);
+      return await fetchCandles(symbol, limit, signal, interval);
     } catch (error) {
       lastError = error;
       if (signal.aborted) throw error;

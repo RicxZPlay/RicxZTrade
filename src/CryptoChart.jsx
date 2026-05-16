@@ -10,8 +10,13 @@ import {
   formatIndicator,
   formatPercent,
   formatPrice,
+  ALT_FAST_EMA,
+  ALT_SLOW_EMA,
+  getLatestAltChartStats,
   getLatestBollingerStats,
   toChartBollingerBands,
+  toChartCandles,
+  toChartEma,
   toChartRenko,
 } from "./market";
 
@@ -21,8 +26,12 @@ const TOOLS = {
   ruler: "ruler",
 };
 const DRAWINGS_STORAGE_KEY = "ricxz.chartDrawings.v1";
+const CHART_MODES = {
+  btc: "btc",
+  alt: "alt",
+};
 
-export default function CryptoChart({ symbol, candles, liveStatus, error, theme }) {
+export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc }) {
   const storageSymbol = symbol || "default";
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
@@ -44,12 +53,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
-  const chartData = useMemo(() => toChartRenko(candles), [candles]);
-  const chartMeta = useMemo(() => buildChartMeta(chartData), [chartData]);
+  const isAltChart = mode === CHART_MODES.alt;
+  const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
+  const chartMeta = useMemo(() => buildChartMeta(chartData, isAltChart ? 3600 : 900), [chartData, isAltChart]);
 
   const stats = useMemo(() => {
-    return getLatestBollingerStats(candles);
-  }, [candles]);
+    return isAltChart ? getLatestAltChartStats(candles) : getLatestBollingerStats(candles);
+  }, [candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -95,11 +105,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     });
 
     const upperBandSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.upperBand,
+      color: isAltChart ? chartPalette.emaFast : chartPalette.upperBand,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: "BB Superior",
+      title: isAltChart ? "EMA 50" : "BB Superior",
     });
 
     const middleBandSeries = chart.addSeries(LineSeries, {
@@ -111,11 +121,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     });
 
     const lowerBandSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.lowerBand,
+      color: isAltChart ? chartPalette.emaSlow : chartPalette.lowerBand,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: "BB Inferior",
+      title: isAltChart ? "EMA 450" : "BB Inferior",
     });
 
     chartRef.current = chart;
@@ -168,7 +178,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
     };
-  }, [chartPalette]);
+  }, [chartPalette, isAltChart]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -185,7 +195,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
   useEffect(() => {
     if (!candleSeriesRef.current || candles.length === 0) return;
 
-    const bands = toChartBollingerBands(candles);
+    const bands = isAltChart
+      ? {
+          upper: toChartEma(candles, ALT_FAST_EMA),
+          middle: [],
+          lower: toChartEma(candles, ALT_SLOW_EMA),
+        }
+      : toChartBollingerBands(candles);
 
     candleSeriesRef.current.setData(chartData);
     upperBandSeriesRef.current.setData(bands.upper);
@@ -194,10 +210,10 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
-      showRecentCandles(chartRef.current, 180, chartData.length);
+      showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [candles, chartData, symbol]);
+  }, [candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -286,7 +302,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
       <div className="chart-header">
         <div>
-          <p className="eyebrow">Renko 15m</p>
+          <p className="eyebrow">{isAltChart ? "Altcoin 1H" : "Renko 15m"}</p>
           <h2>{symbol || "Selecione uma moeda"}</h2>
         </div>
         <div className="chart-controls">
@@ -338,12 +354,24 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme 
       </div>
 
       <div className="chart-metrics">
-        <Metric label="Preco" value={formatPrice(stats.price)} />
-        <Metric label="BB Sup" value={formatPrice(stats.upperBand)} />
-        <Metric label="BB Media" value={formatPrice(stats.middleBand)} />
-        <Metric label="BB Inf" value={formatPrice(stats.lowerBand)} />
-        <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
-        <Metric label="Brick atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
+        {isAltChart ? (
+          <>
+            <Metric label="Preco" value={formatPrice(stats.price)} />
+            <Metric label="EMA 50" value={formatPrice(stats.ema50)} />
+            <Metric label="EMA 450" value={formatPrice(stats.ema450)} />
+            <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
+            <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
+          </>
+        ) : (
+          <>
+            <Metric label="Preco" value={formatPrice(stats.price)} />
+            <Metric label="BB Sup" value={formatPrice(stats.upperBand)} />
+            <Metric label="BB Media" value={formatPrice(stats.middleBand)} />
+            <Metric label="BB Inf" value={formatPrice(stats.lowerBand)} />
+            <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
+            <Metric label="Brick atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
+          </>
+        )}
       </div>
 
       <div className="chart-area">
@@ -535,19 +563,21 @@ function buildRulerLabel(start, end, chartMeta) {
   const bars = Math.round(pointToLogical(end, chartMeta) - pointToLogical(start, chartMeta));
   const direction = priceChange >= 0 ? "+" : "";
 
-  return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${bars} bricks`;
+  const unit = chartMeta?.unit || "barras";
+  return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${bars} ${unit}`;
 }
 
-function buildChartMeta(data) {
+function buildChartMeta(data, fallbackIntervalSeconds) {
   const first = data?.[0];
   const second = data?.[1];
   if (!first?.time) return null;
 
   const firstTime = first.time;
   const secondTime = second?.time || null;
-  const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : 900;
+  const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : fallbackIntervalSeconds;
+  const unit = fallbackIntervalSeconds >= 3600 ? "candles" : "bricks";
 
-  return { firstTime, intervalSeconds };
+  return { firstTime, intervalSeconds, unit };
 }
 
 function logicalToTime(logical, chartMeta) {
@@ -593,6 +623,8 @@ function getChartPalette(theme) {
       upperBand: "#d8902d",
       middleBand: "rgba(81, 103, 135, 0.62)",
       lowerBand: "#268f6c",
+      emaFast: "#2f8be8",
+      emaSlow: "#c28a18",
     };
   }
 
@@ -604,6 +636,8 @@ function getChartPalette(theme) {
     upperBand: "#f6c85f",
     middleBand: "rgba(168, 179, 199, 0.52)",
     lowerBand: "#62d992",
+    emaFast: "#6bb4ff",
+    emaSlow: "#f6c85f",
   };
 }
 

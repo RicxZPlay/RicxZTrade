@@ -515,8 +515,26 @@ input:focus,
 
 .selected-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: 1.05fr repeat(6, minmax(0, 1fr));
   gap: 8px;
+}
+
+.btc-chart-button {
+  min-height: 54px;
+  border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 9px 10px;
+}
+
+.btc-chart-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
 }
 
 .selected-metric {
@@ -705,7 +723,7 @@ input:focus,
   }
 
   .selected-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .chart-canvas {
@@ -935,8 +953,15 @@ input:focus,
   }
 
   .detail-panel.mobile-chart-open .selected-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
+  }
+
+  .detail-panel.mobile-chart-open .btc-chart-button {
+    min-height: 34px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    padding: 5px 6px;
   }
 
   .detail-panel.mobile-chart-open .selected-metric {
