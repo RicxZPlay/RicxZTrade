@@ -344,22 +344,6 @@ export default function App() {
                 <span>{filteredAboveResults.length} em alta 1H</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
                   <button
-                    className={chartMode === CHART_MODES.alt && altTimeframe === "1h" ? "btc-chart-button active" : "btc-chart-button"}
-                    type="button"
-                    onClick={() => showAltChart("1h")}
-                    disabled={!selectedSymbol}
-                  >
-                    Alt 1H
-                  </button>
-                  <button
-                    className={chartMode === CHART_MODES.alt && altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
-                    type="button"
-                    onClick={() => showAltChart("4h")}
-                    disabled={!selectedSymbol}
-                  >
-                    Alt 4H
-                  </button>
-                  <button
                     className={chartMode === CHART_MODES.btc && btcTimeframe === "15m" ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
                     onClick={() => showBtcChart("15m")}
@@ -406,7 +390,25 @@ export default function App() {
             Fechar
           </button>
 
-          <div className="selected-strip">
+          <div className={chartMode === CHART_MODES.alt ? "selected-strip with-timeframe" : "selected-strip"}>
+            {chartMode === CHART_MODES.alt ? (
+              <div className="chart-timeframe-actions" aria-label="Timeframe do grafico da altcoin">
+                <button
+                  className={altTimeframe === "1h" ? "btc-chart-button active" : "btc-chart-button"}
+                  type="button"
+                  onClick={() => showAltChart("1h")}
+                >
+                  Alt 1H
+                </button>
+                <button
+                  className={altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
+                  type="button"
+                  onClick={() => showAltChart("4h")}
+                >
+                  Alt 4H
+                </button>
+              </div>
+            ) : null}
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="EMA 50" value={formatPrice(selected?.ema50)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
