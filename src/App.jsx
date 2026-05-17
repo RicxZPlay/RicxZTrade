@@ -99,9 +99,15 @@ export default function App() {
   }, [btcTimeframe, isCompactLayout]);
 
   const toggleFavorite = useCallback((symbol) => {
+    const normalizedSymbol = normalizeFavoriteSymbol(symbol);
+    if (!normalizedSymbol) return;
+
     setFavoriteSymbols((current) => {
-      if (current.includes(symbol)) return current.filter((item) => item !== symbol);
-      return [...current, symbol].sort();
+      const normalizedCurrent = normalizeFavoriteSymbols(current);
+      if (normalizedCurrent.includes(normalizedSymbol)) {
+        return normalizedCurrent.filter((item) => item !== normalizedSymbol);
+      }
+      return [...normalizedCurrent, normalizedSymbol].sort();
     });
   }, []);
 
@@ -502,11 +508,11 @@ function ScannerControls({
           className={showFavoritesOnly ? "favorite-filter active" : "favorite-filter"}
           type="button"
           onClick={() => setShowFavoritesOnly((current) => !current)}
-          title="Mostrar apenas moedas favoritadas nas duas listas"
+          title={`Mostrar apenas favoritas. Visiveis agora: ${visibleFavoriteCount}/${favoriteSymbols.length}`}
         >
           <Star size={16} />
           <span>Favoritos</span>
-          <strong>{showFavoritesOnly ? visibleFavoriteCount : favoriteSymbols.length}</strong>
+          <strong>{favoriteSymbols.length}</strong>
         </button>
 
         <label className="toggle-row">
@@ -686,10 +692,21 @@ function readStoredFavorites() {
   try {
     const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
     const parsed = JSON.parse(raw || "[]");
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+    return normalizeFavoriteSymbols(parsed);
   } catch {
     return [];
   }
+}
+
+function normalizeFavoriteSymbols(symbols) {
+  if (!Array.isArray(symbols)) return [];
+  return [...new Set(symbols.map(normalizeFavoriteSymbol).filter(Boolean))].sort();
+}
+
+function normalizeFavoriteSymbol(symbol) {
+  if (typeof symbol !== "string") return "";
+  const normalized = symbol.trim().toUpperCase();
+  return normalized.endsWith("USDT") ? normalized : "";
 }
 
 function readStoredTheme() {
