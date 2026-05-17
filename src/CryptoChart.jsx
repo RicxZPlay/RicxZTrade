@@ -62,7 +62,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const altTimeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
   const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
   const chartMeta = useMemo(
-    () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds),
+    () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds, isAltChart),
     [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
   );
 
@@ -576,7 +576,7 @@ function buildRulerLabel(start, end, chartMeta) {
   return `${direction}${percent.toFixed(2)}% | ${direction}${formatIndicator(priceChange)} | ${bars} ${unit}`;
 }
 
-function buildChartMeta(data, fallbackIntervalSeconds) {
+function buildChartMeta(data, fallbackIntervalSeconds, isAltChart) {
   const first = data?.[0];
   const second = data?.[1];
   if (!first?.time) return null;
@@ -584,7 +584,7 @@ function buildChartMeta(data, fallbackIntervalSeconds) {
   const firstTime = first.time;
   const secondTime = second?.time || null;
   const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : fallbackIntervalSeconds;
-  const unit = fallbackIntervalSeconds >= 3600 ? "candles" : "bricks";
+  const unit = isAltChart ? "candles" : "bricks";
 
   return { firstTime, intervalSeconds, unit };
 }

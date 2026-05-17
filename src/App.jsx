@@ -419,7 +419,7 @@ export default function App() {
 
           {!isCompactLayout || chartOverlayOpen ? (
             <CryptoChart
-              key={`${chartMode}-${chartSymbol || "empty-chart"}`}
+              key={`${chartMode}-${chartSymbol || "empty-chart"}-${chartMode === CHART_MODES.btc ? btcTimeframe : altTimeframe}`}
               symbol={chartSymbol || BTC_CHART_SYMBOL}
               candles={chartCandles}
               liveStatus={liveStatus}
@@ -593,6 +593,7 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
             event.stopPropagation();
             onToggleFavorite(item.symbol);
           }}
+          onKeyDown={(event) => event.stopPropagation()}
         >
           <Star size={15} fill={favorite ? "currentColor" : "none"} />
         </button>
