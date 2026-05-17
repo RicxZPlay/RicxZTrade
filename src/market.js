@@ -543,6 +543,8 @@ function normalizeTicker(item) {
 }
 
 function normalizeCandle(row) {
+  const closeTime = Number(row[6]);
+
   return {
     openTime: Number(row[0]),
     open: Number(row[1]),
@@ -550,10 +552,10 @@ function normalizeCandle(row) {
     low: Number(row[3]),
     close: Number(row[4]),
     volume: Number(row[5]),
-    closeTime: Number(row[6]),
+    closeTime,
     quoteVolume: Number(row[7]),
     trades: Number(row[8]),
-    closed: true,
+    closed: Number.isFinite(closeTime) ? closeTime <= Date.now() : true,
   };
 }
 
