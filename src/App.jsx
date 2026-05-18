@@ -363,6 +363,13 @@ export default function App() {
                   >
                     BTC 1H
                   </button>
+                  <button
+                    className={chartMode === CHART_MODES.btc && btcTimeframe === "1d" ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => showBtcChart("1d")}
+                  >
+                    BTC 1D
+                  </button>
                 </div>
               </div>
 

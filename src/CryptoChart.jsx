@@ -58,6 +58,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
   const isAltChart = mode === CHART_MODES.alt;
+  const timeframeLabel = formatTimeframeLabel(timeframe);
   const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
   const altTimeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
   const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
@@ -311,7 +312,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     <section className="chart-shell" aria-label={`Grafico de ${symbol}`}>
       <div className="chart-header">
         <div>
-          <p className="eyebrow">{isAltChart ? `Altcoin ${timeframe.toUpperCase()}` : `Renko ${timeframe}`}</p>
+          <p className="eyebrow">{isAltChart ? `Altcoin ${timeframeLabel}` : `Renko ${timeframeLabel}`}</p>
           <h2>{symbol || "Selecione uma moeda"}</h2>
         </div>
         <div className="chart-controls">
@@ -432,6 +433,11 @@ function ToolButton({ active = false, children, label, onClick }) {
       {children}
     </button>
   );
+}
+
+function formatTimeframeLabel(timeframe) {
+  if (timeframe === "15m") return "15m";
+  return String(timeframe || "").toUpperCase();
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {

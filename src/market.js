@@ -40,6 +40,7 @@ export const RENKO_BOX_SIZE = 15;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
   "1h": { interval: "1h", historyLimit: 1200, fallbackSeconds: 3600 },
+  "1d": { interval: "1d", historyLimit: 240, fallbackSeconds: 86400 },
 };
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "1h";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
