@@ -37,6 +37,7 @@ export const BB_PERIOD = 137;
 export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 5;
+export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
   "30m": { interval: "30m", historyLimit: 2400, fallbackSeconds: 1800 },
@@ -396,7 +397,7 @@ export function toChartEma(candles, period) {
 }
 
 export function toChartRenko(candles) {
-  return buildRenkoBricks(candles).map((brick) => ({
+  return buildRenkoBricks(candles).slice(-MAX_RENKO_CHART_BRICKS).map((brick) => ({
     time: Math.floor(brick.openTime / 1000),
     open: brick.open,
     high: brick.high,
