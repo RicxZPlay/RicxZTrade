@@ -36,7 +36,7 @@ export const DEFAULT_FILTERS = {
 export const BB_PERIOD = 137;
 export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
-export const RENKO_BOX_SIZE = 15;
+export const RENKO_BOX_SIZE = 5;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
   "30m": { interval: "30m", historyLimit: 2400, fallbackSeconds: 1800 },
