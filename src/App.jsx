@@ -357,11 +357,25 @@ export default function App() {
                     BTC 15m
                   </button>
                   <button
+                    className={chartMode === CHART_MODES.btc && btcTimeframe === "30m" ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => showBtcChart("30m")}
+                  >
+                    BTC 30m
+                  </button>
+                  <button
                     className={chartMode === CHART_MODES.btc && btcTimeframe === "1h" ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
                     onClick={() => showBtcChart("1h")}
                   >
                     BTC 1H
+                  </button>
+                  <button
+                    className={chartMode === CHART_MODES.btc && btcTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => showBtcChart("4h")}
+                  >
+                    BTC 4H
                   </button>
                   <button
                     className={chartMode === CHART_MODES.btc && btcTimeframe === "1d" ? "btc-chart-button active" : "btc-chart-button"}

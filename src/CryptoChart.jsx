@@ -436,8 +436,9 @@ function ToolButton({ active = false, children, label, onClick }) {
 }
 
 function formatTimeframeLabel(timeframe) {
-  if (timeframe === "15m") return "15m";
-  return String(timeframe || "").toUpperCase();
+  const value = String(timeframe || "");
+  if (value.endsWith("m")) return value;
+  return value.toUpperCase();
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
@@ -509,20 +510,19 @@ function readChartPoint(event, overlay, chart, series, chartMeta) {
   const rect = overlay.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  const logical = chart.timeScale().coordinateToLogical(x);
+  const timeScale = chart.timeScale();
+  const logical = timeScale.coordinateToLogical(x);
+  const time = typeof timeScale.coordinateToTime === "function" ? normalizeChartTime(timeScale.coordinateToTime(x)) : null;
   const price = series.coordinateToPrice(y);
 
   if (logical == null || !Number.isFinite(price)) return null;
-  return { x, y, logical, time: logicalToTime(logical, chartMeta), price };
+  return { x, y, logical, time: Number.isFinite(time) ? time : logicalToTime(logical, chartMeta), price };
 }
 
 function toScreenPoint(point, chart, series, chartMeta) {
   if (!point || !chart || !series) return null;
 
-  const logical = pointToLogical(point, chartMeta);
-  if (!Number.isFinite(logical)) return null;
-
-  const x = chart.timeScale().logicalToCoordinate(logical);
+  const x = pointToCoordinate(point, chart, chartMeta);
   const y = series.priceToCoordinate(point.price);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
 
@@ -591,8 +591,9 @@ function buildChartMeta(data, fallbackIntervalSeconds, isAltChart) {
   const secondTime = second?.time || null;
   const intervalSeconds = secondTime && secondTime > firstTime ? secondTime - firstTime : fallbackIntervalSeconds;
   const unit = isAltChart ? "candles" : "bricks";
+  const dataTimes = data.map((item) => item.time).filter(Number.isFinite);
 
-  return { firstTime, intervalSeconds, unit };
+  return { firstTime, intervalSeconds, unit, dataTimes };
 }
 
 function logicalToTime(logical, chartMeta) {
@@ -601,11 +602,60 @@ function logicalToTime(logical, chartMeta) {
 }
 
 function pointToLogical(point, chartMeta) {
+  const logical = Number.isFinite(point?.logical) ? Number(point.logical) : null;
+
+  if (Number.isFinite(point?.time) && Array.isArray(chartMeta?.dataTimes) && chartMeta.dataTimes.length > 0) {
+    const firstTime = chartMeta.dataTimes[0];
+    const lastTime = chartMeta.dataTimes.at(-1);
+    if ((point.time < firstTime || point.time > lastTime) && Number.isFinite(logical)) return logical;
+    return timeToNearestLogical(point.time, chartMeta.dataTimes);
+  }
+
   if (Number.isFinite(point?.time) && chartMeta?.intervalSeconds) {
     return (point.time - chartMeta.firstTime) / chartMeta.intervalSeconds;
   }
 
-  return Number.isFinite(point?.logical) ? Number(point.logical) : null;
+  return logical;
+}
+
+function pointToCoordinate(point, chart, chartMeta) {
+  if (Number.isFinite(point?.time)) {
+    const timeScale = chart.timeScale();
+    const timeCoordinate = typeof timeScale.timeToCoordinate === "function" ? timeScale.timeToCoordinate(point.time) : null;
+    if (Number.isFinite(timeCoordinate)) return timeCoordinate;
+  }
+
+  const logical = pointToLogical(point, chartMeta);
+  if (!Number.isFinite(logical)) return null;
+  return chart.timeScale().logicalToCoordinate(logical);
+}
+
+function normalizeChartTime(time) {
+  if (typeof time === "number") return time;
+  if (time && typeof time === "object" && Number.isFinite(time.year) && Number.isFinite(time.month) && Number.isFinite(time.day)) {
+    return Date.UTC(time.year, time.month - 1, time.day) / 1000;
+  }
+  return null;
+}
+
+function timeToNearestLogical(time, dataTimes) {
+  if (!Number.isFinite(time)) return null;
+  if (time <= dataTimes[0]) return 0;
+  if (time >= dataTimes.at(-1)) return dataTimes.length - 1;
+
+  let low = 0;
+  let high = dataTimes.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const current = dataTimes[mid];
+    if (current === time) return mid;
+    if (current < time) low = mid + 1;
+    else high = mid - 1;
+  }
+
+  const before = Math.max(0, low - 1);
+  const after = Math.min(dataTimes.length - 1, low);
+  return Math.abs(dataTimes[before] - time) <= Math.abs(dataTimes[after] - time) ? before : after;
 }
 
 function showRecentCandles(chart, visibleCandles, totalDataPoints) {
@@ -719,7 +769,9 @@ function sanitizeDrawingPoint(point) {
 
   if (Number.isFinite(point.time)) {
     cleanPoint.time = Number(point.time);
-  } else if (Number.isFinite(point.logical)) {
+  }
+
+  if (Number.isFinite(point.logical)) {
     cleanPoint.logical = Number(point.logical);
   }
 

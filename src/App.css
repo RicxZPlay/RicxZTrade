@@ -369,6 +369,7 @@ input:focus,
   flex: 0 0 auto;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-deep) 72%, transparent);
+  flex-wrap: wrap;
   padding: 8px 12px;
   color: var(--text-main);
   font-size: 0.86rem;
@@ -536,6 +537,8 @@ input:focus,
 .btc-chart-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 5px;
   margin-left: auto;
 }
@@ -847,6 +850,16 @@ input:focus,
   .table-title {
     padding: 7px 10px;
     font-size: 0.78rem;
+  }
+
+  .btc-chart-actions {
+    gap: 4px;
+  }
+
+  .btc-chart-button {
+    min-height: 26px;
+    font-size: 0.66rem;
+    padding: 0 7px;
   }
 
   .coin-list {
