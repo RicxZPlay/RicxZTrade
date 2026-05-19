@@ -34,6 +34,8 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
+const CHART_TIME_ZONE = "America/Sao_Paulo";
+const CHART_LOCALE = "pt-BR";
 
 export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
   const storageSymbol = `${symbol || "default"}:${mode}:${timeframe}`;
@@ -82,6 +84,10 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         textColor: chartPalette.text,
         fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       },
+      localization: {
+        locale: CHART_LOCALE,
+        timeFormatter: formatChartCrosshairTime,
+      },
       grid: {
         vertLines: { color: chartPalette.grid },
         horzLines: { color: chartPalette.grid },
@@ -93,6 +99,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         borderColor: chartPalette.border,
         timeVisible: true,
         secondsVisible: false,
+        tickMarkFormatter: (time) => formatChartTickTime(time, timeframe),
       },
       crosshair: {
         mode: 0,
@@ -188,7 +195,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
     };
-  }, [chartPalette, isAltChart]);
+  }, [chartPalette, isAltChart, timeframe]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -433,6 +440,44 @@ function ToolButton({ active = false, children, label, onClick }) {
       {children}
     </button>
   );
+}
+
+function formatChartCrosshairTime(time) {
+  return formatChartTime(time, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatChartTickTime(time, timeframe) {
+  if (timeframe === "1d") {
+    return formatChartTime(time, {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return formatChartTime(time, {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatChartTime(time, options) {
+  const timestamp = normalizeChartTime(time);
+  if (!Number.isFinite(timestamp)) return "";
+
+  return new Intl.DateTimeFormat(CHART_LOCALE, {
+    timeZone: CHART_TIME_ZONE,
+    ...options,
+  }).format(new Date(timestamp * 1000));
 }
 
 function formatTimeframeLabel(timeframe) {
