@@ -420,6 +420,13 @@ export default function App() {
                 >
                   Alt 1H
                 </button>
+                <button
+                  className={altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
+                  type="button"
+                  onClick={() => showAltChart("4h")}
+                >
+                  Alt 4H
+                </button>
               </div>
             ) : null}
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />

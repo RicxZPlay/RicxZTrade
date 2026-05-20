@@ -51,6 +51,7 @@ export const ALT_INTERVAL = "1h";
 export const ALT_HISTORY_LIMIT = 600;
 export const ALT_CHART_INTERVALS = {
   "1h": { interval: "1h", historyLimit: 1500, fallbackSeconds: 3600 },
+  "4h": { interval: "4h", historyLimit: 900, fallbackSeconds: 14400 },
 };
 export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
 export const ALT_FAST_EMA = 50;
