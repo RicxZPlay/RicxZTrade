@@ -42,7 +42,6 @@ export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
   "30m": { interval: "30m", historyLimit: 2400, fallbackSeconds: 1800 },
   "1h": { interval: "1h", historyLimit: 1200, fallbackSeconds: 3600 },
-  "4h": { interval: "4h", historyLimit: 900, fallbackSeconds: 14400 },
   "1d": { interval: "1d", historyLimit: 240, fallbackSeconds: 86400 },
 };
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "1h";
@@ -52,7 +51,6 @@ export const ALT_INTERVAL = "1h";
 export const ALT_HISTORY_LIMIT = 600;
 export const ALT_CHART_INTERVALS = {
   "1h": { interval: "1h", historyLimit: 1500, fallbackSeconds: 3600 },
-  "4h": { interval: "4h", historyLimit: 900, fallbackSeconds: 14400 },
 };
 export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
 export const ALT_FAST_EMA = 50;

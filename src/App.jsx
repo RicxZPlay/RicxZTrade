@@ -371,13 +371,6 @@ export default function App() {
                     BTC 1H
                   </button>
                   <button
-                    className={chartMode === CHART_MODES.btc && btcTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
-                    type="button"
-                    onClick={() => showBtcChart("4h")}
-                  >
-                    BTC 4H
-                  </button>
-                  <button
                     className={chartMode === CHART_MODES.btc && btcTimeframe === "1d" ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
                     onClick={() => showBtcChart("1d")}
@@ -426,13 +419,6 @@ export default function App() {
                   onClick={() => showAltChart("1h")}
                 >
                   Alt 1H
-                </button>
-                <button
-                  className={altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
-                  type="button"
-                  onClick={() => showAltChart("4h")}
-                >
-                  Alt 4H
                 </button>
               </div>
             ) : null}
