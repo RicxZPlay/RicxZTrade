@@ -479,6 +479,7 @@ function ScannerControls({
             value={filters.universeSize}
             onChange={(event) => setFilters((current) => ({ ...current, universeSize: Number(event.target.value) }))}
           >
+            <option value={0}>Todas as moedas</option>
             <option value={30}>Top 30 volume</option>
             <option value={60}>Top 60 volume</option>
             <option value={100}>Top 100 volume</option>
@@ -492,6 +493,7 @@ function ScannerControls({
             value={filters.minQuoteVolume}
             onChange={(event) => setFilters((current) => ({ ...current, minQuoteVolume: Number(event.target.value) }))}
           >
+            <option value={0}>Sem minimo</option>
             <option value={5_000_000}>US$ 5M</option>
             <option value={20_000_000}>US$ 20M</option>
             <option value={50_000_000}>US$ 50M</option>
@@ -505,6 +507,7 @@ function ScannerControls({
             value={filters.maxSpreadPercent}
             onChange={(event) => setFilters((current) => ({ ...current, maxSpreadPercent: Number(event.target.value) }))}
           >
+            <option value={Number.POSITIVE_INFINITY}>Sem limite</option>
             <option value={0.2}>0,20%</option>
             <option value={0.45}>0,45%</option>
             <option value={0.8}>0,80%</option>
@@ -539,7 +542,7 @@ function ScannerControls({
 
       {progress.total ? (
         <div className="filter-note">
-          Universo ativo: {progress.total}/{filters.universeSize} moedas apos volume e spread
+          Universo ativo: {formatUniverseCount(progress.total, filters.universeSize)} moedas validas
         </div>
       ) : null}
 
@@ -548,7 +551,7 @@ function ScannerControls({
           <div>
             <strong>{progressPercent}%</strong>
             <span>
-              {progress.checked}/{progress.total || filters.universeSize} moedas
+              {progress.checked}/{progress.total || formatUniverseLimit(filters.universeSize)} moedas
             </span>
           </div>
           <div className="progress-track">
@@ -648,6 +651,14 @@ function formatNumber(value, digits = 1) {
 function formatRatio(value) {
   if (!Number.isFinite(value)) return "-";
   return `${value.toFixed(2)}x`;
+}
+
+function formatUniverseLimit(value) {
+  return value > 0 ? value : "todas";
+}
+
+function formatUniverseCount(total, limit) {
+  return limit > 0 ? `${total}/${limit}` : `${total}`;
 }
 
 async function fetchCandlesWithRetry(symbol, signal, limit, interval) {

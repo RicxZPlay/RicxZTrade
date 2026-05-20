@@ -27,9 +27,9 @@ const EXCLUDED_BASE_ASSETS = new Set([
 const FIAT_OR_STABLE_PATTERN = /(USD|EUR|BRL|TRY|GBP|AUD|CAD|CHF|JPY|MXN|ARS|COP)$/;
 
 export const DEFAULT_FILTERS = {
-  universeSize: 150,
-  minQuoteVolume: 5_000_000,
-  maxSpreadPercent: 0.45,
+  universeSize: 0,
+  minQuoteVolume: 0,
+  maxSpreadPercent: Number.POSITIVE_INFINITY,
   autoRefresh: true,
 };
 
@@ -111,13 +111,14 @@ export async function loadTradableUniverse(filters, signal) {
       .map((item) => item.symbol)
   );
 
-  return ticker24h
+  const universe = ticker24h
     .filter((item) => tradable.has(item.symbol))
     .map(normalizeTicker)
     .filter((item) => item.quoteVolume >= filters.minQuoteVolume)
     .filter((item) => item.spreadPercent <= filters.maxSpreadPercent)
-    .sort((a, b) => b.quoteVolume - a.quoteVolume)
-    .slice(0, filters.universeSize);
+    .sort((a, b) => b.quoteVolume - a.quoteVolume);
+
+  return filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
 }
 
 export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {
@@ -154,7 +155,7 @@ export async function scanMarket(filters, signal, onProgress) {
   const btcCandles = await fetchCandles("BTCUSDT", ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
   const btcCloses = btcCandles.map((candle) => candle.close);
   const results = [];
-  const batchSize = 6;
+  const batchSize = 10;
 
   for (let index = 0; index < universe.length; index += batchSize) {
     const batch = universe.slice(index, index + batchSize);
@@ -175,10 +176,7 @@ export async function scanMarket(filters, signal, onProgress) {
     });
   }
 
-  return results
-    .filter((item) => !item.isFlatMarket)
-    .filter((item) => item.trendDirection !== "neutral")
-    .sort(sortAltSignals);
+  return results.filter((item) => item.trendDirection !== "neutral").sort(sortAltSignals);
 }
 
 export async function buildSignal(ticker, btcCloses, signal) {
@@ -202,7 +200,7 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const volumeRelative = calculateVolumeRelative(candles);
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection, adx);
+  const trend = getAltTrendLabel(trendDirection, adx, emaSpreadPercent);
 
   return {
     ...ticker,
@@ -595,13 +593,16 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getTrendDirection(price, ema50, ema450) {
-  if (price > ema50 && ema50 > ema450) return "bullish";
-  if (price < ema50 && ema50 < ema450) return "bearish";
-  return "neutral";
+  if (!Number.isFinite(price) || !Number.isFinite(ema50) || !Number.isFinite(ema450)) return "neutral";
+  if (price >= ema450) return "bullish";
+  return "bearish";
 }
 
-function getAltTrendLabel(direction, adx) {
+function getAltTrendLabel(direction, adx, emaSpreadPercent) {
   if (direction === "neutral") return "lateral";
+  const aligned = direction === "bullish" ? emaSpreadPercent >= 0 : emaSpreadPercent < 0;
+  if (!aligned) return direction === "bullish" ? "acima da EMA" : "abaixo da EMA";
+
   const strength = adx >= 25 ? "forte" : "fraca";
   return direction === "bullish" ? `alta ${strength}` : `baixa ${strength}`;
 }
