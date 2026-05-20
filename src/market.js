@@ -40,11 +40,8 @@ export const RENKO_BOX_SIZE = 5;
 export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
-  "30m": { interval: "30m", historyLimit: 2400, fallbackSeconds: 1800 },
-  "1h": { interval: "1h", historyLimit: 1200, fallbackSeconds: 3600 },
-  "1d": { interval: "1d", historyLimit: 240, fallbackSeconds: 86400 },
 };
-export const DEFAULT_BTC_RENKO_TIMEFRAME = "1h";
+export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "1h";
