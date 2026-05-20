@@ -483,6 +483,7 @@ function ScannerControls({
             <option value={30}>Top 30 volume</option>
             <option value={60}>Top 60 volume</option>
             <option value={100}>Top 100 volume</option>
+            <option value={120}>Top 120 volume</option>
             <option value={150}>Top 150 volume</option>
           </select>
         </label>

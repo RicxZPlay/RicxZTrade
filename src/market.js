@@ -27,7 +27,7 @@ const EXCLUDED_BASE_ASSETS = new Set([
 const FIAT_OR_STABLE_PATTERN = /(USD|EUR|BRL|TRY|GBP|AUD|CAD|CHF|JPY|MXN|ARS|COP)$/;
 
 export const DEFAULT_FILTERS = {
-  universeSize: 0,
+  universeSize: 120,
   minQuoteVolume: 0,
   maxSpreadPercent: Number.POSITIVE_INFINITY,
   autoRefresh: true,
