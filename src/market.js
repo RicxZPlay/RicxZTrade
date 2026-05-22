@@ -39,7 +39,8 @@ export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 5;
 export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_RENKO_INTERVALS = {
-  "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900 },
+  "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
+  "1d": { interval: "1d", historyLimit: 240, fallbackSeconds: 86400, boxSize: 100 },
 };
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
@@ -390,8 +391,8 @@ export function toChartEma(candles, period) {
     .filter((item) => Number.isFinite(item.value));
 }
 
-export function toChartRenko(candles) {
-  return buildRenkoBricks(candles).slice(-MAX_RENKO_CHART_BRICKS).map((brick) => ({
+export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE) {
+  return buildRenkoBricks(candles, boxSize).slice(-MAX_RENKO_CHART_BRICKS).map((brick) => ({
     time: Math.floor(brick.openTime / 1000),
     open: brick.open,
     high: brick.high,
@@ -401,8 +402,8 @@ export function toChartRenko(candles) {
   }));
 }
 
-export function toChartBollingerBands(candles) {
-  const bricks = toChartRenko(candles);
+export function toChartBollingerBands(candles, boxSize = RENKO_BOX_SIZE) {
+  const bricks = toChartRenko(candles, boxSize);
   const bands = calculateBollingerBands(
     bricks.map((brick) => brick.close),
     BB_PERIOD,
@@ -416,8 +417,8 @@ export function toChartBollingerBands(candles) {
   };
 }
 
-export function getLatestBollingerStats(candles) {
-  const bricks = toChartRenko(candles);
+export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
+  const bricks = toChartRenko(candles, boxSize);
   const bands = calculateBollingerBands(
     bricks.map((brick) => brick.close),
     BB_PERIOD,

@@ -63,15 +63,16 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const timeframeLabel = formatTimeframeLabel(timeframe);
   const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
   const altTimeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
-  const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles)), [candles, isAltChart]);
+  const btcBoxSize = btcTimeframeConfig.boxSize;
+  const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles, btcBoxSize)), [btcBoxSize, candles, isAltChart]);
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds, isAltChart),
     [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
   );
 
   const stats = useMemo(() => {
-    return isAltChart ? getLatestAltChartStats(candles) : getLatestBollingerStats(candles);
-  }, [candles, isAltChart]);
+    return isAltChart ? getLatestAltChartStats(candles) : getLatestBollingerStats(candles, btcBoxSize);
+  }, [btcBoxSize, candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -218,7 +219,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
           middle: [],
           lower: toChartEma(candles, ALT_SLOW_EMA),
         }
-      : toChartBollingerBands(candles);
+      : toChartBollingerBands(candles, btcBoxSize);
 
     candleSeriesRef.current.setData(chartData);
     upperBandSeriesRef.current.setData(bands.upper);
@@ -230,7 +231,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [candles, chartData, isAltChart, symbol]);
+  }, [btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
