@@ -558,11 +558,11 @@ function readChartPoint(event, overlay, chart, series, chartMeta) {
   const y = event.clientY - rect.top;
   const timeScale = chart.timeScale();
   const logical = timeScale.coordinateToLogical(x);
-  const time = typeof timeScale.coordinateToTime === "function" ? normalizeChartTime(timeScale.coordinateToTime(x)) : null;
+  const rawTime = typeof timeScale.coordinateToTime === "function" ? normalizeChartTime(timeScale.coordinateToTime(x)) : null;
   const price = series.coordinateToPrice(y);
 
   if (logical == null || !Number.isFinite(price)) return null;
-  return { x, y, logical, time: Number.isFinite(time) ? time : logicalToTime(logical, chartMeta), price };
+  return { x, y, logical, time: resolveDrawingPointTime(logical, rawTime, chartMeta), price };
 }
 
 function toScreenPoint(point, chart, series, chartMeta) {
@@ -647,10 +647,23 @@ function logicalToTime(logical, chartMeta) {
   return chartMeta.firstTime + logical * chartMeta.intervalSeconds;
 }
 
+function resolveDrawingPointTime(logical, rawTime, chartMeta) {
+  if (Array.isArray(chartMeta?.dataTimes) && chartMeta.dataTimes.length > 0 && Number.isFinite(logical)) {
+    const lastLogical = chartMeta.dataTimes.length - 1;
+    if (logical < 0 || logical > lastLogical) {
+      return logicalToTime(logical, chartMeta);
+    }
+  }
+
+  return Number.isFinite(rawTime) ? rawTime : logicalToTime(logical, chartMeta);
+}
+
 function pointToLogical(point, chartMeta) {
   const logical = Number.isFinite(point?.logical) ? Number(point.logical) : null;
 
   if (Number.isFinite(point?.time) && Array.isArray(chartMeta?.dataTimes) && chartMeta.dataTimes.length > 0) {
+    if ((logical < 0 || logical > chartMeta.dataTimes.length - 1) && Number.isFinite(logical)) return logical;
+
     const firstTime = chartMeta.dataTimes[0];
     const lastTime = chartMeta.dataTimes.at(-1);
     if ((point.time < firstTime || point.time > lastTime) && Number.isFinite(logical)) return logical;
@@ -665,13 +678,17 @@ function pointToLogical(point, chartMeta) {
 }
 
 function pointToCoordinate(point, chart, chartMeta) {
+  const logical = pointToLogical(point, chartMeta);
+  if (Array.isArray(chartMeta?.dataTimes) && Number.isFinite(logical) && (logical < 0 || logical > chartMeta.dataTimes.length - 1)) {
+    return chart.timeScale().logicalToCoordinate(logical);
+  }
+
   if (Number.isFinite(point?.time)) {
     const timeScale = chart.timeScale();
     const timeCoordinate = typeof timeScale.timeToCoordinate === "function" ? timeScale.timeToCoordinate(point.time) : null;
     if (Number.isFinite(timeCoordinate)) return timeCoordinate;
   }
 
-  const logical = pointToLogical(point, chartMeta);
   if (!Number.isFinite(logical)) return null;
   return chart.timeScale().logicalToCoordinate(logical);
 }
