@@ -1521,6 +1521,39 @@ input:focus,
     min-height: 0;
   }
 
+  .btc-quad-overlay {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .btc-quad-topbar {
+    min-height: 38px;
+    padding: 6px 9px;
+  }
+
+  .btc-quad-close {
+    width: 34px;
+    height: 34px;
+  }
+
+  .btc-quad-grid {
+    gap: 6px;
+  }
+
+  .btc-quad-card-header {
+    min-height: 30px;
+    padding: 5px 8px;
+  }
+
+  .btc-quad-card-header strong {
+    font-size: 0.72rem;
+    line-height: 1.05;
+  }
+
+  .btc-quad-card-header span {
+    display: none;
+  }
+
 }
 
 @media (max-width: 560px) {

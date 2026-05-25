@@ -31,6 +31,7 @@ const BTC_SYMBOL = "BTCUSDT";
 export default function BtcQuadView({ onClose, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
+  const isCompact = useMediaQuery("(max-width: 820px)");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,6 +99,7 @@ export default function BtcQuadView({ onClose, theme }) {
             candles={chartCandles[config.id] || []}
             config={config}
             error={errors[config.id]}
+            isCompact={isCompact}
             theme={theme}
           />
         ))}
@@ -106,7 +108,7 @@ export default function BtcQuadView({ onClose, theme }) {
   );
 }
 
-function BtcQuadChart({ candles, config, error, theme }) {
+function BtcQuadChart({ candles, config, error, isCompact, theme }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const priceSeriesRef = useRef(null);
@@ -127,6 +129,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
       layout: {
         background: { type: ColorType.Solid, color: palette.background },
         textColor: palette.text,
+        fontSize: isCompact ? 10 : 12,
         fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       },
       grid: {
@@ -134,7 +137,10 @@ function BtcQuadChart({ candles, config, error, theme }) {
         horzLines: { color: palette.grid },
       },
       rightPriceScale: {
+        entireTextOnly: true,
         borderColor: palette.border,
+        minimumWidth: isCompact ? 32 : 0,
+        ticksVisible: false,
       },
       timeScale: {
         borderColor: palette.border,
@@ -154,6 +160,11 @@ function BtcQuadChart({ candles, config, error, theme }) {
       borderDownColor: "#ef5b5b",
       wickUpColor: "#1fbf75",
       wickDownColor: "#ef5b5b",
+      priceFormat: {
+        type: "price",
+        precision: 0,
+        minMove: 1,
+      },
     });
     priceSeries.priceScale().applyOptions({
       scaleMargins: {
@@ -166,16 +177,16 @@ function BtcQuadChart({ candles, config, error, theme }) {
       color: isRenko ? palette.upperBand : palette.ema,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
-      title: isRenko ? "BB Superior" : `EMA ${BTC_QUAD_EMA_PERIOD}`,
+      lastValueVisible: !isCompact,
+      title: isCompact ? "" : isRenko ? "BB Superior" : `EMA ${BTC_QUAD_EMA_PERIOD}`,
     });
 
     const slowLine = chart.addSeries(LineSeries, {
       color: isRenko ? palette.lowerBand : palette.vwma,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
-      title: isRenko ? "BB Inferior" : `VWMA ${BTC_QUAD_VWMA_PERIOD}`,
+      lastValueVisible: !isCompact,
+      title: isCompact ? "" : isRenko ? "BB Inferior" : `VWMA ${BTC_QUAD_VWMA_PERIOD}`,
     });
 
     const middleLine = isRenko
@@ -184,14 +195,14 @@ function BtcQuadChart({ candles, config, error, theme }) {
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
-          title: "BB Media",
+          title: isCompact ? "" : "BB Media",
         })
       : null;
 
     const dpoSeries = chart.addSeries(
       LineSeries,
       {
-        title: `DPO ${isRenko ? BTC_DPO_PERIOD : BTC_QUAD_DPO_PERIOD}`,
+        title: isCompact ? "" : `DPO ${isRenko ? BTC_DPO_PERIOD : BTC_QUAD_DPO_PERIOD}`,
         color: "#38b24d",
         lineWidth: 2,
         priceFormat: {
@@ -200,7 +211,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
           minMove: 0.01,
         },
         priceLineVisible: false,
-        lastValueVisible: true,
+        lastValueVisible: !isCompact,
         autoscaleInfoProvider: centerZeroAutoscale,
       },
       1
@@ -236,7 +247,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
       dpoSeriesRef.current = null;
       centeredOnceRef.current = false;
     };
-  }, [isRenko, palette]);
+  }, [isCompact, isRenko, palette]);
 
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
@@ -344,4 +355,29 @@ function getPalette(theme) {
     ema: "#6bb4ff",
     vwma: "#f6c85f",
   };
+}
+
+function useMediaQuery(query) {
+  const readMatch = () => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(readMatch);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQuery.matches);
+
+    handleChange();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, [query]);
+
+  return matches;
 }
