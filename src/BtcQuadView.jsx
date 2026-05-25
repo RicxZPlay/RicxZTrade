@@ -17,6 +17,7 @@ import {
   RENKO_BOX_SIZE,
   buildSocketUrl,
   fetchCandles,
+  formatPrice,
   mergeLiveCandle,
   toChartBollingerBands,
   toChartCandles,
@@ -32,6 +33,10 @@ export default function BtcQuadView({ onClose, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
   const isCompact = useMediaQuery("(max-width: 820px)");
+  const btcPrice = useMemo(() => {
+    const primaryCandles = chartCandles["candles-30m"] || chartCandles["renko-15m"] || [];
+    return primaryCandles.at(-1)?.close ?? null;
+  }, [chartCandles]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,9 +92,12 @@ export default function BtcQuadView({ onClose, theme }) {
           <p className="eyebrow">BTC 4 Graf.</p>
           <h2>BTCUSDT</h2>
         </div>
-        <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC 4 Graf.">
-          <X size={18} />
-        </button>
+        <div className="btc-quad-actions">
+          <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
+          <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC 4 Graf.">
+            <X size={18} />
+          </button>
+        </div>
       </header>
 
       <div className="btc-quad-grid">

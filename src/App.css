@@ -785,6 +785,26 @@ input:focus,
   cursor: pointer;
 }
 
+.btc-quad-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btc-quad-price {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  font-weight: 950;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .btc-quad-close:hover,
 .btc-quad-close:focus-visible {
   border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
@@ -1534,6 +1554,16 @@ input:focus,
   .btc-quad-close {
     width: 34px;
     height: 34px;
+  }
+
+  .btc-quad-actions {
+    gap: 6px;
+  }
+
+  .btc-quad-price {
+    min-height: 34px;
+    font-size: 0.78rem;
+    padding: 0 8px;
   }
 
   .btc-quad-grid {
