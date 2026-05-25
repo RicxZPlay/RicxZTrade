@@ -39,9 +39,18 @@ export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 5;
 export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_DPO_PERIOD = 200;
+export const BTC_QUAD_EMA_PERIOD = 200;
+export const BTC_QUAD_VWMA_PERIOD = 480;
+export const BTC_QUAD_DPO_PERIOD = 250;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
+export const BTC_QUAD_CHARTS = [
+  { id: "renko-15m", title: "BTC Renko 15m", interval: "15m", historyLimit: 3000, fallbackSeconds: 900, type: "renko" },
+  { id: "candles-30m", title: "BTC 30m", interval: "30m", historyLimit: 1100, fallbackSeconds: 1800, type: "candles" },
+  { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1100, fallbackSeconds: 3600, type: "candles" },
+  { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 900, fallbackSeconds: 14400, type: "candles" },
+];
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
@@ -389,6 +398,31 @@ export function toChartEma(candles, period) {
       value: ema[index],
     }))
     .filter((item) => Number.isFinite(item.value));
+}
+
+export function toChartVwma(candles, period = BTC_QUAD_VWMA_PERIOD) {
+  if (!Array.isArray(candles) || candles.length < period) return [];
+
+  return candles
+    .map((candle, index) => {
+      if (index < period - 1) return null;
+
+      const window = candles.slice(index - period + 1, index + 1);
+      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
+      if (!volumeSum) return null;
+
+      const value = window.reduce((sum, item) => {
+        const close = Number.isFinite(item.close) ? item.close : 0;
+        const volume = Number.isFinite(item.volume) ? item.volume : 0;
+        return sum + close * volume;
+      }, 0) / volumeSum;
+
+      return {
+        time: Math.floor(candle.openTime / 1000),
+        value,
+      };
+    })
+    .filter(Boolean);
 }
 
 export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE) {

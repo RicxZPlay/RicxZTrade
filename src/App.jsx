@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import CryptoChart from "./CryptoChart";
+import BtcQuadView from "./BtcQuadView";
 import {
   buildSocketUrl,
   ALT_CHART_INTERVALS,
@@ -54,6 +55,7 @@ export default function App() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [theme, setTheme] = useState(readStoredTheme);
   const [chartOverlayOpen, setChartOverlayOpen] = useState(false);
+  const [btcQuadOpen, setBtcQuadOpen] = useState(false);
   const isCompactLayout = useMediaQuery("(max-width: 820px)");
   const [scanState, setScanState] = useState("idle");
   const [progress, setProgress] = useState({ checked: 0, total: 0 });
@@ -356,6 +358,13 @@ export default function App() {
                   >
                     BTC 15m
                   </button>
+                  <button
+                    className={btcQuadOpen ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => setBtcQuadOpen(true)}
+                  >
+                    BTC 4 Graf.
+                  </button>
                 </div>
               </div>
 
@@ -430,6 +439,8 @@ export default function App() {
           ) : null}
         </section>
       </section>
+
+      {btcQuadOpen ? <BtcQuadView theme={theme} onClose={() => setBtcQuadOpen(false)} /> : null}
     </main>
   );
 }
