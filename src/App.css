@@ -1554,6 +1554,15 @@ input:focus,
     display: none;
   }
 
+  .btc-quad-card {
+    contain: paint;
+  }
+
+  .btc-quad-canvas {
+    width: calc(100% + 22px);
+    transform: translateX(0);
+  }
+
 }
 
 @media (max-width: 560px) {
