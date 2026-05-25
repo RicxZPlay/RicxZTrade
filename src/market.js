@@ -431,10 +431,11 @@ export function toChartDpoFromBars(bars, period = BTC_DPO_PERIOD) {
       const window = closes.slice(index - period + 1, index + 1);
       const sma = average(window);
       const value = closes[priceIndex] - sma;
+      const targetBar = bars[priceIndex];
       if (!Number.isFinite(value)) return null;
 
       return {
-        time: bar.time,
+        time: targetBar.time,
         value,
         color: value >= 0 ? "rgba(31, 191, 117, 0.72)" : "rgba(239, 91, 91, 0.72)",
       };
