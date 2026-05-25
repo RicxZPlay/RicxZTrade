@@ -144,6 +144,7 @@ function BtcQuadChart({ candles, config, error, isCompact, theme }) {
         borderColor: palette.border,
         minimumWidth: 0,
         ticksVisible: false,
+        visible: !isCompact,
       },
       timeScale: {
         borderColor: palette.border,
