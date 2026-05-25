@@ -323,7 +323,10 @@ function centerZeroAutoscale(original) {
 function formatCompactPriceScale(price) {
   if (!Number.isFinite(price)) return "";
   const abs = Math.abs(price);
-  if (abs >= 1000) return `${Math.round(price)}`;
+  if (abs >= 1000) {
+    const sign = price < 0 ? "-" : "";
+    return `${sign}${String(Math.round(abs)).slice(0, 3)}`;
+  }
   if (abs >= 100) return price.toFixed(1);
   if (abs >= 1) return price.toFixed(2);
   return price.toPrecision(2);
