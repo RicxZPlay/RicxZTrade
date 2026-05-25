@@ -113,6 +113,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
   const fastLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const dpoSeriesRef = useRef(null);
+  const centeredOnceRef = useRef(false);
   const palette = useMemo(() => getPalette(theme), [theme]);
   const isRenko = config.type === "renko";
   const chartData = useMemo(() => (isRenko ? toChartRenko(candles, RENKO_BOX_SIZE) : toChartCandles(candles)), [candles, isRenko]);
@@ -232,6 +233,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
       fastLineRef.current = null;
       slowLineRef.current = null;
       dpoSeriesRef.current = null;
+      centeredOnceRef.current = false;
     };
   }, [isRenko, palette]);
 
@@ -252,8 +254,9 @@ function BtcQuadChart({ candles, config, error, theme }) {
       dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_QUAD_DPO_PERIOD));
     }
 
-    if (chartData.length > 0) {
+    if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, isRenko ? 170 : 150, chartData.length);
+      centeredOnceRef.current = true;
     }
   }, [candles, chartData, isRenko]);
 
