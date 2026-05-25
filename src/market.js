@@ -421,23 +421,20 @@ export function toChartDpoFromBars(bars, period = BTC_DPO_PERIOD) {
   if (!Array.isArray(bars) || bars.length < period) return [];
 
   const closes = bars.map((bar) => bar.close);
+  const sma = calculateSMA(closes, period);
   const displacement = Math.floor(period / 2) + 1;
 
   return bars
     .map((bar, index) => {
-      const priceIndex = index - displacement;
-      if (priceIndex < 0 || index < period - 1) return null;
+      const smaIndex = index - displacement;
+      if (smaIndex < period - 1) return null;
 
-      const window = closes.slice(index - period + 1, index + 1);
-      const sma = average(window);
-      const value = closes[priceIndex] - sma;
-      const targetBar = bars[priceIndex];
+      const value = bar.close - sma[smaIndex];
       if (!Number.isFinite(value)) return null;
 
       return {
-        time: targetBar.time,
+        time: bar.time,
         value,
-        color: value >= 0 ? "rgba(31, 191, 117, 0.72)" : "rgba(239, 91, 91, 0.72)",
       };
     })
     .filter(Boolean);
@@ -669,6 +666,29 @@ function average(values) {
   const valid = values.filter((value) => Number.isFinite(value));
   if (valid.length === 0) return 0;
   return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function calculateSMA(values, period) {
+  if (!Array.isArray(values) || values.length < period) return [];
+
+  const result = Array(values.length).fill(null);
+  let sum = 0;
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    sum += Number.isFinite(value) ? value : 0;
+
+    if (index >= period) {
+      const dropped = values[index - period];
+      sum -= Number.isFinite(dropped) ? dropped : 0;
+    }
+
+    if (index >= period - 1) {
+      result[index] = sum / period;
+    }
+  }
+
+  return result;
 }
 
 function isStableLikeMarket(candles) {

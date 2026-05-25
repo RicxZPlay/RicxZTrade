@@ -3,7 +3,7 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
-  HistogramSeries,
+  LineStyle,
   LineSeries,
 } from "lightweight-charts";
 import { MousePointer2, Ruler, Slash, Trash2 } from "lucide-react";
@@ -153,20 +153,29 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     let dpoSeries = null;
     if (!isAltChart) {
       dpoSeries = chart.addSeries(
-        HistogramSeries,
+        LineSeries,
         {
           title: `DPO ${BTC_DPO_PERIOD}`,
+          color: "#38b24d",
+          lineWidth: 2,
           priceFormat: {
             type: "price",
             precision: 2,
             minMove: 0.01,
           },
-          priceLineVisible: true,
+          priceLineVisible: false,
           lastValueVisible: true,
-          base: 0,
         },
         1
       );
+      dpoSeries.createPriceLine({
+        price: 0,
+        color: "rgba(168, 179, 199, 0.55)",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+        title: "",
+      });
       chart.panes()[0]?.setStretchFactor(4);
       chart.panes()[1]?.setStretchFactor(1);
     }
