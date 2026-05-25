@@ -38,9 +38,9 @@ export const BB_MULTIPLIER = 1.001;
 export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 5;
 export const MAX_RENKO_CHART_BRICKS = 5000;
+export const BTC_DPO_PERIOD = 200;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
-  "1d": { interval: "1d", historyLimit: 240, fallbackSeconds: 86400, boxSize: 100 },
 };
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
@@ -417,6 +417,31 @@ export function toChartBollingerBands(candles, boxSize = RENKO_BOX_SIZE) {
   };
 }
 
+export function toChartDpoFromBars(bars, period = BTC_DPO_PERIOD) {
+  if (!Array.isArray(bars) || bars.length < period) return [];
+
+  const closes = bars.map((bar) => bar.close);
+  const displacement = Math.floor(period / 2) + 1;
+
+  return bars
+    .map((bar, index) => {
+      const priceIndex = index - displacement;
+      if (priceIndex < 0 || index < period - 1) return null;
+
+      const window = closes.slice(index - period + 1, index + 1);
+      const sma = average(window);
+      const value = closes[priceIndex] - sma;
+      if (!Number.isFinite(value)) return null;
+
+      return {
+        time: bar.time,
+        value,
+        color: value >= 0 ? "rgba(31, 191, 117, 0.72)" : "rgba(239, 91, 91, 0.72)",
+      };
+    })
+    .filter(Boolean);
+}
+
 export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
   const bricks = toChartRenko(candles, boxSize);
   const bands = calculateBollingerBands(
@@ -424,6 +449,7 @@ export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
     BB_PERIOD,
     BB_MULTIPLIER
   );
+  const dpo = toChartDpoFromBars(bricks, BTC_DPO_PERIOD).at(-1);
   const latestBrick = bricks.at(-1);
   const latestBand = bands.at(-1);
   const previousBrick = bricks.at(-2);
@@ -436,6 +462,7 @@ export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
       lowerBand: null,
       distance: null,
       change: null,
+      dpo200: dpo?.value ?? null,
       bricksCount: bricks.length,
     };
   }
@@ -449,6 +476,7 @@ export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
     lowerBand: latestBand.lower,
     distance: activeBand ? ((latestBrick.close - activeBand) / activeBand) * 100 : null,
     change: previousBrick ? ((latestBrick.close - previousBrick.close) / previousBrick.close) * 100 : null,
+    dpo200: dpo?.value ?? null,
     bricksCount: bricks.length,
   };
 }

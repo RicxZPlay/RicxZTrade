@@ -3,6 +3,7 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  HistogramSeries,
   LineSeries,
 } from "lightweight-charts";
 import { MousePointer2, Ruler, Slash, Trash2 } from "lucide-react";
@@ -14,12 +15,14 @@ import {
   ALT_SLOW_EMA,
   ALT_CHART_INTERVALS,
   BTC_RENKO_INTERVALS,
+  BTC_DPO_PERIOD,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
   getLatestAltChartStats,
   getLatestBollingerStats,
   toChartBollingerBands,
   toChartCandles,
+  toChartDpoFromBars,
   toChartEma,
   toChartRenko,
 } from "./market";
@@ -46,6 +49,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const upperBandSeriesRef = useRef(null);
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
+  const dpoSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -100,7 +104,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         borderColor: chartPalette.border,
         timeVisible: true,
         secondsVisible: false,
-        tickMarkFormatter: (time) => formatChartTickTime(time, timeframe),
+        tickMarkFormatter: formatChartTickTime,
       },
       crosshair: {
         mode: 0,
@@ -146,11 +150,33 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       title: isAltChart ? "EMA 450" : "BB Inferior",
     });
 
+    let dpoSeries = null;
+    if (!isAltChart) {
+      dpoSeries = chart.addSeries(
+        HistogramSeries,
+        {
+          title: `DPO ${BTC_DPO_PERIOD}`,
+          priceFormat: {
+            type: "price",
+            precision: 2,
+            minMove: 0.01,
+          },
+          priceLineVisible: true,
+          lastValueVisible: true,
+          base: 0,
+        },
+        1
+      );
+      chart.panes()[0]?.setStretchFactor(4);
+      chart.panes()[1]?.setStretchFactor(1);
+    }
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
+    dpoSeriesRef.current = dpoSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -195,6 +221,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       upperBandSeriesRef.current = null;
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
+      dpoSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, timeframe]);
 
@@ -225,6 +252,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     upperBandSeriesRef.current.setData(bands.upper);
     middleBandSeriesRef.current.setData(bands.middle);
     lowerBandSeriesRef.current.setData(bands.lower);
+    dpoSeriesRef.current?.setData(isAltChart ? [] : toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
@@ -387,7 +415,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
             <Metric label="BB Media" value={formatPrice(stats.middleBand)} />
             <Metric label="BB Inf" value={formatPrice(stats.lowerBand)} />
             <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
-            <Metric label="Brick atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
+            <Metric label="DPO 200" value={formatIndicator(stats.dpo200)} intent={stats.dpo200 < 0 ? "danger" : "success"} />
           </>
         )}
       </div>
@@ -453,16 +481,7 @@ function formatChartCrosshairTime(time) {
   });
 }
 
-function formatChartTickTime(time, timeframe) {
-  if (timeframe === "1d") {
-    return formatChartTime(time, {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
+function formatChartTickTime(time) {
   return formatChartTime(time, {
     day: "2-digit",
     month: "2-digit",
