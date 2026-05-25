@@ -129,8 +129,11 @@ function BtcQuadChart({ candles, config, error, isCompact, theme }) {
       layout: {
         background: { type: ColorType.Solid, color: palette.background },
         textColor: palette.text,
-        fontSize: isCompact ? 10 : 12,
+        fontSize: isCompact ? 9 : 12,
         fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+      },
+      localization: {
+        priceFormatter: isCompact ? formatCompactPriceScale : undefined,
       },
       grid: {
         vertLines: { color: palette.grid },
@@ -139,7 +142,7 @@ function BtcQuadChart({ candles, config, error, isCompact, theme }) {
       rightPriceScale: {
         entireTextOnly: true,
         borderColor: palette.border,
-        minimumWidth: isCompact ? 32 : 0,
+        minimumWidth: 0,
         ticksVisible: false,
       },
       timeScale: {
@@ -165,6 +168,7 @@ function BtcQuadChart({ candles, config, error, isCompact, theme }) {
         precision: 0,
         minMove: 1,
       },
+      lastValueVisible: !isCompact,
     });
     priceSeries.priceScale().applyOptions({
       scaleMargins: {
@@ -314,6 +318,15 @@ function centerZeroAutoscale(original) {
       below: 6,
     },
   };
+}
+
+function formatCompactPriceScale(price) {
+  if (!Number.isFinite(price)) return "";
+  const abs = Math.abs(price);
+  if (abs >= 1000) return `${Math.round(price)}`;
+  if (abs >= 100) return price.toFixed(1);
+  if (abs >= 1) return price.toFixed(2);
+  return price.toPrecision(2);
 }
 
 function formatTickTime(time) {
