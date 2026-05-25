@@ -34,8 +34,13 @@ export default function BtcQuadView({ onClose, theme }) {
   const [errors, setErrors] = useState(() => ({}));
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
-    const primaryCandles = chartCandles["candles-30m"] || chartCandles["renko-15m"] || [];
-    return primaryCandles.at(-1)?.close ?? null;
+    const sourceCandles = [
+      chartCandles["candles-30m"],
+      chartCandles["renko-15m"],
+      chartCandles["candles-1h"],
+      chartCandles["candles-4h"],
+    ].find((candles) => candles?.length > 0);
+    return sourceCandles?.at(-1)?.close ?? null;
   }, [chartCandles]);
 
   useEffect(() => {
