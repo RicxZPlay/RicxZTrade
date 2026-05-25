@@ -201,6 +201,7 @@ function BtcQuadChart({ candles, config, error, theme }) {
         },
         priceLineVisible: false,
         lastValueVisible: true,
+        autoscaleInfoProvider: centerZeroAutoscale,
       },
       1
     );
@@ -283,6 +284,25 @@ function showRecentBars(chart, visibleBars, totalBars) {
     from: Math.max(0, totalBars - visibleBars),
     to: totalBars + 5,
   });
+}
+
+function centerZeroAutoscale(original) {
+  const result = original();
+  const range = result?.priceRange;
+  if (!range) return result;
+
+  const maxAbs = Math.max(Math.abs(range.minValue), Math.abs(range.maxValue), 1);
+  return {
+    ...result,
+    priceRange: {
+      minValue: -maxAbs,
+      maxValue: maxAbs,
+    },
+    margins: {
+      above: 6,
+      below: 6,
+    },
+  };
 }
 
 function formatTickTime(time) {

@@ -165,6 +165,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
           },
           priceLineVisible: false,
           lastValueVisible: true,
+          autoscaleInfoProvider: centerZeroAutoscale,
         },
         1
       );
@@ -478,6 +479,25 @@ function ToolButton({ active = false, children, label, onClick }) {
       {children}
     </button>
   );
+}
+
+function centerZeroAutoscale(original) {
+  const result = original();
+  const range = result?.priceRange;
+  if (!range) return result;
+
+  const maxAbs = Math.max(Math.abs(range.minValue), Math.abs(range.maxValue), 1);
+  return {
+    ...result,
+    priceRange: {
+      minValue: -maxAbs,
+      maxValue: maxAbs,
+    },
+    margins: {
+      above: 6,
+      below: 6,
+    },
+  };
 }
 
 function formatChartCrosshairTime(time) {
