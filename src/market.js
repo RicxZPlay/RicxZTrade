@@ -39,8 +39,8 @@ export const BB_OFFSET = -2;
 export const RENKO_BOX_SIZE = 5;
 export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_DPO_PERIOD = 200;
-export const BTC_QUAD_EMA_PERIOD = 200;
-export const BTC_QUAD_VWMA_PERIOD = 480;
+export const BTC_QUAD_EMA_PERIOD = 450;
+export const BTC_QUAD_VWMA_PERIOD = 200;
 export const BTC_QUAD_DPO_PERIOD = 250;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
