@@ -887,6 +887,12 @@ input:focus,
   background: var(--surface);
 }
 
+.btc-quad-chart-area {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .btc-quad-card-header {
   display: flex;
   align-items: center;
