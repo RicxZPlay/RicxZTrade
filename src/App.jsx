@@ -337,9 +337,13 @@ export default function App() {
                 <span>{filteredAboveResults.length} em alta 1H</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
                   <button
-                    className={btcQuadOpen ? "btc-chart-button active" : "btc-chart-button"}
+                    className={chartMode === CHART_MODES.btc ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
-                    onClick={() => setBtcQuadOpen(true)}
+                    onClick={() => {
+                      setChartMode(CHART_MODES.btc);
+                      setChartSymbol(BTC_CHART_SYMBOL);
+                      setChartOverlayOpen(false);
+                    }}
                   >
                     BTC 4 Graf.
                   </button>
