@@ -751,6 +751,12 @@ input:focus,
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 34%, transparent));
 }
 
+.bb-fill-zone {
+  fill: color-mix(in srgb, var(--warning) 14%, transparent);
+  pointer-events: none;
+  stroke: none;
+}
+
 .ruler-label {
   display: inline-flex;
   align-items: center;

@@ -344,6 +344,10 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const palette = useMemo(() => getPalette(theme), [theme]);
   const isRenko = config.type === "renko";
   const chartData = useMemo(() => (isRenko ? toChartRenko(candles, RENKO_BOX_SIZE) : toChartCandles(candles)), [candles, isRenko]);
+  const bandFillData = useMemo(() => {
+    if (!isRenko) return null;
+    return toChartBollingerBands(candles, RENKO_BOX_SIZE, BTC_RENKO_BB_PERIOD, BTC_RENKO_BB_MULTIPLIER);
+  }, [candles, isRenko]);
   const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, isRenko ? "bricks" : "candles"), [chartData, config.fallbackSeconds, isRenko]);
 
   useEffect(() => {
@@ -572,9 +576,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     priceSeriesRef.current.setData(chartData);
 
     if (isRenko) {
-      const bands = toChartBollingerBands(candles, RENKO_BOX_SIZE, BTC_RENKO_BB_PERIOD, BTC_RENKO_BB_MULTIPLIER);
-      fastLineRef.current?.setData(bands.upper);
-      slowLineRef.current?.setData(bands.lower);
+      fastLineRef.current?.setData(bandFillData?.upper || []);
+      slowLineRef.current?.setData(bandFillData?.lower || []);
       renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_RENKO_EMA_PERIOD));
       renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_RENKO_VWMA_PERIOD));
       dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_RENKO_DPO_PERIOD));
@@ -587,7 +590,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       showRecentBars(chartRef.current, isRenko ? 170 : 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [candles, chartData, isRenko]);
+  }, [bandFillData, candles, chartData, isRenko]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -645,6 +648,15 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           onPointerMove={handleToolPointerMove}
           onPointerCancel={() => setDraftDrawing(null)}
         >
+          {isRenko ? (
+            <BollingerBandFill
+              chart={drawingContext.chart}
+              chartMeta={chartMeta}
+              lower={bandFillData?.lower}
+              series={drawingContext.series}
+              upper={bandFillData?.upper}
+            />
+          ) : null}
           {[...drawings, draftDrawing].filter(Boolean).map((drawing) => (
             <DrawingLayer
               key={drawing.id}
@@ -676,6 +688,41 @@ function ToolButton({ active = false, children, label, onClick }) {
       {children}
     </button>
   );
+}
+
+function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
+  if (!chart || !series || !Array.isArray(upper) || !Array.isArray(lower) || upper.length === 0 || lower.length === 0) {
+    return null;
+  }
+
+  const lowerByTime = new Map(lower.map((point) => [point.time, point.value]));
+  const paneWidth = getPricePaneWidth(chart);
+  const points = upper
+    .map((upperPoint) => {
+      const lowerValue = lowerByTime.get(upperPoint.time);
+      if (!Number.isFinite(upperPoint.value) || !Number.isFinite(lowerValue)) return null;
+
+      const x = pointToCoordinate({ time: upperPoint.time }, chart, chartMeta);
+      const upperY = series.priceToCoordinate(upperPoint.value);
+      const lowerY = series.priceToCoordinate(lowerValue);
+      if (!Number.isFinite(x) || !Number.isFinite(upperY) || !Number.isFinite(lowerY)) return null;
+      if (Number.isFinite(paneWidth) && (x < -24 || x > paneWidth + 24)) return null;
+
+      return {
+        lower: `${x.toFixed(1)},${lowerY.toFixed(1)}`,
+        upper: `${x.toFixed(1)},${upperY.toFixed(1)}`,
+      };
+    })
+    .filter(Boolean);
+
+  if (points.length < 2) return null;
+
+  const polygonPoints = [
+    ...points.map((point) => point.upper),
+    ...[...points].reverse().map((point) => point.lower),
+  ].join(" ");
+
+  return <polygon className="bb-fill-zone" points={polygonPoints} />;
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
@@ -925,6 +972,14 @@ function timeToNearestLogical(time, dataTimes) {
 function getPricePaneHeight(chart) {
   try {
     return chart?.paneSize(0)?.height ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getPricePaneWidth(chart) {
+  try {
+    return chart?.paneSize(0)?.width ?? null;
   } catch {
     return null;
   }
