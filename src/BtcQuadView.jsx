@@ -260,7 +260,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       color: isRenko ? palette.upperBand : palette.ema,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: false,
+      lastValueVisible: !isCompact,
       title: "",
     });
 
@@ -268,7 +268,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       color: isRenko ? palette.lowerBand : palette.vwma,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: false,
+      lastValueVisible: !isCompact,
       title: "",
     });
 
@@ -277,7 +277,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           color: palette.middleBand,
           lineWidth: 1,
           priceLineVisible: false,
-          lastValueVisible: false,
+          lastValueVisible: !isCompact,
           title: "",
         })
       : null;
@@ -294,7 +294,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           minMove: 0.01,
         },
         priceLineVisible: false,
-        lastValueVisible: false,
+        lastValueVisible: !isCompact,
         autoscaleInfoProvider: centerZeroAutoscale,
       },
       1
