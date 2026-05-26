@@ -48,7 +48,7 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
-  const [btcTimeframe, setBtcTimeframe] = useState(DEFAULT_BTC_RENKO_TIMEFRAME);
+  const btcTimeframe = DEFAULT_BTC_RENKO_TIMEFRAME;
   const [altTimeframe, setAltTimeframe] = useState(DEFAULT_ALT_CHART_TIMEFRAME);
   const [chartCandles, setChartCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
@@ -88,17 +88,6 @@ export default function App() {
       setChartOverlayOpen(true);
     }
   }, [altTimeframe, isCompactLayout, selectedSymbol]);
-
-  const showBtcChart = useCallback((timeframe = btcTimeframe) => {
-    setBtcTimeframe(timeframe);
-    setChartMode(CHART_MODES.btc);
-    setChartSymbol(BTC_CHART_SYMBOL);
-    setChartError("");
-    setLiveStatus("loading");
-    if (isCompactLayout) {
-      setChartOverlayOpen(true);
-    }
-  }, [btcTimeframe, isCompactLayout]);
 
   const toggleFavorite = useCallback((symbol) => {
     const normalizedSymbol = normalizeFavoriteSymbol(symbol);
@@ -351,13 +340,6 @@ export default function App() {
                 <TrendingUp size={18} />
                 <span>{filteredAboveResults.length} em alta 1H</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
-                  <button
-                    className={chartMode === CHART_MODES.btc && btcTimeframe === "15m" ? "btc-chart-button active" : "btc-chart-button"}
-                    type="button"
-                    onClick={() => showBtcChart("15m")}
-                  >
-                    BTC 15m
-                  </button>
                   <button
                     className={btcQuadOpen ? "btc-chart-button active" : "btc-chart-button"}
                     type="button"
