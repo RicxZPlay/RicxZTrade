@@ -50,6 +50,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
+      chartCandles["candles-15m"],
       chartCandles["candles-1h"],
       chartCandles["candles-4h"],
     ].find((candles) => candles?.length > 0);
@@ -985,17 +986,21 @@ function getPricePaneWidth(chart) {
 }
 
 function buildBtcTradePlan(chartCandles, btcPrice) {
+  const btc15mCandles = chartCandles["candles-15m"] || [];
   const btc1hCandles = chartCandles["candles-1h"] || [];
   const btc4hCandles = chartCandles["candles-4h"] || [];
+  const frame15m = getCandleFrameState(btc15mCandles);
   const frame1h = getCandleFrameState(btc1hCandles);
   const frame4h = getCandleFrameState(btc4hCandles);
-  const setupStrength = [frame1h.confirmed, frame4h.confirmed, frame1h.dpoTurningUp, !frame4h.bearish].filter(Boolean).length;
-  const shouldTrack = frame1h.confirmed && !frame4h.bearish && (frame1h.dpoTurningUp || frame4h.confirmed);
-  const scenario = getTradeScenario({ setupStrength, frame1h, frame4h });
-  const entry = buildEntryZone({ btcPrice, frame1h, shouldTrack });
+  const setupStrength = [frame15m.confirmed, frame1h.confirmed, frame4h.confirmed, !frame4h.bearish].filter(Boolean).length;
+  const shouldTrack = frame15m.confirmed && !frame4h.bearish && (frame1h.confirmed || frame15m.dpoTurningUp);
+  const scenario = getTradeScenario({ setupStrength, frame15m, frame1h, frame4h });
+  const entry = buildEntryZone({ btcPrice, frame15m, frame1h, shouldTrack });
   const buffer = getStopBuffer(btcPrice);
   const stopCandidates = [
+    buildStopCandidate(frame15m.lowerBand, buffer, btcPrice),
     buildStopCandidate(frame1h.lowerBand, buffer, btcPrice),
+    buildStopCandidate(getRecentCandleLow(btc15mCandles), buffer, btcPrice),
     buildStopCandidate(getRecentCandleLow(btc1hCandles), buffer, btcPrice),
     buildStopCandidate(getRecentCandleLow(btc4hCandles), buffer, btcPrice),
   ].filter(Boolean);
@@ -1089,21 +1094,25 @@ function getCandleFrameState(candles) {
   };
 }
 
-function getTradeScenario({ setupStrength, frame1h, frame4h }) {
-  if (frame1h.confirmed && frame4h.confirmed && !frame1h.bearish && !frame4h.bearish) return "Compra forte";
-  if (frame1h.confirmed && !frame4h.bearish) return "Compra inicial";
+function getTradeScenario({ setupStrength, frame15m, frame1h, frame4h }) {
+  if (frame15m.confirmed && frame1h.confirmed && frame4h.confirmed && !frame4h.bearish) return "Compra forte";
+  if (frame15m.confirmed && !frame4h.bearish) return "Compra inicial";
   if (frame4h.bearish && frame1h.bearish) return "Evitar compra";
   if (setupStrength >= 2) return "Aguardar pullback";
   return "Aguardar";
 }
 
-function buildEntryZone({ btcPrice, frame1h, shouldTrack }) {
+function buildEntryZone({ btcPrice, frame15m, frame1h, shouldTrack }) {
   if (!shouldTrack) return { high: null, low: null, reference: null };
   if (!Number.isFinite(btcPrice)) return { high: null, low: null, reference: null };
   const references = [
+    frame15m.nearLowerBand ? frame15m.lowerBand : null,
+    frame15m.aboveVwma ? frame15m.vwma : null,
+    frame15m.aboveEma ? frame15m.ema : null,
     frame1h.nearLowerBand ? frame1h.lowerBand : null,
     frame1h.aboveVwma ? frame1h.vwma : null,
     frame1h.aboveEma ? frame1h.ema : null,
+    frame15m.price,
     frame1h.price,
   ].filter(Number.isFinite);
   const reference = references.length ? Math.max(...references.filter((value) => value <= btcPrice * 1.006)) : btcPrice;
