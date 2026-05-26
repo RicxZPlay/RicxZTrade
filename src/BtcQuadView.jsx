@@ -45,7 +45,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["candles-30m"],
+      chartCandles["candles-15m"],
       chartCandles["renko-15m"],
       chartCandles["candles-1h"],
       chartCandles["candles-4h"],
@@ -260,16 +260,16 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       color: isRenko ? palette.upperBand : palette.ema,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: !isCompact,
-      title: isCompact ? "" : isRenko ? "BB Superior" : `EMA ${BTC_QUAD_EMA_PERIOD}`,
+      lastValueVisible: false,
+      title: "",
     });
 
     const slowLine = chart.addSeries(LineSeries, {
       color: isRenko ? palette.lowerBand : palette.vwma,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: !isCompact,
-      title: isCompact ? "" : isRenko ? "BB Inferior" : `VWMA ${BTC_QUAD_VWMA_PERIOD}`,
+      lastValueVisible: false,
+      title: "",
     });
 
     const middleLine = isRenko
@@ -278,14 +278,14 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           lineWidth: 1,
           priceLineVisible: false,
           lastValueVisible: false,
-          title: isCompact ? "" : "BB Media",
+          title: "",
         })
       : null;
 
     const dpoSeries = chart.addSeries(
       LineSeries,
       {
-        title: isCompact ? "" : `DPO ${isRenko ? BTC_DPO_PERIOD : BTC_QUAD_DPO_PERIOD}`,
+        title: "",
         color: "#38b24d",
         lineWidth: 2,
         priceFormat: {
@@ -294,7 +294,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           minMove: 0.01,
         },
         priceLineVisible: false,
-        lastValueVisible: !isCompact,
+        lastValueVisible: false,
         autoscaleInfoProvider: centerZeroAutoscale,
       },
       1

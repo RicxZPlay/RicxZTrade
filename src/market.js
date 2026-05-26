@@ -47,7 +47,7 @@ export const BTC_RENKO_INTERVALS = {
 };
 export const BTC_QUAD_CHARTS = [
   { id: "renko-15m", title: "BTC Renko 15m", interval: "15m", historyLimit: 3000, fallbackSeconds: 900, type: "renko" },
-  { id: "candles-30m", title: "BTC 30m", interval: "30m", historyLimit: 1100, fallbackSeconds: 1800, type: "candles" },
+  { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 1100, fallbackSeconds: 900, type: "candles" },
   { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1100, fallbackSeconds: 3600, type: "candles" },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 900, fallbackSeconds: 14400, type: "candles" },
 ];
