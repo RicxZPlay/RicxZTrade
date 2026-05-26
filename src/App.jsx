@@ -342,7 +342,11 @@ export default function App() {
                     onClick={() => {
                       setChartMode(CHART_MODES.btc);
                       setChartSymbol(BTC_CHART_SYMBOL);
-                      setChartOverlayOpen(false);
+                      if (isCompactLayout) {
+                        setBtcQuadOpen(true);
+                      } else {
+                        setChartOverlayOpen(false);
+                      }
                     }}
                   >
                     BTC Graf.
