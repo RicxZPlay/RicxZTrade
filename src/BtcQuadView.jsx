@@ -34,6 +34,7 @@ const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_DPO_PERIOD = 450;
 const BTC_BAND_COLOR = "#f6c85f";
+const INDICATOR_RIGHT_EXTENSION_BARS = 5;
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -338,6 +339,11 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const palette = useMemo(() => getPalette(theme), [theme]);
   const chartData = useMemo(() => toChartCandles(candles), [candles]);
   const bandFillData = useMemo(() => toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER), [chartData]);
+  const extendedBandFillData = useMemo(() => ({
+    upper: extendLineToFuture(bandFillData.upper, chartData, config.fallbackSeconds),
+    middle: extendLineToFuture(bandFillData.middle, chartData, config.fallbackSeconds),
+    lower: extendLineToFuture(bandFillData.lower, chartData, config.fallbackSeconds),
+  }), [bandFillData, chartData, config.fallbackSeconds]);
   const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
 
   useEffect(() => {
@@ -557,17 +563,17 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
 
     priceSeriesRef.current.setData(chartData);
 
-    fastLineRef.current?.setData(bandFillData?.upper || []);
-    slowLineRef.current?.setData(bandFillData?.lower || []);
-    renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_QUAD_EMA_PERIOD));
-    renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_QUAD_VWMA_PERIOD));
-    dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
+    fastLineRef.current?.setData(extendedBandFillData.upper);
+    slowLineRef.current?.setData(extendedBandFillData.lower);
+    renkoEmaLineRef.current?.setData(extendLineToFuture(toChartLineEma(chartData, BTC_QUAD_EMA_PERIOD), chartData, config.fallbackSeconds));
+    renkoVwmaLineRef.current?.setData(extendLineToFuture(toChartLineVwma(chartData, BTC_QUAD_VWMA_PERIOD), chartData, config.fallbackSeconds));
+    dpoSeriesRef.current?.setData(extendLineToFuture(toChartDpoFromBars(chartData, BTC_DPO_PERIOD), chartData, config.fallbackSeconds));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData]);
+  }, [chartData, config.fallbackSeconds, extendedBandFillData]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -626,9 +632,9 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           <BollingerBandFill
             chart={drawingContext.chart}
             chartMeta={chartMeta}
-            lower={bandFillData?.lower}
+            lower={extendedBandFillData.lower}
             series={drawingContext.series}
-            upper={bandFillData?.upper}
+            upper={extendedBandFillData.upper}
           />
           {[...drawings, draftDrawing].filter(Boolean).map((drawing) => (
             <DrawingLayer
@@ -723,6 +729,23 @@ function toChartBandLineFromBars(bars, bands, key) {
       };
     })
     .filter(Boolean);
+}
+
+function extendLineToFuture(line, bars, intervalSeconds, extensionBars = INDICATOR_RIGHT_EXTENSION_BARS) {
+  if (!Array.isArray(line) || line.length === 0 || !Array.isArray(bars) || bars.length === 0) return [];
+
+  const lastPoint = line.at(-1);
+  const lastBar = bars.at(-1);
+  if (!Number.isFinite(lastPoint?.value) || !Number.isFinite(lastBar?.time) || !Number.isFinite(intervalSeconds)) {
+    return line;
+  }
+
+  const futurePoints = Array.from({ length: extensionBars }, (_, index) => ({
+    time: lastBar.time + intervalSeconds * (index + 1),
+    value: lastPoint.value,
+  }));
+
+  return [...line, ...futurePoints];
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
