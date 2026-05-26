@@ -734,18 +734,40 @@ function toChartBandLineFromBars(bars, bands, key) {
 function extendLineToFuture(line, bars, intervalSeconds, extensionBars = INDICATOR_RIGHT_EXTENSION_BARS) {
   if (!Array.isArray(line) || line.length === 0 || !Array.isArray(bars) || bars.length === 0) return [];
 
-  const lastPoint = line.at(-1);
+  const cleanLine = line
+    .filter((point) => Number.isFinite(point?.time) && Number.isFinite(point?.value))
+    .sort((a, b) => a.time - b.time);
+  if (cleanLine.length === 0) return [];
+
+  const firstPoint = cleanLine[0];
+  const lastPoint = cleanLine.at(-1);
   const lastBar = bars.at(-1);
-  if (!Number.isFinite(lastPoint?.value) || !Number.isFinite(lastBar?.time) || !Number.isFinite(intervalSeconds)) {
-    return line;
+  if (!Number.isFinite(lastPoint?.value) || !Number.isFinite(firstPoint?.value) || !Number.isFinite(lastBar?.time) || !Number.isFinite(intervalSeconds)) {
+    return cleanLine;
   }
+
+  const valueByTime = new Map(cleanLine.map((point) => [point.time, point.value]));
+  let carriedValue = firstPoint.value;
+  const filledLine = bars
+    .filter((bar) => Number.isFinite(bar?.time))
+    .map((bar) => {
+      const exactValue = valueByTime.get(bar.time);
+      if (Number.isFinite(exactValue)) {
+        carriedValue = exactValue;
+      }
+
+      return {
+        time: bar.time,
+        value: bar.time < firstPoint.time ? firstPoint.value : carriedValue,
+      };
+    });
 
   const futurePoints = Array.from({ length: extensionBars }, (_, index) => ({
     time: lastBar.time + intervalSeconds * (index + 1),
     value: lastPoint.value,
   }));
 
-  return [...line, ...futurePoints];
+  return [...filledLine, ...futurePoints];
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
