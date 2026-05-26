@@ -133,6 +133,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             <ToolButton
               label="Limpar desenhos"
               onClick={() => {
+                if (!selectedDrawing) return;
                 setClearSignal((current) => ({ id: current.id + 1, target: selectedDrawing }));
                 setSelectedDrawing(null);
               }}
@@ -184,6 +185,9 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const dpoSeriesRef = useRef(null);
   const centeredOnceRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
+  const activeToolRef = useRef(activeTool);
+  const drawingsRef = useRef([]);
+  const chartMetaRef = useRef(null);
   const [drawings, setDrawings] = useState(() => readStoredQuadDrawings(config.id));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
@@ -306,6 +310,19 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     chart.panes()[0]?.setStretchFactor(4);
     chart.panes()[1]?.setStretchFactor(1);
 
+    const handleChartClick = (param) => {
+      if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
+
+      const drawing = findNearestDrawing(
+        param.point,
+        drawingsRef.current,
+        chart,
+        priceSeries,
+        chartMetaRef.current
+      );
+      setSelectedDrawing(drawing ? { chartId: config.id, id: drawing.id } : null);
+    };
+
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
     fastLineRef.current = fastLine;
@@ -328,10 +345,12 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       forceOverlayUpdate((value) => value + 1);
     });
+    chart.subscribeClick(handleChartClick);
     window.requestAnimationFrame(syncPaneHeight);
 
     return () => {
       observer.disconnect();
+      chart.unsubscribeClick(handleChartClick);
       chart.remove();
       chartRef.current = null;
       priceSeriesRef.current = null;
@@ -341,7 +360,19 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
     };
-  }, [isCompact, isRenko, palette]);
+  }, [config.id, isCompact, isRenko, palette, setSelectedDrawing]);
+
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
+
+  useEffect(() => {
+    drawingsRef.current = drawings;
+  }, [drawings]);
+
+  useEffect(() => {
+    chartMetaRef.current = chartMeta;
+  }, [chartMeta]);
 
   useEffect(() => {
     writeStoredQuadDrawings(config.id, drawings);
@@ -354,8 +385,10 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     queueMicrotask(() => {
       const targetDrawing = clearSignal.target;
       setDrawings((current) => {
-        if (targetDrawing?.chartId === config.id) {
-          return current.filter((drawing) => drawing.id !== targetDrawing.id);
+        if (targetDrawing) {
+          return targetDrawing.chartId === config.id
+            ? current.filter((drawing) => drawing.id !== targetDrawing.id)
+            : current;
         }
         return [];
       });
@@ -393,19 +426,6 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   }, [candles, chartData, isRenko]);
 
   const handleToolClick = (event) => {
-    if (activeTool === TOOLS.cursor) {
-      const point = readScreenPoint(event, overlayRef.current);
-      const drawing = findNearestDrawing(
-        point,
-        drawings,
-        drawingContext.chart,
-        drawingContext.series,
-        chartMeta
-      );
-      setSelectedDrawing(drawing ? { chartId: config.id, id: drawing.id } : null);
-      return;
-    }
-
     if (activeTool === TOOLS.cursor) return;
     const point = readChartPoint(event, overlayRef.current, chartRef.current, priceSeriesRef.current, chartMeta);
     if (!point) return;
