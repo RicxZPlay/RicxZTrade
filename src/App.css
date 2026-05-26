@@ -1777,6 +1777,11 @@ input:focus,
     gap: 6px;
   }
 
+  .btc-quad-card:first-child {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
   .btc-quad-card-header {
     min-height: 30px;
     padding: 5px 8px;
