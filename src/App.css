@@ -534,6 +534,30 @@ input:focus,
   grid-template-columns: minmax(140px, 0.85fr) repeat(6, minmax(0, 1fr));
 }
 
+.selected-strip.btc-dashboard {
+  gap: 6px;
+}
+
+.selected-strip.btc-dashboard .selected-metric {
+  min-height: 34px;
+  padding: 5px 8px;
+}
+
+.selected-strip.btc-dashboard .selected-metric span {
+  font-size: 0.58rem;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.selected-strip.btc-dashboard .selected-metric strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .btc-chart-actions {
   display: flex;
   align-items: center;
@@ -761,6 +785,14 @@ input:focus,
   padding: 8px;
 }
 
+.btc-quad-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  overflow: hidden;
+}
+
 .btc-quad-topbar {
   display: flex;
   align-items: center;
@@ -803,6 +835,30 @@ input:focus,
   font-weight: 950;
   padding: 0 10px;
   white-space: nowrap;
+}
+
+.btc-quad-fullscreen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--warning) 72%, var(--border));
+  border-radius: 8px;
+  background: var(--warning);
+  color: #171106;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 950;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.btc-quad-fullscreen:hover,
+.btc-quad-fullscreen:focus-visible {
+  filter: brightness(1.07);
+  box-shadow: 0 0 0 3px var(--warning-soft);
 }
 
 .btc-quad-close:hover,

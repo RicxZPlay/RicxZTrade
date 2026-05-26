@@ -19,9 +19,7 @@ import BtcQuadView from "./BtcQuadView";
 import {
   buildSocketUrl,
   ALT_CHART_INTERVALS,
-  BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
-  DEFAULT_BTC_RENKO_TIMEFRAME,
   DEFAULT_FILTERS,
   fetchCandles,
   formatClock,
@@ -48,7 +46,6 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
-  const btcTimeframe = DEFAULT_BTC_RENKO_TIMEFRAME;
   const [altTimeframe, setAltTimeframe] = useState(DEFAULT_ALT_CHART_TIMEFRAME);
   const [chartCandles, setChartCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
@@ -149,17 +146,16 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (!chartSymbol) return undefined;
+    if (!chartSymbol || chartMode === CHART_MODES.btc) return undefined;
 
     const controller = new AbortController();
     let socket;
     const requestId = chartRequestRef.current + 1;
     chartRequestRef.current = requestId;
-    const btcTimeframeConfig = BTC_RENKO_INTERVALS[btcTimeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
     const altTimeframeConfig = ALT_CHART_INTERVALS[altTimeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
-    const targetSymbol = chartMode === CHART_MODES.btc ? BTC_CHART_SYMBOL : chartSymbol;
-    const targetInterval = chartMode === CHART_MODES.btc ? btcTimeframeConfig.interval : altTimeframeConfig.interval;
-    const targetLimit = chartMode === CHART_MODES.btc ? btcTimeframeConfig.historyLimit : altTimeframeConfig.historyLimit;
+    const targetSymbol = chartSymbol;
+    const targetInterval = altTimeframeConfig.interval;
+    const targetLimit = altTimeframeConfig.historyLimit;
 
     queueMicrotask(() => {
       if (!controller.signal.aborted) {
@@ -207,7 +203,7 @@ export default function App() {
       controller.abort();
       socket?.close();
     };
-  }, [altTimeframe, btcTimeframe, chartMode, chartSymbol]);
+  }, [altTimeframe, chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
@@ -380,7 +376,7 @@ export default function App() {
             Fechar
           </button>
 
-          <div className={chartMode === CHART_MODES.alt ? "selected-strip with-timeframe" : "selected-strip"}>
+          <div className={chartMode === CHART_MODES.alt ? "selected-strip with-timeframe" : "selected-strip btc-dashboard"}>
             {chartMode === CHART_MODES.alt ? (
               <div className="chart-timeframe-actions" aria-label="Timeframe do grafico da altcoin">
                 <button
@@ -407,18 +403,22 @@ export default function App() {
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
 
-          {!isCompactLayout || chartOverlayOpen ? (
-            <CryptoChart
-              key={`${chartMode}-${chartSymbol || "empty-chart"}-${chartMode === CHART_MODES.btc ? btcTimeframe : altTimeframe}`}
-              symbol={chartSymbol || BTC_CHART_SYMBOL}
-              candles={chartCandles}
-              liveStatus={liveStatus}
-              error={chartError}
-              theme={theme}
-              mode={chartMode}
-              timeframe={chartMode === CHART_MODES.btc ? btcTimeframe : altTimeframe}
-            />
+          {chartMode === CHART_MODES.btc && !isCompactLayout ? (
+            <BtcQuadView embedded theme={theme} onFullscreen={() => setBtcQuadOpen(true)} />
           ) : null}
+
+          {chartMode === CHART_MODES.alt && (!isCompactLayout || chartOverlayOpen) ? (
+              <CryptoChart
+                key={`${chartMode}-${chartSymbol || "empty-chart"}-${altTimeframe}`}
+                symbol={chartSymbol || BTC_CHART_SYMBOL}
+                candles={chartCandles}
+                liveStatus={liveStatus}
+                error={chartError}
+                theme={theme}
+                mode={chartMode}
+                timeframe={altTimeframe}
+              />
+            ) : null}
         </section>
       </section>
 

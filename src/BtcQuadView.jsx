@@ -6,7 +6,7 @@ import {
   LineSeries,
   LineStyle,
 } from "lightweight-charts";
-import { X } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import {
   BB_PERIOD,
   BTC_DPO_PERIOD,
@@ -29,7 +29,7 @@ import {
 
 const BTC_SYMBOL = "BTCUSDT";
 
-export default function BtcQuadView({ onClose, theme }) {
+export default function BtcQuadView({ embedded = false, onClose, onFullscreen, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
   const isCompact = useMediaQuery("(max-width: 820px)");
@@ -91,7 +91,7 @@ export default function BtcQuadView({ onClose, theme }) {
   }, []);
 
   return (
-    <section className="btc-quad-overlay" aria-label="Quatro graficos do BTC">
+    <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Quatro graficos do BTC">
       <header className="btc-quad-topbar">
         <div>
           <p className="eyebrow">BTC 4 Graf.</p>
@@ -99,9 +99,16 @@ export default function BtcQuadView({ onClose, theme }) {
         </div>
         <div className="btc-quad-actions">
           <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
-          <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC 4 Graf.">
-            <X size={18} />
-          </button>
+          {embedded ? (
+            <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
+              <Maximize2 size={15} />
+              Graficos em tela cheia
+            </button>
+          ) : (
+            <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC 4 Graf.">
+              <X size={18} />
+            </button>
+          )}
         </div>
       </header>
 
