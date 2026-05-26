@@ -404,7 +404,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const fastLine = chart.addSeries(LineSeries, {
-      color: isRenko ? palette.upperBand : palette.ema,
+      color: isRenko ? palette.lowerBand : palette.ema,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
