@@ -38,6 +38,7 @@ const BTC_RENKO_BB_MULTIPLIER = 1.001;
 const BTC_RENKO_EMA_PERIOD = 450;
 const BTC_RENKO_VWMA_PERIOD = 850;
 const BTC_RENKO_DPO_PERIOD = 450;
+const BTC_RENKO_BAND_COLOR = "#f6c85f";
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -404,7 +405,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const fastLine = chart.addSeries(LineSeries, {
-      color: isRenko ? palette.lowerBand : palette.ema,
+      color: isRenko ? BTC_RENKO_BAND_COLOR : palette.ema,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -412,7 +413,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const slowLine = chart.addSeries(LineSeries, {
-      color: isRenko ? palette.lowerBand : palette.vwma,
+      color: isRenko ? BTC_RENKO_BAND_COLOR : palette.vwma,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
