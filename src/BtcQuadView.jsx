@@ -8,16 +8,16 @@ import {
 } from "lightweight-charts";
 import { Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
-  BB_PERIOD,
-  BTC_DPO_PERIOD,
   BTC_QUAD_CHARTS,
-  BTC_QUAD_DPO_PERIOD,
   BTC_QUAD_EMA_PERIOD,
   BTC_QUAD_VWMA_PERIOD,
   RENKO_BOX_SIZE,
+  calculateEMA,
+  calculateBollingerBands,
   buildSocketUrl,
   fetchCandles,
   formatIndicator,
+  formatPercent,
   formatPrice,
   mergeLiveCandle,
   toChartBollingerBands,
@@ -30,6 +30,14 @@ import {
 
 const BTC_SYMBOL = "BTCUSDT";
 const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
+const BTC_PLAN_STORAGE_KEY = "ricxz.btcStopPlan.v1";
+const BTC_STOP_LOOKBACK_CANDLES = 12;
+const BTC_STOP_BUFFER_PERCENT = 0.0004;
+const BTC_RENKO_BB_PERIOD = 600;
+const BTC_RENKO_BB_MULTIPLIER = 1.001;
+const BTC_RENKO_EMA_PERIOD = 450;
+const BTC_RENKO_VWMA_PERIOD = 850;
+const BTC_RENKO_DPO_PERIOD = 450;
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -42,6 +50,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
+  const [trackedPlan, setTrackedPlan] = useState(() => readStoredBtcPlan());
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -52,6 +61,58 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     ].find((candles) => candles?.length > 0);
     return sourceCandles?.at(-1)?.close ?? null;
   }, [chartCandles]);
+  const tradePlan = useMemo(() => buildBtcTradePlan(chartCandles, btcPrice), [chartCandles, btcPrice]);
+
+  useEffect(() => {
+    writeStoredBtcPlan(trackedPlan);
+  }, [trackedPlan]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setTrackedPlan((current) => {
+        if (!current?.entryLow) {
+          if (!tradePlan.shouldTrack || !Number.isFinite(tradePlan.entryLow) || !Number.isFinite(tradePlan.entryHigh)) {
+            return current;
+          }
+          return {
+            setupKey: tradePlan.setupKey,
+            scenario: tradePlan.scenario,
+            entryLow: tradePlan.entryLow,
+            entryHigh: tradePlan.entryHigh,
+            entryReference: tradePlan.entryReference,
+            entryTime: Date.now(),
+            initialStop: tradePlan.stop,
+            stop: tradePlan.stop,
+            stopBase: tradePlan.activeBase,
+            updatedAt: Date.now(),
+          };
+        }
+
+        if (!Number.isFinite(tradePlan.stop)) return current;
+        const currentStop = Number.isFinite(current.stop) ? current.stop : Number.NEGATIVE_INFINITY;
+        if (tradePlan.stop <= currentStop + 0.01) return current;
+        return {
+          ...current,
+          stop: tradePlan.stop,
+          stopBase: tradePlan.activeBase,
+          updatedAt: Date.now(),
+        };
+      });
+    });
+  }, [
+    tradePlan.activeBase,
+    tradePlan.entryHigh,
+    tradePlan.entryLow,
+    tradePlan.entryReference,
+    tradePlan.scenario,
+    tradePlan.setupKey,
+    tradePlan.shouldTrack,
+    tradePlan.stop,
+  ]);
+
+  const handleResetPlan = () => {
+    setTrackedPlan(null);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -155,6 +216,13 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         </div>
       </header>
 
+      <BtcStopPlanStrip
+        btcPrice={btcPrice}
+        onResetPlan={handleResetPlan}
+        tradePlan={tradePlan}
+        trackedPlan={trackedPlan}
+      />
+
       <div className="btc-quad-grid">
         {BTC_QUAD_CHARTS.map((config) => (
           <BtcQuadChart
@@ -175,6 +243,62 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
 }
 
+function BtcStopPlanStrip({ btcPrice, onResetPlan, tradePlan, trackedPlan }) {
+  const activeStop = Number.isFinite(trackedPlan?.stop) ? trackedPlan.stop : tradePlan.stop;
+  const shouldShowStop = Boolean(trackedPlan?.entryLow || tradePlan.shouldTrack);
+  const displayStop = shouldShowStop ? activeStop : null;
+  const entryLow = Number.isFinite(trackedPlan?.entryLow) ? trackedPlan.entryLow : tradePlan.entryLow;
+  const entryHigh = Number.isFinite(trackedPlan?.entryHigh) ? trackedPlan.entryHigh : tradePlan.entryHigh;
+  const hasEntry = Number.isFinite(trackedPlan?.entryLow) && Number.isFinite(trackedPlan?.entryHigh);
+  const entryLabel = Number.isFinite(entryLow) && Number.isFinite(entryHigh)
+    ? `${formatPrice(entryLow)} - ${formatPrice(entryHigh)}`
+    : "Aguardando setup";
+  const distanceToPrice = Number.isFinite(displayStop) && Number.isFinite(btcPrice)
+    ? ((btcPrice - displayStop) / btcPrice) * 100
+    : null;
+  const protectedFromEntry = hasEntry && Number.isFinite(displayStop) && Number.isFinite(trackedPlan.entryHigh)
+    ? ((displayStop - trackedPlan.entryHigh) / trackedPlan.entryHigh) * 100
+    : null;
+  const status = getBtcPlanStatus(hasEntry, displayStop, trackedPlan?.entryHigh, protectedFromEntry, tradePlan);
+
+  return (
+    <section className="btc-plan-strip" aria-label="Plano BTC de stop movel">
+      <div className="btc-plan-main">
+        <div>
+          <p className="eyebrow">Plano BTC</p>
+          <strong>{status}</strong>
+        </div>
+        <BtcPlanMetric label={hasEntry ? "Entrada travada" : "Entrada sugerida"} value={entryLabel} />
+        <BtcPlanMetric label={hasEntry ? "Stop movel" : "Stop inicial"} value={formatPrice(displayStop)} highlight />
+        <BtcPlanMetric label="Distancia" value={formatPercent(distanceToPrice)} />
+        <BtcPlanMetric
+          label={Number.isFinite(protectedFromEntry) && protectedFromEntry >= 0 ? "Lucro protegido" : "Risco restante"}
+          value={hasEntry ? formatPercent(protectedFromEntry) : "-"}
+          intent={Number.isFinite(protectedFromEntry) && protectedFromEntry >= 0 ? "success" : "danger"}
+        />
+      </div>
+
+      <div className="btc-plan-actions">
+        {hasEntry ? (
+          <button type="button" className="ghost" onClick={onResetPlan}>
+            Reiniciar plano
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function BtcPlanMetric({ highlight = false, intent, label, value }) {
+  const className = ["btc-plan-metric", highlight ? "highlight" : "", intent || ""].filter(Boolean).join(" ");
+  return (
+    <span className={className}>
+      {label}
+      <strong>{value}</strong>
+    </span>
+  );
+}
+
 function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompact, selectedDrawing, setSelectedDrawing, theme }) {
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
@@ -182,6 +306,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const priceSeriesRef = useRef(null);
   const fastLineRef = useRef(null);
   const slowLineRef = useRef(null);
+  const renkoEmaLineRef = useRef(null);
+  const renkoVwmaLineRef = useRef(null);
   const dpoSeriesRef = useRef(null);
   const centeredOnceRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
@@ -272,34 +398,45 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       title: "",
     });
 
-    const middleLine = isRenko
+    const renkoEmaLine = isRenko
       ? chart.addSeries(LineSeries, {
-          color: palette.middleBand,
-          lineWidth: 1,
+          color: palette.ema,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: !isCompact,
+          title: "",
+        })
+      : null;
+    const renkoVwmaLine = isRenko
+      ? chart.addSeries(LineSeries, {
+          color: "#e879f9",
+          lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: !isCompact,
           title: "",
         })
       : null;
 
-    const dpoSeries = chart.addSeries(
-      LineSeries,
-      {
-        title: "",
-        color: "#38b24d",
-        lineWidth: 2,
-        priceFormat: {
-          type: "price",
-          precision: 2,
-          minMove: 0.01,
-        },
-        priceLineVisible: false,
-        lastValueVisible: !isCompact,
-        autoscaleInfoProvider: centerZeroAutoscale,
-      },
-      1
-    );
-    dpoSeries.createPriceLine({
+    const dpoSeries = isRenko
+      ? chart.addSeries(
+          LineSeries,
+          {
+            title: "",
+            color: "#38b24d",
+            lineWidth: 2,
+            priceFormat: {
+              type: "price",
+              precision: 2,
+              minMove: 0.01,
+            },
+            priceLineVisible: false,
+            lastValueVisible: !isCompact,
+            autoscaleInfoProvider: centerZeroAutoscale,
+          },
+          1
+        )
+      : null;
+    dpoSeries?.createPriceLine({
       price: 0,
       color: "rgba(168, 179, 199, 0.55)",
       lineWidth: 1,
@@ -307,8 +444,10 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       axisLabelVisible: false,
       title: "",
     });
-    chart.panes()[0]?.setStretchFactor(4);
-    chart.panes()[1]?.setStretchFactor(1);
+    if (isRenko) {
+      chart.panes()[0]?.setStretchFactor(4);
+      chart.panes()[1]?.setStretchFactor(1);
+    }
 
     const handleChartClick = (param) => {
       if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
@@ -327,9 +466,10 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     priceSeriesRef.current = priceSeries;
     fastLineRef.current = fastLine;
     slowLineRef.current = slowLine;
+    renkoEmaLineRef.current = renkoEmaLine;
+    renkoVwmaLineRef.current = renkoVwmaLine;
     dpoSeriesRef.current = dpoSeries;
     setDrawingContext({ chart, series: priceSeries });
-    chart.middleLine = middleLine;
 
     const syncPaneHeight = () => {
       const height = getPricePaneHeight(chart);
@@ -356,6 +496,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       priceSeriesRef.current = null;
       fastLineRef.current = null;
       slowLineRef.current = null;
+      renkoEmaLineRef.current = null;
+      renkoVwmaLineRef.current = null;
       dpoSeriesRef.current = null;
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
@@ -408,15 +550,15 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     priceSeriesRef.current.setData(chartData);
 
     if (isRenko) {
-      const bands = toChartBollingerBands(candles, RENKO_BOX_SIZE);
+      const bands = toChartBollingerBands(candles, RENKO_BOX_SIZE, BTC_RENKO_BB_PERIOD, BTC_RENKO_BB_MULTIPLIER);
       fastLineRef.current?.setData(bands.upper);
       slowLineRef.current?.setData(bands.lower);
-      chartRef.current.middleLine?.setData(bands.middle);
-      dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
+      renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_RENKO_EMA_PERIOD));
+      renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_RENKO_VWMA_PERIOD));
+      dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_RENKO_DPO_PERIOD));
     } else {
       fastLineRef.current?.setData(toChartEma(candles, BTC_QUAD_EMA_PERIOD));
       slowLineRef.current?.setData(toChartVwma(candles, BTC_QUAD_VWMA_PERIOD));
-      dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_QUAD_DPO_PERIOD));
     }
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
@@ -462,8 +604,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   };
 
   const legends = isRenko
-    ? [`BB ${BB_PERIOD}`, `DPO ${BTC_DPO_PERIOD}`]
-    : [`EMA ${BTC_QUAD_EMA_PERIOD}`, `VWMA ${BTC_QUAD_VWMA_PERIOD}`, `DPO ${BTC_QUAD_DPO_PERIOD}`];
+    ? [`BB ${BTC_RENKO_BB_PERIOD}`, `EMA ${BTC_RENKO_EMA_PERIOD}`, `VWMA ${BTC_RENKO_VWMA_PERIOD}`, `DPO ${BTC_RENKO_DPO_PERIOD}`]
+    : [`EMA ${BTC_QUAD_EMA_PERIOD}`, `VWMA ${BTC_QUAD_VWMA_PERIOD}`];
 
   return (
     <article className="btc-quad-card">
@@ -763,6 +905,440 @@ function getPricePaneHeight(chart) {
     return chart?.paneSize(0)?.height ?? null;
   } catch {
     return null;
+  }
+}
+
+function buildBtcTradePlan(chartCandles, btcPrice) {
+  const renkoCandles = chartCandles["renko-15m"] || [];
+  const btc15mCandles = chartCandles["candles-15m"] || [];
+  const btc1hCandles = chartCandles["candles-1h"] || [];
+  const btc4hCandles = chartCandles["candles-4h"] || [];
+  const renkoBricks = toChartRenko(renkoCandles, RENKO_BOX_SIZE);
+  const renkoBands = calculateBollingerBands(
+    renkoBricks.map((brick) => brick.close),
+    BTC_RENKO_BB_PERIOD,
+    BTC_RENKO_BB_MULTIPLIER
+  );
+  const renkoDpo = toChartDpoFromBars(renkoBricks, BTC_RENKO_DPO_PERIOD);
+  const latestBrick = renkoBricks.at(-1);
+  const latestBand = renkoBands.at(-1);
+  const previousDpo = renkoDpo.at(-4)?.value ?? renkoDpo.at(-2)?.value;
+  const latestDpo = renkoDpo.at(-1)?.value;
+  const dpoTurningUp = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo > previousDpo;
+  const latestRenkoEma = toChartLineEma(renkoBricks, BTC_RENKO_EMA_PERIOD).at(-1)?.value;
+  const latestRenkoVwma = toChartLineVwma(renkoBricks, BTC_RENKO_VWMA_PERIOD).at(-1)?.value;
+  const renkoSetup = getRenkoSetup(renkoBricks, renkoBands, dpoTurningUp, {
+    ema: latestRenkoEma,
+    vwma: latestRenkoVwma,
+  });
+  const touchedLowerBand = renkoSetup.touchedLowerBand;
+  const renkoSignal = renkoSetup.confirmed;
+  const frame15m = getCandleFrameState(btc15mCandles);
+  const frame1h = getCandleFrameState(btc1hCandles);
+  const frame4h = getCandleFrameState(btc4hCandles);
+  const confirmations = [];
+  const risks = [];
+
+  if (renkoSignal) confirmations.push(renkoSetup.label);
+  else risks.push(renkoSetup.label);
+
+  if (renkoSetup.aboveVwma) confirmations.push("Renko acima da VWMA 850");
+  else if (renkoSetup.betweenLowerAndEma) confirmations.push("Renko entre BB inferior e EMA 450");
+  else risks.push("Renko abaixo da zona de confirmacao");
+
+  if (dpoTurningUp) confirmations.push("DPO 450 virando para cima");
+  else risks.push("DPO 450 sem virada clara");
+
+  if (frame15m.confirmed) confirmations.push("15m recuperou media");
+  else risks.push("15m ainda abaixo das medias");
+
+  if (!frame1h.bearish) confirmations.push("1H nao bloqueia compra");
+  else risks.push("1H pressionado");
+
+  if (!frame4h.bearish) confirmations.push("4H nao esta contra");
+  else risks.push("4H contra a compra");
+
+  const setupStrength = [renkoSignal, frame15m.confirmed, !frame1h.bearish, !frame4h.bearish].filter(Boolean).length;
+  const shouldTrack = renkoSignal && frame15m.confirmed && !frame4h.bearish;
+  const scenario = getTradeScenario({ renkoSignal, setupStrength, frame15m, frame1h, frame4h });
+  const entry = buildEntryZone({
+    band: latestBand,
+    btcPrice,
+    frame15m,
+    latestBrick,
+    renkoSetup,
+    shouldTrack,
+    touchedLowerBand,
+  });
+  const buffer = getStopBuffer(btcPrice);
+  const candidates = [
+    buildStopCandidate("Fundo Renko", getLastRenkoSwingLow(renkoBricks), buffer, btcPrice),
+    buildStopCandidate("Banda inferior", renkoBands.at(-1)?.lower, buffer, btcPrice),
+    buildStopCandidate("Minima 15m", getRecentCandleLow(btc15mCandles), buffer, btcPrice),
+  ].filter(Boolean);
+  const activeCandidate = candidates.reduce((best, candidate) => {
+    if (!best || candidate.stop > best.stop) return candidate;
+    return best;
+  }, null);
+
+  return {
+    activeBase: activeCandidate?.label || "Aguardando dados",
+    candidates,
+    confirmations,
+    entryHigh: entry.high,
+    entryLow: entry.low,
+    entryReference: entry.reference,
+    reason: buildTradeReason({ shouldTrack, scenario, confirmations, risks }),
+    risks,
+    scenario,
+    setupKey: buildSetupKey(latestBrick, latestBand, scenario),
+    shouldTrack,
+    stop: activeCandidate?.stop ?? null,
+  };
+}
+
+function buildStopCandidate(label, level, buffer, btcPrice) {
+  if (!Number.isFinite(level) || !Number.isFinite(buffer)) return null;
+  const stop = level - buffer;
+  if (Number.isFinite(btcPrice) && stop >= btcPrice) return null;
+  return { label, level, stop };
+}
+
+function toChartLineEma(bars, period) {
+  const ema = calculateEMA(
+    bars.map((bar) => bar.close),
+    period
+  );
+
+  return bars
+    .map((bar, index) => ({
+      time: bar.time,
+      value: ema[index],
+    }))
+    .filter((item) => Number.isFinite(item.value));
+}
+
+function toChartLineVwma(bars, period) {
+  if (!Array.isArray(bars) || bars.length < period) return [];
+
+  return bars
+    .map((bar, index) => {
+      if (index < period - 1) return null;
+
+      const window = bars.slice(index - period + 1, index + 1);
+      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
+      if (!volumeSum) return null;
+
+      const value = window.reduce((sum, item) => {
+        const close = Number.isFinite(item.close) ? item.close : 0;
+        const volume = Number.isFinite(item.volume) ? item.volume : 0;
+        return sum + close * volume;
+      }, 0) / volumeSum;
+
+      return {
+        time: bar.time,
+        value,
+      };
+    })
+    .filter(Boolean);
+}
+
+function getCandleFrameState(candles) {
+  const last = candles.at(-1);
+  const ema = toChartEma(candles, BTC_QUAD_EMA_PERIOD).at(-1)?.value;
+  const vwma = toChartVwma(candles, BTC_QUAD_VWMA_PERIOD).at(-1)?.value;
+  const price = last?.close;
+  const aboveEma = Number.isFinite(price) && Number.isFinite(ema) && price >= ema;
+  const aboveVwma = Number.isFinite(price) && Number.isFinite(vwma) && price >= vwma;
+  const belowBoth = Number.isFinite(price) && Number.isFinite(ema) && Number.isFinite(vwma) && price < ema && price < vwma;
+
+  return {
+    aboveEma,
+    aboveVwma,
+    bearish: belowBoth,
+    confirmed: aboveEma || aboveVwma,
+    ema,
+    price,
+    vwma,
+  };
+}
+
+function hasRecentLowerBandTouch(bricks, bands) {
+  const recentBricks = bricks.slice(-18);
+  const offset = bricks.length - recentBricks.length;
+  return recentBricks.some((brick, index) => {
+    const band = bands[offset + index];
+    return Number.isFinite(band?.lower) && brick.low <= band.lower + RENKO_BOX_SIZE;
+  });
+}
+
+function getRenkoSetup(bricks, bands, dpoTurningUp, trendLines = {}) {
+  const latest = bricks.at(-1);
+  const previous = bricks.at(-2);
+  const latestBand = bands.at(-1);
+  const touchedLowerBand = hasRecentLowerBandTouch(bricks, bands);
+  const latestDirection = getBarDirection(latest);
+  const lower = latestBand?.lower;
+  const middle = latestBand?.middle;
+  const upper = latestBand?.upper;
+
+  if (!latest || !latestBand || !Number.isFinite(lower) || !Number.isFinite(middle) || !Number.isFinite(upper)) {
+    return {
+      confirmed: false,
+      label: "Renko aguardando bandas",
+      mode: "waiting",
+      supportLevel: null,
+      touchedLowerBand: false,
+    };
+  }
+
+  const belowLower = latest.close < lower;
+  const insideBands = latest.close >= lower && latest.close <= upper;
+  const aboveVwma = Number.isFinite(trendLines.vwma) && latest.close >= trendLines.vwma;
+  const aboveEma = Number.isFinite(trendLines.ema) && latest.close >= trendLines.ema;
+  const betweenLowerAndEma = Number.isFinite(trendLines.ema) && latest.close >= lower && latest.close <= trendLines.ema;
+  const bullishPivot = hasRenkoBullishPivot(bricks);
+  const reclaimedLowerBand = touchedLowerBand && latest.close > lower && previous?.close <= lower + RENKO_BOX_SIZE && latestDirection > 0 && dpoTurningUp;
+  const pivotAfterExcess = touchedLowerBand && !belowLower && bullishPivot && dpoTurningUp;
+  const insideContinuation = insideBands && !belowLower && hasRenkoInsideBandContinuation(bricks, latestBand) && dpoTurningUp;
+  const earlyEmaZoneSetup = insideContinuation && betweenLowerAndEma;
+  const bestHistoricalSetup = insideContinuation && aboveVwma;
+
+  if (bestHistoricalSetup) {
+    return {
+      confirmed: true,
+      label: "Renko em continuacao acima da VWMA 850",
+      mode: "inside-vwma",
+      supportLevel: Math.max(lower, Math.min(trendLines.vwma, latest.close)),
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  if (earlyEmaZoneSetup) {
+    return {
+      confirmed: true,
+      label: "Renko confirmou entre BB inferior e EMA 450",
+      mode: "lower-ema-zone",
+      supportLevel: Math.max(lower, Math.min(trendLines.ema, latest.close)),
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  if (reclaimedLowerBand || pivotAfterExcess) {
+    return {
+      confirmed: false,
+      label: "Renko reagiu, aguardando continuacao",
+      mode: reclaimedLowerBand ? "reclaim-watch" : "pivot-watch",
+      supportLevel: reclaimedLowerBand ? lower : getLastRenkoSwingLow(bricks) ?? lower,
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  if (insideContinuation) {
+    return {
+      confirmed: false,
+      label: betweenLowerAndEma ? "Renko na zona BB/EMA, aguardando sequencia" : "Renko subindo, aguardando zona de confirmacao",
+      mode: "inside",
+      supportLevel: Math.max(lower, Math.min(middle, latest.close)),
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  if (belowLower) {
+    return {
+      confirmed: false,
+      label: "Renko abaixo da banda, aguardando pivo",
+      mode: "below",
+      supportLevel: lower,
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  if (touchedLowerBand) {
+    return {
+      confirmed: false,
+      label: "Renko voltou para as bandas, aguardando virada",
+      mode: "waiting-pivot",
+      supportLevel: lower,
+      touchedLowerBand,
+      aboveEma,
+      aboveVwma,
+      betweenLowerAndEma,
+    };
+  }
+
+  return {
+    confirmed: false,
+    label: "Renko ainda sem gatilho",
+    mode: "waiting",
+    supportLevel: null,
+    touchedLowerBand,
+    aboveEma,
+    aboveVwma,
+    betweenLowerAndEma,
+  };
+}
+
+function hasRenkoBullishPivot(bricks) {
+  const recent = bricks.slice(-8);
+  if (recent.length < 4) return false;
+  const latest = recent.at(-1);
+  const previous = recent.at(-2);
+  const hadBearishLeg = recent.slice(0, -1).some((brick) => getBarDirection(brick) < 0);
+  const lastTwoPositive = getBarDirection(latest) > 0 && getBarDirection(previous) > 0;
+  const reclaimedPreviousHigh = previous && latest.close > previous.high;
+  return hadBearishLeg && getBarDirection(latest) > 0 && (lastTwoPositive || reclaimedPreviousHigh);
+}
+
+function hasRenkoInsideBandContinuation(bricks, band) {
+  const recent = bricks.slice(-5);
+  if (recent.length < 3 || !Number.isFinite(band?.lower) || !Number.isFinite(band?.middle)) return false;
+  const latest = recent.at(-1);
+  const previous = recent.at(-2);
+  const positiveCount = recent.slice(-4).filter((brick) => getBarDirection(brick) > 0).length;
+  const higherCloses = latest.close > previous.close && previous.close >= recent.at(-3).close;
+  const aboveLower = latest.close > band.lower + RENKO_BOX_SIZE;
+  const movingToMiddle = latest.close >= band.middle || (aboveLower && positiveCount >= 3);
+  return higherCloses && movingToMiddle;
+}
+
+function getBarDirection(bar) {
+  if (!bar) return 0;
+  if (bar.close > bar.open) return 1;
+  if (bar.close < bar.open) return -1;
+  return 0;
+}
+
+function getTradeScenario({ renkoSignal, setupStrength, frame15m, frame1h, frame4h }) {
+  if (renkoSignal && frame15m.confirmed && !frame1h.bearish && !frame4h.bearish) return "Compra forte";
+  if (renkoSignal && frame15m.confirmed && !frame4h.bearish) return "Compra inicial";
+  if (frame4h.bearish && frame1h.bearish) return "Evitar compra";
+  if (setupStrength >= 2) return "Aguardar pullback";
+  return "Aguardar";
+}
+
+function buildEntryZone({ band, btcPrice, frame15m, latestBrick, renkoSetup, shouldTrack, touchedLowerBand }) {
+  if (!shouldTrack) return { high: null, low: null, reference: null };
+  if (!Number.isFinite(btcPrice)) return { high: null, low: null, reference: null };
+  const references = [
+    latestBrick?.close,
+    renkoSetup.supportLevel,
+    touchedLowerBand ? band?.lower : null,
+    frame15m.aboveVwma ? frame15m.vwma : null,
+    frame15m.aboveEma ? frame15m.ema : null,
+  ].filter(Number.isFinite);
+  const reference = references.length ? Math.max(...references.filter((value) => value <= btcPrice * 1.006)) : btcPrice;
+  const width = Math.max(RENKO_BOX_SIZE * 3, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
+  const low = Math.min(reference, btcPrice) - width * 0.45;
+  const high = Math.max(reference, btcPrice) + width * 0.25;
+  return { high, low, reference };
+}
+
+function buildTradeReason({ shouldTrack, scenario, confirmations, risks }) {
+  if (shouldTrack) {
+    return `${scenario}: entrada travada automaticamente pelo consenso dos graficos.`;
+  }
+  if (risks.length > 0) {
+    return `${scenario}: ${risks[0]}.`;
+  }
+  return confirmations[0] || "Aguardando confirmacao dos 4 graficos.";
+}
+
+function buildSetupKey(latestBrick, latestBand, scenario) {
+  const time = latestBrick?.time || 0;
+  const band = Number.isFinite(latestBand?.lower) ? Math.round(latestBand.lower) : 0;
+  return `${scenario}-${time}-${band}`;
+}
+
+function getLastRenkoSwingLow(bricks) {
+  const recentBricks = bricks.slice(-160);
+  for (let index = recentBricks.length - 1; index >= 1; index -= 1) {
+    const previousDirection = Math.sign(recentBricks[index - 1].close - recentBricks[index - 1].open);
+    const currentDirection = Math.sign(recentBricks[index].close - recentBricks[index].open);
+    if (previousDirection < 0 && currentDirection > 0) {
+      return Math.min(recentBricks[index - 1].low, recentBricks[index].low);
+    }
+  }
+
+  return getFiniteMin(recentBricks.slice(-24).map((brick) => brick.low));
+}
+
+function getRecentCandleLow(candles) {
+  const recentCandles = candles
+    .filter((candle) => candle && candle.closed !== false && Number.isFinite(candle.low))
+    .slice(-BTC_STOP_LOOKBACK_CANDLES);
+
+  return getFiniteMin(recentCandles.map((candle) => candle.low));
+}
+
+function getFiniteMin(values) {
+  const finiteValues = values.filter(Number.isFinite);
+  if (finiteValues.length === 0) return null;
+  return Math.min(...finiteValues);
+}
+
+function getStopBuffer(price) {
+  if (!Number.isFinite(price)) return RENKO_BOX_SIZE;
+  return Math.max(RENKO_BOX_SIZE, price * BTC_STOP_BUFFER_PERCENT);
+}
+
+function getBtcPlanStatus(hasEntry, activeStop, entryPrice, protectedFromEntry, tradePlan) {
+  if (!hasEntry) return tradePlan.scenario;
+  if (!Number.isFinite(activeStop)) return "Aguardando dados do stop";
+  if (activeStop >= entryPrice) return "Stop em lucro, seguir tendencia";
+  if (Number.isFinite(protectedFromEntry) && protectedFromEntry > -0.35) return "Risco bem reduzido";
+  return `${trackedScenarioLabel(tradePlan.scenario)} com stop tecnico`;
+}
+
+function trackedScenarioLabel(scenario) {
+  return scenario === "Compra forte" || scenario === "Compra inicial" ? scenario : "Plano ativo";
+}
+
+function readStoredBtcPlan() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(BTC_PLAN_STORAGE_KEY) || "null");
+    if (!parsed || !Number.isFinite(parsed.entryLow) || !Number.isFinite(parsed.entryHigh)) return null;
+    return {
+      entryHigh: Number(parsed.entryHigh),
+      entryLow: Number(parsed.entryLow),
+      entryReference: Number.isFinite(parsed.entryReference) ? Number(parsed.entryReference) : null,
+      entryTime: Number(parsed.entryTime) || Date.now(),
+      initialStop: Number.isFinite(parsed.initialStop) ? Number(parsed.initialStop) : null,
+      scenario: typeof parsed.scenario === "string" ? parsed.scenario : null,
+      setupKey: typeof parsed.setupKey === "string" ? parsed.setupKey : null,
+      stop: Number.isFinite(parsed.stop) ? Number(parsed.stop) : null,
+      stopBase: typeof parsed.stopBase === "string" ? parsed.stopBase : null,
+      updatedAt: Number(parsed.updatedAt) || Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBtcPlan(plan) {
+  try {
+    if (!plan) {
+      window.localStorage.removeItem(BTC_PLAN_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(BTC_PLAN_STORAGE_KEY, JSON.stringify(plan));
+  } catch {
+    // localStorage can fail in private modes; the open session still keeps the stop plan.
   }
 }
 

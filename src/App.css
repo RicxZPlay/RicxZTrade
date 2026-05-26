@@ -775,7 +775,7 @@ input:focus,
   inset: 0;
   z-index: 60;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
   width: 100vw;
   height: 100dvh;
@@ -788,7 +788,7 @@ input:focus,
 .btc-quad-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 8px;
   overflow: hidden;
 }
@@ -865,6 +865,100 @@ input:focus,
 .btc-quad-close:focus-visible {
   border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
   color: var(--danger);
+}
+
+.btc-plan-strip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--success-soft));
+  padding: 7px;
+}
+
+.btc-plan-main,
+.btc-plan-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btc-plan-main {
+  flex-wrap: wrap;
+}
+
+.btc-plan-main > div {
+  min-width: 132px;
+}
+
+.btc-plan-main strong {
+  color: var(--text-strong);
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.btc-plan-metric {
+  min-height: 38px;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.btc-plan-metric strong {
+  color: var(--text-strong);
+  font-size: 0.8rem;
+}
+
+.btc-plan-metric.highlight {
+  border-color: color-mix(in srgb, var(--warning) 65%, var(--border));
+  background: var(--warning-soft);
+}
+
+.btc-plan-metric.success strong {
+  color: var(--success);
+}
+
+.btc-plan-metric.danger strong {
+  color: var(--danger);
+}
+
+.btc-plan-actions button {
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--success) 52%, var(--border));
+  border-radius: 8px;
+  background: var(--success);
+  color: #04130d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 950;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.btc-plan-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btc-plan-actions button.ghost {
+  border-color: var(--border);
+  background: var(--surface-soft);
+  color: var(--text-main);
 }
 
 .btc-quad-grid {
@@ -1626,6 +1720,47 @@ input:focus,
     min-height: 34px;
     font-size: 0.78rem;
     padding: 0 8px;
+  }
+
+  .btc-plan-strip {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .btc-plan-main,
+  .btc-plan-actions {
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .btc-plan-main::-webkit-scrollbar,
+  .btc-plan-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .btc-plan-main > div {
+    min-width: 108px;
+  }
+
+  .btc-plan-main strong {
+    font-size: 0.72rem;
+  }
+
+  .btc-plan-metric {
+    min-height: 32px;
+    font-size: 0.54rem;
+    padding: 5px 7px;
+  }
+
+  .btc-plan-metric strong {
+    font-size: 0.68rem;
+  }
+
+  .btc-plan-actions button {
+    min-height: 32px;
+    font-size: 0.66rem;
   }
 
   .btc-quad-grid {

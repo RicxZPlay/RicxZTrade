@@ -341,6 +341,7 @@ export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
         openTime: lastChartTime * 1000,
         sourceOpenTime: candle.openTime,
         projected: candle.closed === false,
+        volume: Number.isFinite(candle.volume) ? candle.volume : 0,
         open,
         high: Math.max(open, brickClose),
         low: Math.min(open, brickClose),
@@ -432,16 +433,17 @@ export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE) {
     high: brick.high,
     low: brick.low,
     close: brick.close,
+    volume: brick.volume,
     ...(brick.projected ? getProjectedRenkoColors(brick.direction) : {}),
   }));
 }
 
-export function toChartBollingerBands(candles, boxSize = RENKO_BOX_SIZE) {
+export function toChartBollingerBands(candles, boxSize = RENKO_BOX_SIZE, period = BB_PERIOD, multiplier = BB_MULTIPLIER) {
   const bricks = toChartRenko(candles, boxSize);
   const bands = calculateBollingerBands(
     bricks.map((brick) => brick.close),
-    BB_PERIOD,
-    BB_MULTIPLIER
+    period,
+    multiplier
   );
 
   return {
