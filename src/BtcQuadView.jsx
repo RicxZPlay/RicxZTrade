@@ -75,15 +75,12 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             return current;
           }
           return {
-            setupKey: tradePlan.setupKey,
             scenario: tradePlan.scenario,
             entryLow: tradePlan.entryLow,
             entryHigh: tradePlan.entryHigh,
-            entryReference: tradePlan.entryReference,
             entryTime: Date.now(),
             initialStop: tradePlan.stop,
             stop: tradePlan.stop,
-            stopBase: tradePlan.activeBase,
             updatedAt: Date.now(),
           };
         }
@@ -94,18 +91,14 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         return {
           ...current,
           stop: tradePlan.stop,
-          stopBase: tradePlan.activeBase,
           updatedAt: Date.now(),
         };
       });
     });
   }, [
-    tradePlan.activeBase,
     tradePlan.entryHigh,
     tradePlan.entryLow,
-    tradePlan.entryReference,
     tradePlan.scenario,
-    tradePlan.setupKey,
     tradePlan.shouldTrack,
     tradePlan.stop,
   ]);
@@ -117,40 +110,68 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   useEffect(() => {
     const controller = new AbortController();
     const sockets = [];
+    const configsByInterval = BTC_QUAD_CHARTS.reduce((groups, config) => {
+      const group = groups.get(config.interval) || [];
+      group.push(config);
+      groups.set(config.interval, group);
+      return groups;
+    }, new Map());
 
-    BTC_QUAD_CHARTS.forEach((config) => {
-      fetchCandles(BTC_SYMBOL, config.historyLimit, controller.signal, config.interval)
+    configsByInterval.forEach((configs, interval) => {
+      const maxHistoryLimit = Math.max(...configs.map((config) => config.historyLimit));
+      const maxHistoryConfig = configs.find((config) => config.historyLimit === maxHistoryLimit) || configs[0];
+      const assignCandlesToConfigs = (sourceCandles) => {
+        setChartCandles((current) => {
+          const next = { ...current };
+          configs.forEach((config) => {
+            next[config.id] = sourceCandles.slice(-config.historyLimit);
+          });
+          return next;
+        });
+      };
+      const assignErrorToConfigs = (message) => {
+        setErrors((current) => {
+          const next = { ...current };
+          configs.forEach((config) => {
+            next[config.id] = message;
+          });
+          return next;
+        });
+      };
+
+      fetchCandles(BTC_SYMBOL, maxHistoryLimit, controller.signal, interval)
         .then((candles) => {
           if (controller.signal.aborted) return;
-          setChartCandles((current) => ({ ...current, [config.id]: candles }));
-          setErrors((current) => ({ ...current, [config.id]: "" }));
+          assignCandlesToConfigs(candles);
+          assignErrorToConfigs("");
 
-          const socket = new WebSocket(buildSocketUrl(BTC_SYMBOL, config.interval));
+          const socket = new WebSocket(buildSocketUrl(BTC_SYMBOL, interval));
           sockets.push(socket);
           socket.onmessage = (event) => {
             try {
               const payload = JSON.parse(event.data);
               if (controller.signal.aborted || payload?.s !== BTC_SYMBOL) return;
-              setChartCandles((current) => ({
-                ...current,
-                [config.id]: mergeLiveCandle(current[config.id] || candles, payload, config.historyLimit),
-              }));
+              setChartCandles((current) => {
+                const mergedCandles = mergeLiveCandle(current[maxHistoryConfig.id] || candles, payload, maxHistoryLimit);
+                const next = { ...current };
+                configs.forEach((config) => {
+                  next[config.id] = mergedCandles.slice(-config.historyLimit);
+                });
+                return next;
+              });
             } catch {
-              setErrors((current) => ({ ...current, [config.id]: "Falha no tempo real." }));
+              assignErrorToConfigs("Falha no tempo real.");
             }
           };
           socket.onerror = () => {
             if (!controller.signal.aborted) {
-              setErrors((current) => ({ ...current, [config.id]: "Tempo real desconectado." }));
+              assignErrorToConfigs("Tempo real desconectado.");
             }
           };
         })
         .catch((error) => {
           if (!controller.signal.aborted) {
-            setErrors((current) => ({
-              ...current,
-              [config.id]: error?.message || "Nao foi possivel carregar este grafico.",
-            }));
+            assignErrorToConfigs(error?.message || "Nao foi possivel carregar este grafico.");
           }
         });
     });
@@ -936,28 +957,6 @@ function buildBtcTradePlan(chartCandles, btcPrice) {
   const frame15m = getCandleFrameState(btc15mCandles);
   const frame1h = getCandleFrameState(btc1hCandles);
   const frame4h = getCandleFrameState(btc4hCandles);
-  const confirmations = [];
-  const risks = [];
-
-  if (renkoSignal) confirmations.push(renkoSetup.label);
-  else risks.push(renkoSetup.label);
-
-  if (renkoSetup.aboveVwma) confirmations.push("Renko acima da VWMA 850");
-  else if (renkoSetup.betweenLowerAndEma) confirmations.push("Renko entre BB inferior e EMA 450");
-  else risks.push("Renko abaixo da zona de confirmacao");
-
-  if (dpoTurningUp) confirmations.push("DPO 450 virando para cima");
-  else risks.push("DPO 450 sem virada clara");
-
-  if (frame15m.confirmed) confirmations.push("15m recuperou media");
-  else risks.push("15m ainda abaixo das medias");
-
-  if (!frame1h.bearish) confirmations.push("1H nao bloqueia compra");
-  else risks.push("1H pressionado");
-
-  if (!frame4h.bearish) confirmations.push("4H nao esta contra");
-  else risks.push("4H contra a compra");
-
   const setupStrength = [renkoSignal, frame15m.confirmed, !frame1h.bearish, !frame4h.bearish].filter(Boolean).length;
   const shouldTrack = renkoSignal && frame15m.confirmed && !frame4h.bearish;
   const scenario = getTradeScenario({ renkoSignal, setupStrength, frame15m, frame1h, frame4h });
@@ -971,37 +970,27 @@ function buildBtcTradePlan(chartCandles, btcPrice) {
     touchedLowerBand,
   });
   const buffer = getStopBuffer(btcPrice);
-  const candidates = [
-    buildStopCandidate("Fundo Renko", getLastRenkoSwingLow(renkoBricks), buffer, btcPrice),
-    buildStopCandidate("Banda inferior", renkoBands.at(-1)?.lower, buffer, btcPrice),
-    buildStopCandidate("Minima 15m", getRecentCandleLow(btc15mCandles), buffer, btcPrice),
+  const stopCandidates = [
+    buildStopCandidate(getLastRenkoSwingLow(renkoBricks), buffer, btcPrice),
+    buildStopCandidate(renkoBands.at(-1)?.lower, buffer, btcPrice),
+    buildStopCandidate(getRecentCandleLow(btc15mCandles), buffer, btcPrice),
   ].filter(Boolean);
-  const activeCandidate = candidates.reduce((best, candidate) => {
-    if (!best || candidate.stop > best.stop) return candidate;
-    return best;
-  }, null);
+  const stop = stopCandidates.length ? Math.max(...stopCandidates) : null;
 
   return {
-    activeBase: activeCandidate?.label || "Aguardando dados",
-    candidates,
-    confirmations,
     entryHigh: entry.high,
     entryLow: entry.low,
-    entryReference: entry.reference,
-    reason: buildTradeReason({ shouldTrack, scenario, confirmations, risks }),
-    risks,
     scenario,
-    setupKey: buildSetupKey(latestBrick, latestBand, scenario),
     shouldTrack,
-    stop: activeCandidate?.stop ?? null,
+    stop,
   };
 }
 
-function buildStopCandidate(label, level, buffer, btcPrice) {
+function buildStopCandidate(level, buffer, btcPrice) {
   if (!Number.isFinite(level) || !Number.isFinite(buffer)) return null;
   const stop = level - buffer;
   if (Number.isFinite(btcPrice) && stop >= btcPrice) return null;
-  return { label, level, stop };
+  return stop;
 }
 
 function toChartLineEma(bars, period) {
@@ -1246,23 +1235,7 @@ function buildEntryZone({ band, btcPrice, frame15m, latestBrick, renkoSetup, sho
   const width = Math.max(RENKO_BOX_SIZE * 3, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
   const low = Math.min(reference, btcPrice) - width * 0.45;
   const high = Math.max(reference, btcPrice) + width * 0.25;
-  return { high, low, reference };
-}
-
-function buildTradeReason({ shouldTrack, scenario, confirmations, risks }) {
-  if (shouldTrack) {
-    return `${scenario}: entrada travada automaticamente pelo consenso dos graficos.`;
-  }
-  if (risks.length > 0) {
-    return `${scenario}: ${risks[0]}.`;
-  }
-  return confirmations[0] || "Aguardando confirmacao dos 4 graficos.";
-}
-
-function buildSetupKey(latestBrick, latestBand, scenario) {
-  const time = latestBrick?.time || 0;
-  const band = Number.isFinite(latestBand?.lower) ? Math.round(latestBand.lower) : 0;
-  return `${scenario}-${time}-${band}`;
+  return { high, low };
 }
 
 function getLastRenkoSwingLow(bricks) {
@@ -1316,13 +1289,10 @@ function readStoredBtcPlan() {
     return {
       entryHigh: Number(parsed.entryHigh),
       entryLow: Number(parsed.entryLow),
-      entryReference: Number.isFinite(parsed.entryReference) ? Number(parsed.entryReference) : null,
       entryTime: Number(parsed.entryTime) || Date.now(),
       initialStop: Number.isFinite(parsed.initialStop) ? Number(parsed.initialStop) : null,
       scenario: typeof parsed.scenario === "string" ? parsed.scenario : null,
-      setupKey: typeof parsed.setupKey === "string" ? parsed.setupKey : null,
       stop: Number.isFinite(parsed.stop) ? Number(parsed.stop) : null,
-      stopBase: typeof parsed.stopBase === "string" ? parsed.stopBase : null,
       updatedAt: Number(parsed.updatedAt) || Date.now(),
     };
   } catch {
