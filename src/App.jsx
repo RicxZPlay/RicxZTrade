@@ -345,7 +345,7 @@ export default function App() {
                       setChartOverlayOpen(false);
                     }}
                   >
-                    BTC 4 Graf.
+                    BTC Graf.
                   </button>
                 </div>
               </div>

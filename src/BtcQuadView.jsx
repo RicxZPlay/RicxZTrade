@@ -11,7 +11,6 @@ import {
   BTC_QUAD_CHARTS,
   BTC_QUAD_EMA_PERIOD,
   BTC_QUAD_VWMA_PERIOD,
-  RENKO_BOX_SIZE,
   calculateEMA,
   calculateBollingerBands,
   buildSocketUrl,
@@ -20,11 +19,9 @@ import {
   formatPercent,
   formatPrice,
   mergeLiveCandle,
-  toChartBollingerBands,
   toChartCandles,
   toChartDpoFromBars,
   toChartEma,
-  toChartRenko,
   toChartVwma,
 } from "./market";
 
@@ -33,12 +30,10 @@ const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
 const BTC_PLAN_STORAGE_KEY = "ricxz.btcStopPlan.v1";
 const BTC_STOP_LOOKBACK_CANDLES = 12;
 const BTC_STOP_BUFFER_PERCENT = 0.0004;
-const BTC_RENKO_BB_PERIOD = 600;
-const BTC_RENKO_BB_MULTIPLIER = 1.001;
-const BTC_RENKO_EMA_PERIOD = 450;
-const BTC_RENKO_VWMA_PERIOD = 850;
-const BTC_RENKO_DPO_PERIOD = 450;
-const BTC_RENKO_BAND_COLOR = "#f6c85f";
+const BTC_BB_PERIOD = 600;
+const BTC_BB_MULTIPLIER = 1.001;
+const BTC_DPO_PERIOD = 450;
+const BTC_BAND_COLOR = "#f6c85f";
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -55,8 +50,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["candles-15m"],
-      chartCandles["renko-15m"],
       chartCandles["candles-1h"],
       chartCandles["candles-4h"],
     ].find((candles) => candles?.length > 0);
@@ -187,7 +180,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Quatro graficos do BTC">
       <header className="btc-quad-topbar">
         <div>
-          <p className="eyebrow">BTC 4 Graf.</p>
+          <p className="eyebrow">BTC Graf.</p>
           <h2>BTCUSDT</h2>
         </div>
         <div className="btc-quad-actions">
@@ -231,7 +224,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
               Graficos em tela cheia
             </button>
           ) : (
-            <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC 4 Graf.">
+            <button className="btc-quad-close" type="button" onClick={onClose} aria-label="Fechar BTC Graf.">
               <X size={18} />
             </button>
           )}
@@ -342,13 +335,9 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
-  const isRenko = config.type === "renko";
-  const chartData = useMemo(() => (isRenko ? toChartRenko(candles, RENKO_BOX_SIZE) : toChartCandles(candles)), [candles, isRenko]);
-  const bandFillData = useMemo(() => {
-    if (!isRenko) return null;
-    return toChartBollingerBands(candles, RENKO_BOX_SIZE, BTC_RENKO_BB_PERIOD, BTC_RENKO_BB_MULTIPLIER);
-  }, [candles, isRenko]);
-  const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, isRenko ? "bricks" : "candles"), [chartData, config.fallbackSeconds, isRenko]);
+  const chartData = useMemo(() => toChartCandles(candles), [candles]);
+  const bandFillData = useMemo(() => toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER), [chartData]);
+  const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -409,7 +398,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const fastLine = chart.addSeries(LineSeries, {
-      color: isRenko ? BTC_RENKO_BAND_COLOR : palette.ema,
+      color: BTC_BAND_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -417,51 +406,45 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const slowLine = chart.addSeries(LineSeries, {
-      color: isRenko ? BTC_RENKO_BAND_COLOR : palette.vwma,
+      color: BTC_BAND_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
     });
 
-    const renkoEmaLine = isRenko
-      ? chart.addSeries(LineSeries, {
-          color: palette.ema,
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: !isCompact,
-          title: "",
-        })
-      : null;
-    const renkoVwmaLine = isRenko
-      ? chart.addSeries(LineSeries, {
-          color: "#e879f9",
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: !isCompact,
-          title: "",
-        })
-      : null;
+    const renkoEmaLine = chart.addSeries(LineSeries, {
+      color: palette.ema,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+    const renkoVwmaLine = chart.addSeries(LineSeries, {
+      color: "#e879f9",
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
 
-    const dpoSeries = isRenko
-      ? chart.addSeries(
-          LineSeries,
-          {
-            title: "",
-            color: "#38b24d",
-            lineWidth: 2,
-            priceFormat: {
-              type: "price",
-              precision: 2,
-              minMove: 0.01,
-            },
-            priceLineVisible: false,
-            lastValueVisible: !isCompact,
-            autoscaleInfoProvider: centerZeroAutoscale,
-          },
-          1
-        )
-      : null;
+    const dpoSeries = chart.addSeries(
+      LineSeries,
+      {
+        title: "",
+        color: "#38b24d",
+        lineWidth: 2,
+        priceFormat: {
+          type: "price",
+          precision: 2,
+          minMove: 0.01,
+        },
+        priceLineVisible: false,
+        lastValueVisible: !isCompact,
+        autoscaleInfoProvider: centerZeroAutoscale,
+      },
+      1
+    );
     dpoSeries?.createPriceLine({
       price: 0,
       color: "rgba(168, 179, 199, 0.55)",
@@ -470,10 +453,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       axisLabelVisible: false,
       title: "",
     });
-    if (isRenko) {
-      chart.panes()[0]?.setStretchFactor(4);
-      chart.panes()[1]?.setStretchFactor(1);
-    }
+    chart.panes()[0]?.setStretchFactor(4);
+    chart.panes()[1]?.setStretchFactor(1);
 
     const handleChartClick = (param) => {
       if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
@@ -528,7 +509,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
     };
-  }, [config.id, isCompact, isRenko, palette, setSelectedDrawing]);
+  }, [config.id, isCompact, palette, setSelectedDrawing]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -575,22 +556,17 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
 
     priceSeriesRef.current.setData(chartData);
 
-    if (isRenko) {
-      fastLineRef.current?.setData(bandFillData?.upper || []);
-      slowLineRef.current?.setData(bandFillData?.lower || []);
-      renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_RENKO_EMA_PERIOD));
-      renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_RENKO_VWMA_PERIOD));
-      dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_RENKO_DPO_PERIOD));
-    } else {
-      fastLineRef.current?.setData(toChartEma(candles, BTC_QUAD_EMA_PERIOD));
-      slowLineRef.current?.setData(toChartVwma(candles, BTC_QUAD_VWMA_PERIOD));
-    }
+    fastLineRef.current?.setData(bandFillData?.upper || []);
+    slowLineRef.current?.setData(bandFillData?.lower || []);
+    renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_QUAD_EMA_PERIOD));
+    renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_QUAD_VWMA_PERIOD));
+    dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
-      showRecentBars(chartRef.current, isRenko ? 170 : 150, chartData.length);
+      showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, candles, chartData, isRenko]);
+  }, [bandFillData, chartData]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -628,9 +604,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     setDraftDrawing((current) => (current ? { ...current, end: point } : current));
   };
 
-  const legends = isRenko
-    ? [`BB ${BTC_RENKO_BB_PERIOD}`, `EMA ${BTC_RENKO_EMA_PERIOD}`, `VWMA ${BTC_RENKO_VWMA_PERIOD}`, `DPO ${BTC_RENKO_DPO_PERIOD}`]
-    : [`EMA ${BTC_QUAD_EMA_PERIOD}`, `VWMA ${BTC_QUAD_VWMA_PERIOD}`];
+  const legends = [`BB ${BTC_BB_PERIOD}`, `EMA ${BTC_QUAD_EMA_PERIOD}`, `VWMA ${BTC_QUAD_VWMA_PERIOD}`, `DPO ${BTC_DPO_PERIOD}`];
 
   return (
     <article className="btc-quad-card">
@@ -648,15 +622,13 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
           onPointerMove={handleToolPointerMove}
           onPointerCancel={() => setDraftDrawing(null)}
         >
-          {isRenko ? (
-            <BollingerBandFill
-              chart={drawingContext.chart}
-              chartMeta={chartMeta}
-              lower={bandFillData?.lower}
-              series={drawingContext.series}
-              upper={bandFillData?.upper}
-            />
-          ) : null}
+          <BollingerBandFill
+            chart={drawingContext.chart}
+            chartMeta={chartMeta}
+            lower={bandFillData?.lower}
+            series={drawingContext.series}
+            upper={bandFillData?.upper}
+          />
           {[...drawings, draftDrawing].filter(Boolean).map((drawing) => (
             <DrawingLayer
               key={drawing.id}
@@ -723,6 +695,33 @@ function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
   ].join(" ");
 
   return <polygon className="bb-fill-zone" points={polygonPoints} />;
+}
+
+function toChartBandLinesFromBars(bars, period = BTC_BB_PERIOD, multiplier = BTC_BB_MULTIPLIER) {
+  const bands = calculateBollingerBands(
+    bars.map((bar) => bar.close),
+    period,
+    multiplier
+  );
+
+  return {
+    upper: toChartBandLineFromBars(bars, bands, "upper"),
+    middle: toChartBandLineFromBars(bars, bands, "middle"),
+    lower: toChartBandLineFromBars(bars, bands, "lower"),
+  };
+}
+
+function toChartBandLineFromBars(bars, bands, key) {
+  return bars
+    .map((bar, index) => {
+      const value = bands[index]?.[key];
+      if (!Number.isFinite(value)) return null;
+      return {
+        time: bar.time,
+        value,
+      };
+    })
+    .filter(Boolean);
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
@@ -986,50 +985,19 @@ function getPricePaneWidth(chart) {
 }
 
 function buildBtcTradePlan(chartCandles, btcPrice) {
-  const renkoCandles = chartCandles["renko-15m"] || [];
-  const btc15mCandles = chartCandles["candles-15m"] || [];
   const btc1hCandles = chartCandles["candles-1h"] || [];
   const btc4hCandles = chartCandles["candles-4h"] || [];
-  const renkoBricks = toChartRenko(renkoCandles, RENKO_BOX_SIZE);
-  const renkoBands = calculateBollingerBands(
-    renkoBricks.map((brick) => brick.close),
-    BTC_RENKO_BB_PERIOD,
-    BTC_RENKO_BB_MULTIPLIER
-  );
-  const renkoDpo = toChartDpoFromBars(renkoBricks, BTC_RENKO_DPO_PERIOD);
-  const latestBrick = renkoBricks.at(-1);
-  const latestBand = renkoBands.at(-1);
-  const previousDpo = renkoDpo.at(-4)?.value ?? renkoDpo.at(-2)?.value;
-  const latestDpo = renkoDpo.at(-1)?.value;
-  const dpoTurningUp = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo > previousDpo;
-  const latestRenkoEma = toChartLineEma(renkoBricks, BTC_RENKO_EMA_PERIOD).at(-1)?.value;
-  const latestRenkoVwma = toChartLineVwma(renkoBricks, BTC_RENKO_VWMA_PERIOD).at(-1)?.value;
-  const renkoSetup = getRenkoSetup(renkoBricks, renkoBands, dpoTurningUp, {
-    ema: latestRenkoEma,
-    vwma: latestRenkoVwma,
-  });
-  const touchedLowerBand = renkoSetup.touchedLowerBand;
-  const renkoSignal = renkoSetup.confirmed;
-  const frame15m = getCandleFrameState(btc15mCandles);
   const frame1h = getCandleFrameState(btc1hCandles);
   const frame4h = getCandleFrameState(btc4hCandles);
-  const setupStrength = [renkoSignal, frame15m.confirmed, !frame1h.bearish, !frame4h.bearish].filter(Boolean).length;
-  const shouldTrack = renkoSignal && frame15m.confirmed && !frame4h.bearish;
-  const scenario = getTradeScenario({ renkoSignal, setupStrength, frame15m, frame1h, frame4h });
-  const entry = buildEntryZone({
-    band: latestBand,
-    btcPrice,
-    frame15m,
-    latestBrick,
-    renkoSetup,
-    shouldTrack,
-    touchedLowerBand,
-  });
+  const setupStrength = [frame1h.confirmed, frame4h.confirmed, frame1h.dpoTurningUp, !frame4h.bearish].filter(Boolean).length;
+  const shouldTrack = frame1h.confirmed && !frame4h.bearish && (frame1h.dpoTurningUp || frame4h.confirmed);
+  const scenario = getTradeScenario({ setupStrength, frame1h, frame4h });
+  const entry = buildEntryZone({ btcPrice, frame1h, shouldTrack });
   const buffer = getStopBuffer(btcPrice);
   const stopCandidates = [
-    buildStopCandidate(getLastRenkoSwingLow(renkoBricks), buffer, btcPrice),
-    buildStopCandidate(renkoBands.at(-1)?.lower, buffer, btcPrice),
-    buildStopCandidate(getRecentCandleLow(btc15mCandles), buffer, btcPrice),
+    buildStopCandidate(frame1h.lowerBand, buffer, btcPrice),
+    buildStopCandidate(getRecentCandleLow(btc1hCandles), buffer, btcPrice),
+    buildStopCandidate(getRecentCandleLow(btc4hCandles), buffer, btcPrice),
   ].filter(Boolean);
   const stop = stopCandidates.length ? Math.max(...stopCandidates) : null;
 
@@ -1092,219 +1060,57 @@ function getCandleFrameState(candles) {
   const last = candles.at(-1);
   const ema = toChartEma(candles, BTC_QUAD_EMA_PERIOD).at(-1)?.value;
   const vwma = toChartVwma(candles, BTC_QUAD_VWMA_PERIOD).at(-1)?.value;
+  const chartCandles = toChartCandles(candles);
+  const bands = toChartBandLinesFromBars(chartCandles, BTC_BB_PERIOD, BTC_BB_MULTIPLIER);
+  const dpo = toChartDpoFromBars(chartCandles, BTC_DPO_PERIOD);
+  const latestDpo = dpo.at(-1)?.value;
+  const previousDpo = dpo.at(-4)?.value ?? dpo.at(-2)?.value;
   const price = last?.close;
   const aboveEma = Number.isFinite(price) && Number.isFinite(ema) && price >= ema;
   const aboveVwma = Number.isFinite(price) && Number.isFinite(vwma) && price >= vwma;
   const belowBoth = Number.isFinite(price) && Number.isFinite(ema) && Number.isFinite(vwma) && price < ema && price < vwma;
+  const lowerBand = bands.lower.at(-1)?.value;
+  const upperBand = bands.upper.at(-1)?.value;
+  const nearLowerBand = Number.isFinite(price) && Number.isFinite(lowerBand) && price <= lowerBand * 1.006;
+  const dpoTurningUp = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo > previousDpo;
 
   return {
     aboveEma,
     aboveVwma,
     bearish: belowBoth,
-    confirmed: aboveEma || aboveVwma,
+    confirmed: (aboveEma || aboveVwma || nearLowerBand) && dpoTurningUp,
+    dpoTurningUp,
     ema,
+    lowerBand,
+    nearLowerBand,
     price,
+    upperBand,
     vwma,
   };
 }
 
-function hasRecentLowerBandTouch(bricks, bands) {
-  const recentBricks = bricks.slice(-18);
-  const offset = bricks.length - recentBricks.length;
-  return recentBricks.some((brick, index) => {
-    const band = bands[offset + index];
-    return Number.isFinite(band?.lower) && brick.low <= band.lower + RENKO_BOX_SIZE;
-  });
-}
-
-function getRenkoSetup(bricks, bands, dpoTurningUp, trendLines = {}) {
-  const latest = bricks.at(-1);
-  const previous = bricks.at(-2);
-  const latestBand = bands.at(-1);
-  const touchedLowerBand = hasRecentLowerBandTouch(bricks, bands);
-  const latestDirection = getBarDirection(latest);
-  const lower = latestBand?.lower;
-  const middle = latestBand?.middle;
-  const upper = latestBand?.upper;
-
-  if (!latest || !latestBand || !Number.isFinite(lower) || !Number.isFinite(middle) || !Number.isFinite(upper)) {
-    return {
-      confirmed: false,
-      label: "Renko aguardando bandas",
-      mode: "waiting",
-      supportLevel: null,
-      touchedLowerBand: false,
-    };
-  }
-
-  const belowLower = latest.close < lower;
-  const insideBands = latest.close >= lower && latest.close <= upper;
-  const aboveVwma = Number.isFinite(trendLines.vwma) && latest.close >= trendLines.vwma;
-  const aboveEma = Number.isFinite(trendLines.ema) && latest.close >= trendLines.ema;
-  const betweenLowerAndEma = Number.isFinite(trendLines.ema) && latest.close >= lower && latest.close <= trendLines.ema;
-  const bullishPivot = hasRenkoBullishPivot(bricks);
-  const reclaimedLowerBand = touchedLowerBand && latest.close > lower && previous?.close <= lower + RENKO_BOX_SIZE && latestDirection > 0 && dpoTurningUp;
-  const pivotAfterExcess = touchedLowerBand && !belowLower && bullishPivot && dpoTurningUp;
-  const insideContinuation = insideBands && !belowLower && hasRenkoInsideBandContinuation(bricks, latestBand) && dpoTurningUp;
-  const earlyEmaZoneSetup = insideContinuation && betweenLowerAndEma;
-  const bestHistoricalSetup = insideContinuation && aboveVwma;
-
-  if (bestHistoricalSetup) {
-    return {
-      confirmed: true,
-      label: "Renko em continuacao acima da VWMA 850",
-      mode: "inside-vwma",
-      supportLevel: Math.max(lower, Math.min(trendLines.vwma, latest.close)),
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  if (earlyEmaZoneSetup) {
-    return {
-      confirmed: true,
-      label: "Renko confirmou entre BB inferior e EMA 450",
-      mode: "lower-ema-zone",
-      supportLevel: Math.max(lower, Math.min(trendLines.ema, latest.close)),
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  if (reclaimedLowerBand || pivotAfterExcess) {
-    return {
-      confirmed: false,
-      label: "Renko reagiu, aguardando continuacao",
-      mode: reclaimedLowerBand ? "reclaim-watch" : "pivot-watch",
-      supportLevel: reclaimedLowerBand ? lower : getLastRenkoSwingLow(bricks) ?? lower,
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  if (insideContinuation) {
-    return {
-      confirmed: false,
-      label: betweenLowerAndEma ? "Renko na zona BB/EMA, aguardando sequencia" : "Renko subindo, aguardando zona de confirmacao",
-      mode: "inside",
-      supportLevel: Math.max(lower, Math.min(middle, latest.close)),
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  if (belowLower) {
-    return {
-      confirmed: false,
-      label: "Renko abaixo da banda, aguardando pivo",
-      mode: "below",
-      supportLevel: lower,
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  if (touchedLowerBand) {
-    return {
-      confirmed: false,
-      label: "Renko voltou para as bandas, aguardando virada",
-      mode: "waiting-pivot",
-      supportLevel: lower,
-      touchedLowerBand,
-      aboveEma,
-      aboveVwma,
-      betweenLowerAndEma,
-    };
-  }
-
-  return {
-    confirmed: false,
-    label: "Renko ainda sem gatilho",
-    mode: "waiting",
-    supportLevel: null,
-    touchedLowerBand,
-    aboveEma,
-    aboveVwma,
-    betweenLowerAndEma,
-  };
-}
-
-function hasRenkoBullishPivot(bricks) {
-  const recent = bricks.slice(-8);
-  if (recent.length < 4) return false;
-  const latest = recent.at(-1);
-  const previous = recent.at(-2);
-  const hadBearishLeg = recent.slice(0, -1).some((brick) => getBarDirection(brick) < 0);
-  const lastTwoPositive = getBarDirection(latest) > 0 && getBarDirection(previous) > 0;
-  const reclaimedPreviousHigh = previous && latest.close > previous.high;
-  return hadBearishLeg && getBarDirection(latest) > 0 && (lastTwoPositive || reclaimedPreviousHigh);
-}
-
-function hasRenkoInsideBandContinuation(bricks, band) {
-  const recent = bricks.slice(-5);
-  if (recent.length < 3 || !Number.isFinite(band?.lower) || !Number.isFinite(band?.middle)) return false;
-  const latest = recent.at(-1);
-  const previous = recent.at(-2);
-  const positiveCount = recent.slice(-4).filter((brick) => getBarDirection(brick) > 0).length;
-  const higherCloses = latest.close > previous.close && previous.close >= recent.at(-3).close;
-  const aboveLower = latest.close > band.lower + RENKO_BOX_SIZE;
-  const movingToMiddle = latest.close >= band.middle || (aboveLower && positiveCount >= 3);
-  return higherCloses && movingToMiddle;
-}
-
-function getBarDirection(bar) {
-  if (!bar) return 0;
-  if (bar.close > bar.open) return 1;
-  if (bar.close < bar.open) return -1;
-  return 0;
-}
-
-function getTradeScenario({ renkoSignal, setupStrength, frame15m, frame1h, frame4h }) {
-  if (renkoSignal && frame15m.confirmed && !frame1h.bearish && !frame4h.bearish) return "Compra forte";
-  if (renkoSignal && frame15m.confirmed && !frame4h.bearish) return "Compra inicial";
+function getTradeScenario({ setupStrength, frame1h, frame4h }) {
+  if (frame1h.confirmed && frame4h.confirmed && !frame1h.bearish && !frame4h.bearish) return "Compra forte";
+  if (frame1h.confirmed && !frame4h.bearish) return "Compra inicial";
   if (frame4h.bearish && frame1h.bearish) return "Evitar compra";
   if (setupStrength >= 2) return "Aguardar pullback";
   return "Aguardar";
 }
 
-function buildEntryZone({ band, btcPrice, frame15m, latestBrick, renkoSetup, shouldTrack, touchedLowerBand }) {
+function buildEntryZone({ btcPrice, frame1h, shouldTrack }) {
   if (!shouldTrack) return { high: null, low: null, reference: null };
   if (!Number.isFinite(btcPrice)) return { high: null, low: null, reference: null };
   const references = [
-    latestBrick?.close,
-    renkoSetup.supportLevel,
-    touchedLowerBand ? band?.lower : null,
-    frame15m.aboveVwma ? frame15m.vwma : null,
-    frame15m.aboveEma ? frame15m.ema : null,
+    frame1h.nearLowerBand ? frame1h.lowerBand : null,
+    frame1h.aboveVwma ? frame1h.vwma : null,
+    frame1h.aboveEma ? frame1h.ema : null,
+    frame1h.price,
   ].filter(Number.isFinite);
   const reference = references.length ? Math.max(...references.filter((value) => value <= btcPrice * 1.006)) : btcPrice;
-  const width = Math.max(RENKO_BOX_SIZE * 3, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
+  const width = Math.max(15, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
   const low = Math.min(reference, btcPrice) - width * 0.45;
   const high = Math.max(reference, btcPrice) + width * 0.25;
   return { high, low };
-}
-
-function getLastRenkoSwingLow(bricks) {
-  const recentBricks = bricks.slice(-160);
-  for (let index = recentBricks.length - 1; index >= 1; index -= 1) {
-    const previousDirection = Math.sign(recentBricks[index - 1].close - recentBricks[index - 1].open);
-    const currentDirection = Math.sign(recentBricks[index].close - recentBricks[index].open);
-    if (previousDirection < 0 && currentDirection > 0) {
-      return Math.min(recentBricks[index - 1].low, recentBricks[index].low);
-    }
-  }
-
-  return getFiniteMin(recentBricks.slice(-24).map((brick) => brick.low));
 }
 
 function getRecentCandleLow(candles) {
@@ -1322,8 +1128,8 @@ function getFiniteMin(values) {
 }
 
 function getStopBuffer(price) {
-  if (!Number.isFinite(price)) return RENKO_BOX_SIZE;
-  return Math.max(RENKO_BOX_SIZE, price * BTC_STOP_BUFFER_PERCENT);
+  if (!Number.isFinite(price)) return 15;
+  return Math.max(15, price * BTC_STOP_BUFFER_PERCENT);
 }
 
 function getBtcPlanStatus(hasEntry, activeStop, entryPrice, protectedFromEntry, tradePlan) {
