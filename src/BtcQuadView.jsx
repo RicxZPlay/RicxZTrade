@@ -40,7 +40,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
-  const [clearSignal, setClearSignal] = useState(0);
+  const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
+  const [selectedDrawing, setSelectedDrawing] = useState(null);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -131,7 +132,10 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             </ToolButton>
             <ToolButton
               label="Limpar desenhos"
-              onClick={() => setClearSignal((value) => value + 1)}
+              onClick={() => {
+                setClearSignal((current) => ({ id: current.id + 1, target: selectedDrawing }));
+                setSelectedDrawing(null);
+              }}
             >
               <Trash2 size={15} />
             </ToolButton>
@@ -160,6 +164,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             activeTool={activeTool}
             clearSignal={clearSignal}
             isCompact={isCompact}
+            selectedDrawing={selectedDrawing}
+            setSelectedDrawing={setSelectedDrawing}
             theme={theme}
           />
         ))}
@@ -168,7 +174,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
 }
 
-function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompact, theme }) {
+function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompact, selectedDrawing, setSelectedDrawing, theme }) {
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
@@ -177,6 +183,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const slowLineRef = useRef(null);
   const dpoSeriesRef = useRef(null);
   const centeredOnceRef = useRef(false);
+  const lastHandledClearSignalRef = useRef(0);
   const [drawings, setDrawings] = useState(() => readStoredQuadDrawings(config.id));
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
@@ -341,12 +348,20 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   }, [config.id, drawings]);
 
   useEffect(() => {
-    if (clearSignal === 0) return;
+    if (clearSignal.id === 0 || lastHandledClearSignalRef.current === clearSignal.id) return;
+    lastHandledClearSignalRef.current = clearSignal.id;
+
     queueMicrotask(() => {
-      setDrawings([]);
+      const targetDrawing = clearSignal.target;
+      setDrawings((current) => {
+        if (targetDrawing?.chartId === config.id) {
+          return current.filter((drawing) => drawing.id !== targetDrawing.id);
+        }
+        return [];
+      });
       setDraftDrawing(null);
     });
-  }, [clearSignal]);
+  }, [clearSignal, config.id]);
 
   useEffect(() => {
     if (activeTool === TOOLS.cursor) {
@@ -378,6 +393,19 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   }, [candles, chartData, isRenko]);
 
   const handleToolClick = (event) => {
+    if (activeTool === TOOLS.cursor) {
+      const point = readScreenPoint(event, overlayRef.current);
+      const drawing = findNearestDrawing(
+        point,
+        drawings,
+        drawingContext.chart,
+        drawingContext.series,
+        chartMeta
+      );
+      setSelectedDrawing(drawing ? { chartId: config.id, id: drawing.id } : null);
+      return;
+    }
+
     if (activeTool === TOOLS.cursor) return;
     const point = readChartPoint(event, overlayRef.current, chartRef.current, priceSeriesRef.current, chartMeta);
     if (!point) return;
@@ -401,6 +429,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
 
     if (getPointDistance(completed.start, completed.end) > 4) {
       setDrawings((current) => [...current, completed]);
+      setSelectedDrawing({ chartId: config.id, id: completed.id });
     }
     setDraftDrawing(null);
   };
@@ -440,6 +469,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
               series={drawingContext.series}
               chartMeta={chartMeta}
               draft={drawing.id.startsWith("draft")}
+              selected={selectedDrawing?.chartId === config.id && selectedDrawing.id === drawing.id}
             />
           ))}
         </svg>
@@ -464,7 +494,7 @@ function ToolButton({ active = false, children, label, onClick }) {
   );
 }
 
-function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
+function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
   const start = toScreenPoint(drawing.start, chart, series, chartMeta);
   const end = toScreenPoint(drawing.end, chart, series, chartMeta);
   if (!start || !end) return null;
@@ -475,19 +505,45 @@ function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
   const midY = (start.y + end.y) / 2;
 
   return (
-    <g opacity={draft ? 0.72 : 1} className="drawing-layer">
+    <g opacity={draft ? 0.72 : 1} className={selected ? "drawing-layer selected" : "drawing-layer"}>
+      {selected ? (
+        <line
+          x1={start.x}
+          y1={start.y}
+          x2={end.x}
+          y2={end.y}
+          stroke={color}
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeOpacity={0.18}
+        />
+      ) : null}
       <line
         x1={start.x}
         y1={start.y}
         x2={end.x}
         y2={end.y}
         stroke={color}
-        strokeWidth={2}
+        strokeWidth={selected ? 3 : 2}
         strokeDasharray={drawing.type === TOOLS.ruler ? "6 5" : "0"}
         strokeLinecap="round"
       />
-      <circle cx={start.x} cy={start.y} r={4} fill={color} />
-      <circle cx={end.x} cy={end.y} r={4} fill={color} />
+      <circle
+        cx={start.x}
+        cy={start.y}
+        r={selected ? 5 : 4}
+        fill={color}
+        stroke={selected ? "#ffffff" : "transparent"}
+        strokeWidth={selected ? 1.5 : 0}
+      />
+      <circle
+        cx={end.x}
+        cy={end.y}
+        r={selected ? 5 : 4}
+        fill={color}
+        stroke={selected ? "#ffffff" : "transparent"}
+        strokeWidth={selected ? 1.5 : 0}
+      />
       {drawing.type === TOOLS.ruler ? (
         <>
           <line x1={start.x} y1={start.y} x2={end.x} y2={start.y} stroke={color} strokeWidth={1} opacity={0.45} />
@@ -504,9 +560,10 @@ function DrawingLayer({ drawing, chart, series, chartMeta, draft }) {
 function readChartPoint(event, overlay, chart, series, chartMeta) {
   if (!overlay || !chart || !series) return null;
 
-  const rect = overlay.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  const screenPoint = readScreenPoint(event, overlay);
+  if (!screenPoint) return null;
+
+  const { x, y } = screenPoint;
   const timeScale = chart.timeScale();
   const logical = timeScale.coordinateToLogical(x);
   const rawTime = typeof timeScale.coordinateToTime === "function" ? normalizeChartTime(timeScale.coordinateToTime(x)) : null;
@@ -514,6 +571,16 @@ function readChartPoint(event, overlay, chart, series, chartMeta) {
 
   if (logical == null || !Number.isFinite(price)) return null;
   return { x, y, logical, time: resolveDrawingPointTime(logical, rawTime, chartMeta), price };
+}
+
+function readScreenPoint(event, overlay) {
+  if (!overlay) return null;
+
+  const rect = overlay.getBoundingClientRect();
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
 }
 
 function toScreenPoint(point, chart, series, chartMeta) {
@@ -528,6 +595,45 @@ function toScreenPoint(point, chart, series, chartMeta) {
 
 function getPointDistance(start, end) {
   return Math.hypot((end?.x || 0) - (start?.x || 0), (end?.y || 0) - (start?.y || 0));
+}
+
+function findNearestDrawing(point, drawings, chart, series, chartMeta) {
+  if (!point || !drawings.length || !chart || !series) return null;
+
+  let nearest = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  const hitRadius = 14;
+
+  for (const drawing of drawings) {
+    const start = toScreenPoint(drawing.start, chart, series, chartMeta);
+    const end = toScreenPoint(drawing.end, chart, series, chartMeta);
+    if (!start || !end) continue;
+
+    const distance = getDistanceToSegment(point, start, end);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = drawing;
+    }
+  }
+
+  return nearestDistance <= hitRadius ? nearest : null;
+}
+
+function getDistanceToSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+
+  const rawT = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+  const t = Math.max(0, Math.min(1, rawT));
+  const projection = {
+    x: start.x + t * dx,
+    y: start.y + t * dy,
+  };
+
+  return Math.hypot(point.x - projection.x, point.y - projection.y);
 }
 
 function buildRulerLabel(start, end, chartMeta) {
