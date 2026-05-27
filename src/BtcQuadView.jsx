@@ -1103,6 +1103,7 @@ function getCandleFrameState(candles) {
   const price = last?.close;
   const aboveEma = Number.isFinite(price) && Number.isFinite(ema) && price >= ema;
   const aboveVwma = Number.isFinite(price) && Number.isFinite(vwma) && price >= vwma;
+  const aboveBothAverages = aboveEma && aboveVwma;
   const belowBoth = Number.isFinite(price) && Number.isFinite(ema) && Number.isFinite(vwma) && price < ema && price < vwma;
   const lowerBand = bands.lower.at(-1)?.value;
   const upperBand = bands.upper.at(-1)?.value;
@@ -1123,6 +1124,7 @@ function getCandleFrameState(candles) {
 
   return {
     aboveEma,
+    aboveBothAverages,
     aboveVwma,
     bearish: belowBoth,
     belowEma: Number.isFinite(price) && Number.isFinite(ema) && price < ema,
@@ -1168,8 +1170,8 @@ function getTradeSide(frame15m, frame1h, frame4h) {
 
   const frame1hNearAverage = isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H);
   const averageZone = frame15m.nearAverage || frame1hNearAverage;
-  const longTrend = frame4h.vwmaBelowEma || frame1h.vwmaBelowEma;
-  const shortTrend = frame4h.vwmaAboveEma || frame1h.vwmaAboveEma;
+  const longTrend = frame4h.aboveBothAverages || frame1h.aboveBothAverages;
+  const shortTrend = frame4h.bearish || frame1h.bearish;
   const longTrigger = frame15m.dpoTurningUp && averageZone && (frame15m.aboveVwma || frame15m.aboveEma || frame15m.nearAverage);
   const shortTrigger = frame15m.dpoTurningDown && averageZone && (frame15m.belowVwma || frame15m.belowEma || frame15m.nearAverage);
 
@@ -1209,16 +1211,16 @@ function isNearAverage(frame, maxDistancePercent) {
 
 function buildBtcReason(side, frame15m, frame1h, frame4h) {
   if (side === "Long") {
-    if (frame4h.strongBullish) return "4H acima da BB superior, 15m buscando continuidade";
-    if (frame1h.nearLowerBand) return "1H em suporte interno e 15m virando para cima";
-    if (frame4h.vwmaBelowEma) return "VWMA abaixo da EMA no 4H, pressão de alta";
-    return "15m recuperando médias em zona de suporte";
+    if (frame15m.nearVwma) return "15m perto da VWMA, tendencia maior favorece alta";
+    if (frame15m.nearEma) return "15m perto da EMA, aguardando retomada de alta";
+    if (frame4h.aboveBothAverages) return "preco acima da EMA e VWMA no 4H, pressao de alta";
+    return "preco voltou para as medias, possivel suporte";
   }
 
-  if (frame4h.strongBearish) return "4H abaixo da BB inferior, 15m buscando continuidade";
-  if (frame1h.nearUpperBand) return "1H em resistência interna e 15m virando para baixo";
-  if (frame4h.vwmaAboveEma) return "VWMA acima da EMA no 4H, pressão de baixa";
-  return "15m perdendo médias em zona de resistência";
+  if (frame15m.nearVwma) return "15m perto da VWMA, tendencia maior favorece baixa";
+  if (frame15m.nearEma) return "15m perto da EMA, aguardando rejeicao";
+  if (frame4h.bearish) return "preco abaixo da EMA e VWMA no 4H, pressao de baixa";
+  return "preco voltou para as medias, possivel resistencia";
 }
 
 function getTradeScenario(tradeSide, frame15m, frame1h, frame4h) {
