@@ -4,7 +4,6 @@ import {
   ColorType,
   createChart,
   LineSeries,
-  LineStyle,
 } from "lightweight-charts";
 import { Maximize2, Minimize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
@@ -19,14 +18,12 @@ import {
   formatPrice,
   mergeLiveCandle,
   toChartCandles,
-  toChartDpoFromBars,
 } from "./market";
 
 const BTC_SYMBOL = "BTCUSDT";
 const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
-const BTC_DPO_PERIOD = 450;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_VWMA_COLOR = "#f8fafc";
@@ -242,7 +239,6 @@ function BtcQuadChart({
   const slowLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
-  const dpoSeriesRef = useRef(null);
   const centeredOnceRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
   const activeToolRef = useRef(activeTool);
@@ -353,34 +349,6 @@ function BtcQuadChart({
       title: "",
     });
 
-    const dpoSeries = chart.addSeries(
-      LineSeries,
-      {
-        title: "",
-        color: "#38b24d",
-        lineWidth: 2,
-        priceFormat: {
-          type: "price",
-          precision: 2,
-          minMove: 0.01,
-        },
-        priceLineVisible: false,
-        lastValueVisible: !isCompact,
-        autoscaleInfoProvider: centerZeroAutoscale,
-      },
-      1
-    );
-    dpoSeries?.createPriceLine({
-      price: 0,
-      color: "rgba(168, 179, 199, 0.55)",
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      axisLabelVisible: false,
-      title: "",
-    });
-    chart.panes()[0]?.setStretchFactor(4);
-    chart.panes()[1]?.setStretchFactor(1);
-
     const handleChartClick = (param) => {
       if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
 
@@ -400,7 +368,6 @@ function BtcQuadChart({
     slowLineRef.current = slowLine;
     renkoEmaLineRef.current = renkoEmaLine;
     renkoVwmaLineRef.current = renkoVwmaLine;
-    dpoSeriesRef.current = dpoSeries;
     setDrawingContext({ chart, series: priceSeries });
 
     const syncPaneHeight = () => {
@@ -430,7 +397,6 @@ function BtcQuadChart({
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
       renkoVwmaLineRef.current = null;
-      dpoSeriesRef.current = null;
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
     };
@@ -485,7 +451,6 @@ function BtcQuadChart({
     slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
     renkoEmaLineRef.current?.setData(toChartLineEma(chartData, emaPeriod));
     renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
-    dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, 150, chartData.length);
@@ -533,7 +498,6 @@ function BtcQuadChart({
     showBollingerBands ? `BB ${BTC_BB_PERIOD}` : null,
     `EMA ${emaPeriod}`,
     `VWMA ${vwmaPeriod}`,
-    `DPO ${BTC_DPO_PERIOD}`,
   ].filter(Boolean);
 
   return (
@@ -1056,25 +1020,6 @@ function showRecentBars(chart, visibleBars, totalBars) {
     from: Math.max(0, totalBars - visibleBars),
     to: totalBars + 5,
   });
-}
-
-function centerZeroAutoscale(original) {
-  const result = original();
-  const range = result?.priceRange;
-  if (!range) return result;
-
-  const maxAbs = Math.max(Math.abs(range.minValue), Math.abs(range.maxValue), 1);
-  return {
-    ...result,
-    priceRange: {
-      minValue: -maxAbs,
-      maxValue: maxAbs,
-    },
-    margins: {
-      above: 6,
-      below: 6,
-    },
-  };
 }
 
 function formatCompactPriceScale(price) {
