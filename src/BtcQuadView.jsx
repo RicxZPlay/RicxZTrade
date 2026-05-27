@@ -36,8 +36,8 @@ const BTC_DPO_PERIOD = 450;
 const BTC_NEAR_AVERAGE_PERCENT_15M = 0.22;
 const BTC_NEAR_AVERAGE_PERCENT_1H = 0.32;
 const BTC_BAND_COLOR = "#4c1d95";
-const BTC_EMA_COLOR = "#f8fafc";
-const BTC_VWMA_COLOR = "#d4af37";
+const BTC_EMA_COLOR = "#d4af37";
+const BTC_VWMA_COLOR = "#f8fafc";
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
