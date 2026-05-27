@@ -902,8 +902,8 @@ input:focus,
 }
 
 .btc-quad-grid.higher-collapsed {
-  grid-template-columns: 1fr;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .btc-quad-card {
