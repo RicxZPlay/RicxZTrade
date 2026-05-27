@@ -1003,10 +1003,6 @@ input:focus,
   gap: 8px;
 }
 
-.btc-quad-card:first-child {
-  grid-row: 1 / -1;
-}
-
 .btc-quad-card {
   position: relative;
   min-width: 0;
@@ -1859,13 +1855,8 @@ input:focus,
     width: 100%;
     min-height: 0;
     overflow: hidden;
-    grid-template-rows: minmax(0, 1.18fr) minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: 6px;
-  }
-
-  .btc-quad-card:first-child {
-    grid-column: 1 / -1;
-    grid-row: auto;
   }
 
   .btc-quad-card-header {

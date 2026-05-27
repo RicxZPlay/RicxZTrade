@@ -54,6 +54,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const isCompact = useMediaQuery("(max-width: 820px)");
   const btcPrice = useMemo(() => {
     const sourceCandles = [
+      chartCandles["candles-5m"],
       chartCandles["candles-15m"],
       chartCandles["candles-1h"],
       chartCandles["candles-4h"],
@@ -360,6 +361,8 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
+  const emaPeriod = getChartEmaPeriod(config);
+  const vwmaPeriod = getChartVwmaPeriod(config);
   const chartData = useMemo(() => toChartCandles(candles), [candles]);
   const bandFillData = useMemo(() => toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER), [chartData]);
   const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
@@ -583,15 +586,15 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
 
     fastLineRef.current?.setData(bandFillData?.upper || []);
     slowLineRef.current?.setData(bandFillData?.lower || []);
-    renkoEmaLineRef.current?.setData(toChartLineEma(chartData, BTC_QUAD_EMA_PERIOD));
-    renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, BTC_QUAD_VWMA_PERIOD));
+    renkoEmaLineRef.current?.setData(toChartLineEma(chartData, emaPeriod));
+    renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
     dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData]);
+  }, [bandFillData, chartData, emaPeriod, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -629,7 +632,7 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     setDraftDrawing((current) => (current ? { ...current, end: point } : current));
   };
 
-  const legends = [`BB ${BTC_BB_PERIOD}`, `EMA ${BTC_QUAD_EMA_PERIOD}`, `VWMA ${BTC_QUAD_VWMA_PERIOD}`, `DPO ${BTC_DPO_PERIOD}`];
+  const legends = [`BB ${BTC_BB_PERIOD}`, `EMA ${emaPeriod}`, `VWMA ${vwmaPeriod}`, `DPO ${BTC_DPO_PERIOD}`];
 
   return (
     <article className="btc-quad-card">
@@ -685,6 +688,14 @@ function ToolButton({ active = false, children, label, onClick }) {
       {children}
     </button>
   );
+}
+
+function getChartEmaPeriod(config) {
+  return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
+}
+
+function getChartVwmaPeriod(config) {
+  return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {

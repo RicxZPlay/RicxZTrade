@@ -41,10 +41,13 @@ export const MAX_RENKO_CHART_BRICKS = 5000;
 export const BTC_DPO_PERIOD = 200;
 export const BTC_QUAD_EMA_PERIOD = 450;
 export const BTC_QUAD_VWMA_PERIOD = 850;
+export const BTC_FAST_EMA_PERIOD = 200;
+export const BTC_FAST_VWMA_PERIOD = 550;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
 export const BTC_QUAD_CHARTS = [
+  { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 1500, fallbackSeconds: 900, type: "candles" },
   { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1500, fallbackSeconds: 3600, type: "candles" },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 1500, fallbackSeconds: 14400, type: "candles" },
