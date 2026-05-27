@@ -903,7 +903,11 @@ input:focus,
 
 .btc-quad-grid.higher-collapsed {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.btc-quad-grid.higher-collapsed .btc-quad-card:first-child {
+  grid-row: 1 / -1;
 }
 
 .btc-quad-card {
@@ -1747,8 +1751,12 @@ input:focus,
   }
 
   .btc-quad-grid.higher-collapsed {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .btc-quad-grid.higher-collapsed .btc-quad-card:first-child {
+    grid-row: 1 / -1;
   }
 
   .btc-quad-card-header {

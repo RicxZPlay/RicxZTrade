@@ -45,11 +45,16 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(true);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => !higherTimeframesCollapsed || !isHigherTimeframeChart(config)),
+    () => BTC_QUAD_CHARTS.filter((config) => (
+      higherTimeframesCollapsed
+        ? !isHigherTimeframeChart(config)
+        : !isOneMinuteChart(config)
+    )),
     [higherTimeframesCollapsed]
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
+      chartCandles["candles-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
       chartCandles["candles-1h"],
@@ -596,6 +601,10 @@ function getChartVwmaPeriod(config) {
 
 function isHigherTimeframeChart(config) {
   return config?.id === "candles-1h" || config?.id === "candles-4h";
+}
+
+function isOneMinuteChart(config) {
+  return config?.id === "candles-1m";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
