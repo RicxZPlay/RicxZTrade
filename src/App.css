@@ -781,7 +781,7 @@ input:focus,
   inset: 0;
   z-index: 60;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
   width: 100vw;
   height: 100dvh;
@@ -794,7 +794,7 @@ input:focus,
 .btc-quad-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 8px;
   overflow: hidden;
 }
@@ -1668,7 +1668,7 @@ input:focus,
   }
 
   .btc-quad-overlay {
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 6px;
     width: 100%;
     max-width: 100dvw;
