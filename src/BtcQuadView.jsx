@@ -33,7 +33,7 @@ const BTC_STOP_BUFFER_PERCENT = 0.0004;
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_DPO_PERIOD = 450;
-const BTC_BAND_COLOR = "#f6c85f";
+const BTC_BAND_COLOR = "#4c1d95";
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",

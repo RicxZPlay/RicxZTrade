@@ -752,7 +752,7 @@ input:focus,
 }
 
 .bb-fill-zone {
-  fill: color-mix(in srgb, var(--warning) 8%, transparent);
+  fill: color-mix(in srgb, #4c1d95 4%, transparent);
   pointer-events: none;
   stroke: none;
 }
