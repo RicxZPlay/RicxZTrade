@@ -34,6 +34,8 @@ const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_DPO_PERIOD = 450;
 const BTC_BAND_COLOR = "#4c1d95";
+const BTC_EMA_COLOR = "#f8fafc";
+const BTC_VWMA_COLOR = "#d4af37";
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -415,14 +417,14 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     });
 
     const renkoEmaLine = chart.addSeries(LineSeries, {
-      color: palette.ema,
+      color: BTC_EMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
     });
     const renkoVwmaLine = chart.addSeries(LineSeries, {
-      color: "#e879f9",
+      color: BTC_VWMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
