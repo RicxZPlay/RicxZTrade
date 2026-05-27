@@ -752,7 +752,7 @@ input:focus,
 }
 
 .bb-fill-zone {
-  fill: color-mix(in srgb, #4c1d95 4%, transparent);
+  fill: color-mix(in srgb, #4c1d95 8%, transparent);
   pointer-events: none;
   stroke: none;
 }
@@ -986,9 +986,10 @@ input:focus,
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 42%, var(--border));
   border-radius: 8px;
   background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 18%, transparent);
 }
 
 .btc-quad-chart-area {
