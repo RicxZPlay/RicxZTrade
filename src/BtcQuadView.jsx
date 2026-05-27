@@ -27,12 +27,14 @@ import {
 
 const BTC_SYMBOL = "BTCUSDT";
 const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
-const BTC_PLAN_STORAGE_KEY = "ricxz.btcStopPlan.v2";
+const BTC_PLAN_STORAGE_KEY = "ricxz.btcStopPlan.v3";
 const BTC_STOP_LOOKBACK_CANDLES = 12;
 const BTC_STOP_BUFFER_PERCENT = 0.0004;
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_DPO_PERIOD = 450;
+const BTC_NEAR_AVERAGE_PERCENT_15M = 0.22;
+const BTC_NEAR_AVERAGE_PERCENT_1H = 0.32;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#f8fafc";
 const BTC_VWMA_COLOR = "#d4af37";
@@ -1111,6 +1113,11 @@ function getCandleFrameState(candles) {
   const strongBearish = Number.isFinite(price) && Number.isFinite(lowerBand) && price < lowerBand;
   const vwmaBelowEma = Number.isFinite(vwma) && Number.isFinite(ema) && vwma < ema;
   const vwmaAboveEma = Number.isFinite(vwma) && Number.isFinite(ema) && vwma > ema;
+  const emaDistance = getPercentDistance(price, ema);
+  const vwmaDistance = getPercentDistance(price, vwma);
+  const nearEma = Number.isFinite(emaDistance) && emaDistance <= BTC_NEAR_AVERAGE_PERCENT_15M;
+  const nearVwma = Number.isFinite(vwmaDistance) && vwmaDistance <= BTC_NEAR_AVERAGE_PERCENT_15M;
+  const nearAverage = nearEma || nearVwma;
   const dpoTurningUp = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo > previousDpo;
   const dpoTurningDown = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo < previousDpo;
 
@@ -1125,10 +1132,14 @@ function getCandleFrameState(candles) {
     dpoTurningDown,
     dpoTurningUp,
     ema,
+    emaDistance,
     lowerBand,
     middleBand,
+    nearAverage,
+    nearEma,
     nearLowerBand,
     nearUpperBand,
+    nearVwma,
     price,
     strongBearish,
     strongBullish,
@@ -1136,25 +1147,47 @@ function getCandleFrameState(candles) {
     vwma,
     vwmaAboveEma,
     vwmaBelowEma,
+    vwmaDistance,
   };
 }
 
 function getTradeSide(frame15m, frame1h, frame4h) {
-  const longTrend = frame4h.vwmaBelowEma || frame4h.strongBullish || frame1h.vwmaBelowEma;
-  const shortTrend = frame4h.vwmaAboveEma || frame4h.strongBearish || frame1h.vwmaAboveEma;
-  const longZone = frame1h.nearLowerBand || frame1h.strongBullish || frame15m.nearLowerBand || frame15m.aboveVwma || frame15m.aboveEma;
-  const shortZone = frame1h.nearUpperBand || frame1h.strongBearish || frame15m.nearUpperBand || frame15m.belowVwma || frame15m.belowEma;
-  const longTrigger = frame15m.dpoTurningUp && (frame15m.aboveVwma || frame15m.aboveEma || frame15m.nearLowerBand || frame15m.strongBullish);
-  const shortTrigger = frame15m.dpoTurningDown && (frame15m.belowVwma || frame15m.belowEma || frame15m.nearUpperBand || frame15m.strongBearish);
+  if (frame15m.strongBullish || frame1h.strongBullish || frame4h.strongBullish) {
+    return {
+      direction: "neutral",
+      reason: "preco acima da BB superior, aguardar retorno para zona tecnica",
+    };
+  }
 
-  if (longTrend && longZone && longTrigger && !frame4h.strongBearish) {
+  if (frame15m.strongBearish || frame1h.strongBearish || frame4h.strongBearish) {
+    return {
+      direction: "neutral",
+      reason: "preco abaixo da BB inferior, aguardar retorno para zona tecnica",
+    };
+  }
+
+  const frame1hNearAverage = isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H);
+  const averageZone = frame15m.nearAverage || frame1hNearAverage;
+  const longTrend = frame4h.vwmaBelowEma || frame1h.vwmaBelowEma;
+  const shortTrend = frame4h.vwmaAboveEma || frame1h.vwmaAboveEma;
+  const longTrigger = frame15m.dpoTurningUp && averageZone && (frame15m.aboveVwma || frame15m.aboveEma || frame15m.nearAverage);
+  const shortTrigger = frame15m.dpoTurningDown && averageZone && (frame15m.belowVwma || frame15m.belowEma || frame15m.nearAverage);
+
+  if (!averageZone) {
+    return {
+      direction: "neutral",
+      reason: "preco longe da EMA/VWMA, aguardar novo toque nas medias",
+    };
+  }
+
+  if (longTrend && longTrigger) {
     return {
       direction: "long",
       reason: buildBtcReason("Long", frame15m, frame1h, frame4h),
     };
   }
 
-  if (shortTrend && shortZone && shortTrigger && !frame4h.strongBullish) {
+  if (shortTrend && shortTrigger) {
     return {
       direction: "short",
       reason: buildBtcReason("Short", frame15m, frame1h, frame4h),
@@ -1165,6 +1198,13 @@ function getTradeSide(frame15m, frame1h, frame4h) {
     direction: "neutral",
     reason: "aguardando alinhamento entre 15m, 1H e 4H",
   };
+}
+
+function isNearAverage(frame, maxDistancePercent) {
+  return (
+    (Number.isFinite(frame.emaDistance) && frame.emaDistance <= maxDistancePercent) ||
+    (Number.isFinite(frame.vwmaDistance) && frame.vwmaDistance <= maxDistancePercent)
+  );
 }
 
 function buildBtcReason(side, frame15m, frame1h, frame4h) {
@@ -1204,29 +1244,30 @@ function buildEntryZone({ btcPrice, direction, frame15m, frame1h, shouldTrack })
   if (!Number.isFinite(btcPrice)) return { high: null, low: null, reference: null };
   const references = direction === "short"
     ? [
-        frame15m.nearUpperBand ? frame15m.upperBand : null,
-        frame15m.belowVwma ? frame15m.vwma : null,
-        frame15m.belowEma ? frame15m.ema : null,
-        frame1h.nearUpperBand ? frame1h.upperBand : null,
-        frame1h.price,
-        frame15m.price,
+        frame15m.nearVwma ? frame15m.vwma : null,
+        frame15m.nearEma ? frame15m.ema : null,
+        isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H) ? nearestAverageValue(frame1h) : null,
       ].filter(Number.isFinite)
     : [
-        frame15m.nearLowerBand ? frame15m.lowerBand : null,
-        frame15m.aboveVwma ? frame15m.vwma : null,
-        frame15m.aboveEma ? frame15m.ema : null,
-        frame1h.nearLowerBand ? frame1h.lowerBand : null,
-        frame1h.price,
-        frame15m.price,
+        frame15m.nearVwma ? frame15m.vwma : null,
+        frame15m.nearEma ? frame15m.ema : null,
+        isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H) ? nearestAverageValue(frame1h) : null,
       ].filter(Number.isFinite);
+  if (references.length === 0) return { high: null, low: null, reference: null };
   const nearPriceReferences = references.filter((value) => direction === "short" ? value >= btcPrice * 0.994 : value <= btcPrice * 1.006);
   const reference = nearPriceReferences.length
     ? direction === "short" ? Math.min(...nearPriceReferences) : Math.max(...nearPriceReferences)
-    : btcPrice;
+    : references[0];
   const width = Math.max(15, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
   const low = Math.min(reference, btcPrice) - width * 0.45;
   const high = Math.max(reference, btcPrice) + width * 0.25;
   return { high, low };
+}
+
+function nearestAverageValue(frame) {
+  if (!Number.isFinite(frame.emaDistance)) return frame.vwma;
+  if (!Number.isFinite(frame.vwmaDistance)) return frame.ema;
+  return frame.emaDistance <= frame.vwmaDistance ? frame.ema : frame.vwma;
 }
 
 function buildDirectionalStop({ btcPrice, buffer, direction, frame15m, frame1h, btc15mCandles, btc1hCandles }) {
@@ -1279,6 +1320,11 @@ function getFiniteMax(values) {
   const finiteValues = values.filter(Number.isFinite);
   if (finiteValues.length === 0) return null;
   return Math.max(...finiteValues);
+}
+
+function getPercentDistance(value, reference) {
+  if (!Number.isFinite(value) || !Number.isFinite(reference) || reference === 0) return null;
+  return Math.abs(((value - reference) / reference) * 100);
 }
 
 function getStopBuffer(price) {
