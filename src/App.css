@@ -861,8 +861,28 @@ input:focus,
   white-space: nowrap;
 }
 
+.btc-quad-restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
+  color: var(--text-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 950;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
 .btc-quad-fullscreen:hover,
-.btc-quad-fullscreen:focus-visible {
+.btc-quad-fullscreen:focus-visible,
+.btc-quad-restore:hover,
+.btc-quad-restore:focus-visible {
   filter: brightness(1.07);
   box-shadow: 0 0 0 3px var(--warning-soft);
 }
@@ -1003,6 +1023,10 @@ input:focus,
   gap: 8px;
 }
 
+.btc-quad-grid.higher-collapsed {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .btc-quad-card {
   position: relative;
   min-width: 0;
@@ -1047,6 +1071,38 @@ input:focus,
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.btc-quad-card-meta {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.btc-card-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 900;
+  padding: 0 7px;
+  white-space: nowrap;
+}
+
+.btc-card-collapse:hover,
+.btc-card-collapse:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  color: var(--accent);
 }
 
 .btc-quad-canvas {
@@ -1768,7 +1824,7 @@ input:focus,
     width: 100%;
     min-width: 0;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     gap: 5px;
   }
 
@@ -1791,6 +1847,15 @@ input:focus,
     font-size: 0.68rem;
     padding: 0 5px;
     text-overflow: ellipsis;
+  }
+
+  .btc-quad-restore {
+    min-width: 29px;
+    min-height: 29px;
+    gap: 0;
+    overflow: hidden;
+    font-size: 0;
+    padding: 0 7px;
   }
 
   .btc-plan-strip {
@@ -1859,6 +1924,11 @@ input:focus,
     gap: 6px;
   }
 
+  .btc-quad-grid.higher-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
   .btc-quad-card-header {
     min-height: 26px;
     padding: 4px 7px;
@@ -1871,6 +1941,15 @@ input:focus,
 
   .btc-quad-card-header span {
     display: none;
+  }
+
+  .btc-card-collapse {
+    min-height: 22px;
+    width: 24px;
+    overflow: hidden;
+    gap: 0;
+    font-size: 0;
+    padding: 0;
   }
 
 }

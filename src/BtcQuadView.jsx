@@ -6,7 +6,7 @@ import {
   LineSeries,
   LineStyle,
 } from "lightweight-charts";
-import { Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
+import { Maximize2, Minimize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
   BTC_QUAD_CHARTS,
   BTC_QUAD_EMA_PERIOD,
@@ -51,7 +51,12 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
   const [trackedPlan, setTrackedPlan] = useState(() => readStoredBtcPlan());
+  const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(false);
   const isCompact = useMediaQuery("(max-width: 820px)");
+  const visibleCharts = useMemo(
+    () => BTC_QUAD_CHARTS.filter((config) => !higherTimeframesCollapsed || !isHigherTimeframeChart(config)),
+    [higherTimeframesCollapsed]
+  );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
       chartCandles["candles-5m"],
@@ -237,6 +242,12 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             </ToolButton>
           </div>
           <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
+          {higherTimeframesCollapsed ? (
+            <button className="btc-quad-restore" type="button" onClick={() => setHigherTimeframesCollapsed(false)}>
+              <Maximize2 size={15} />
+              Mostrar 1H/4H
+            </button>
+          ) : null}
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
               <Maximize2 size={15} />
@@ -257,8 +268,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         trackedPlan={trackedPlan}
       />
 
-      <div className="btc-quad-grid">
-        {BTC_QUAD_CHARTS.map((config) => (
+      <div className={higherTimeframesCollapsed ? "btc-quad-grid higher-collapsed" : "btc-quad-grid"}>
+        {visibleCharts.map((config) => (
           <BtcQuadChart
             key={config.id}
             candles={chartCandles[config.id] || []}
@@ -266,7 +277,9 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             error={errors[config.id]}
             activeTool={activeTool}
             clearSignal={clearSignal}
+            higherTimeframesCollapsed={higherTimeframesCollapsed}
             isCompact={isCompact}
+            onToggleHigherTimeframes={() => setHigherTimeframesCollapsed((current) => !current)}
             selectedDrawing={selectedDrawing}
             setSelectedDrawing={setSelectedDrawing}
             theme={theme}
@@ -340,7 +353,19 @@ function BtcPlanMetric({ highlight = false, intent, label, value }) {
   );
 }
 
-function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompact, selectedDrawing, setSelectedDrawing, theme }) {
+function BtcQuadChart({
+  activeTool,
+  candles,
+  clearSignal,
+  config,
+  error,
+  higherTimeframesCollapsed,
+  isCompact,
+  onToggleHigherTimeframes,
+  selectedDrawing,
+  setSelectedDrawing,
+  theme,
+}) {
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
@@ -638,7 +663,15 @@ function BtcQuadChart({ activeTool, candles, clearSignal, config, error, isCompa
     <article className="btc-quad-card">
       <div className="btc-quad-card-header">
         <strong>{config.title}</strong>
-        <span>{legends.join(" / ")}</span>
+        <div className="btc-quad-card-meta">
+          <span>{legends.join(" / ")}</span>
+          {isHigherTimeframeChart(config) ? (
+            <button className="btc-card-collapse" type="button" onClick={onToggleHigherTimeframes}>
+              <Minimize2 size={13} />
+              {higherTimeframesCollapsed ? "Mostrar" : "Recolher"}
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="btc-quad-chart-area">
         <div className="btc-quad-canvas" ref={containerRef} />
@@ -696,6 +729,10 @@ function getChartEmaPeriod(config) {
 
 function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
+}
+
+function isHigherTimeframeChart(config) {
+  return config?.id === "candles-1h" || config?.id === "candles-4h";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
