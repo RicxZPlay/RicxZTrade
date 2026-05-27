@@ -16,25 +16,17 @@ import {
   buildSocketUrl,
   fetchCandles,
   formatIndicator,
-  formatPercent,
   formatPrice,
   mergeLiveCandle,
   toChartCandles,
   toChartDpoFromBars,
-  toChartEma,
-  toChartVwma,
 } from "./market";
 
 const BTC_SYMBOL = "BTCUSDT";
 const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
-const BTC_PLAN_STORAGE_KEY = "ricxz.btcStopPlan.v3";
-const BTC_STOP_LOOKBACK_CANDLES = 12;
-const BTC_STOP_BUFFER_PERCENT = 0.0004;
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_DPO_PERIOD = 450;
-const BTC_NEAR_AVERAGE_PERCENT_15M = 0.22;
-const BTC_NEAR_AVERAGE_PERCENT_1H = 0.32;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_VWMA_COLOR = "#f8fafc";
@@ -50,7 +42,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
-  const [trackedPlan, setTrackedPlan] = useState(() => readStoredBtcPlan());
   const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(false);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
@@ -66,64 +57,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     ].find((candles) => candles?.length > 0);
     return sourceCandles?.at(-1)?.close ?? null;
   }, [chartCandles]);
-  const tradePlan = useMemo(() => buildBtcTradePlan(chartCandles, btcPrice), [chartCandles, btcPrice]);
-
-  useEffect(() => {
-    writeStoredBtcPlan(trackedPlan);
-  }, [trackedPlan]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setTrackedPlan((current) => {
-        if (!current?.entryLow) {
-          if (!tradePlan.shouldTrack || !Number.isFinite(tradePlan.entryLow) || !Number.isFinite(tradePlan.entryHigh)) {
-            return current;
-          }
-          return {
-            direction: tradePlan.direction,
-            reason: tradePlan.reason,
-            scenario: tradePlan.scenario,
-            entryLow: tradePlan.entryLow,
-            entryHigh: tradePlan.entryHigh,
-            entryTime: Date.now(),
-            initialStop: tradePlan.stop,
-            stop: tradePlan.stop,
-            updatedAt: Date.now(),
-          };
-        }
-
-        if (!Number.isFinite(tradePlan.stop)) return current;
-        const direction = current.direction || tradePlan.direction;
-        const currentStop = Number.isFinite(current.stop)
-          ? current.stop
-          : direction === "short" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-        const shouldMoveStop = direction === "short"
-          ? tradePlan.stop < currentStop - 0.01
-          : tradePlan.stop > currentStop + 0.01;
-        if (!shouldMoveStop) return current;
-        return {
-          ...current,
-          direction,
-          reason: tradePlan.reason,
-          scenario: tradePlan.scenario,
-          stop: tradePlan.stop,
-          updatedAt: Date.now(),
-        };
-      });
-    });
-  }, [
-    tradePlan.direction,
-    tradePlan.entryHigh,
-    tradePlan.entryLow,
-    tradePlan.reason,
-    tradePlan.scenario,
-    tradePlan.shouldTrack,
-    tradePlan.stop,
-  ]);
-
-  const handleResetPlan = () => {
-    setTrackedPlan(null);
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -261,13 +194,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         </div>
       </header>
 
-      <BtcStopPlanStrip
-        btcPrice={btcPrice}
-        onResetPlan={handleResetPlan}
-        tradePlan={tradePlan}
-        trackedPlan={trackedPlan}
-      />
-
       <div className={higherTimeframesCollapsed ? "btc-quad-grid higher-collapsed" : "btc-quad-grid"}>
         {visibleCharts.map((config) => (
           <BtcQuadChart
@@ -287,69 +213,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         ))}
       </div>
     </section>
-  );
-}
-
-function BtcStopPlanStrip({ btcPrice, onResetPlan, tradePlan, trackedPlan }) {
-  const activeStop = Number.isFinite(trackedPlan?.stop) ? trackedPlan.stop : tradePlan.stop;
-  const shouldShowStop = Boolean(trackedPlan?.entryLow || tradePlan.shouldTrack);
-  const displayStop = shouldShowStop ? activeStop : null;
-  const entryLow = Number.isFinite(trackedPlan?.entryLow) ? trackedPlan.entryLow : tradePlan.entryLow;
-  const entryHigh = Number.isFinite(trackedPlan?.entryHigh) ? trackedPlan.entryHigh : tradePlan.entryHigh;
-  const hasEntry = Number.isFinite(trackedPlan?.entryLow) && Number.isFinite(trackedPlan?.entryHigh);
-  const direction = trackedPlan?.direction || tradePlan.direction;
-  const reason = trackedPlan?.reason || tradePlan.reason;
-  const entryLabel = Number.isFinite(entryLow) && Number.isFinite(entryHigh)
-    ? `${formatPrice(entryLow)} - ${formatPrice(entryHigh)}`
-    : "Aguardando setup";
-  const distanceToPrice = Number.isFinite(displayStop) && Number.isFinite(btcPrice)
-    ? direction === "short"
-      ? ((displayStop - btcPrice) / btcPrice) * 100
-      : ((btcPrice - displayStop) / btcPrice) * 100
-    : null;
-  const protectedFromEntry = hasEntry && Number.isFinite(displayStop) && Number.isFinite(trackedPlan.entryHigh) && Number.isFinite(trackedPlan.entryLow)
-    ? direction === "short"
-      ? ((trackedPlan.entryLow - displayStop) / trackedPlan.entryLow) * 100
-      : ((displayStop - trackedPlan.entryHigh) / trackedPlan.entryHigh) * 100
-    : null;
-  const status = getBtcPlanStatus(hasEntry, displayStop, trackedPlan, protectedFromEntry, tradePlan);
-
-  return (
-    <section className={`btc-plan-strip ${direction === "short" ? "short" : direction === "long" ? "long" : ""}`} aria-label="BTC entrada com stop movel">
-      <div className="btc-plan-main">
-        <div className="btc-plan-title">
-          <p className="eyebrow">BTC Entrada</p>
-          <strong>{status}</strong>
-          <span>Motivo: {reason}</span>
-        </div>
-        <BtcPlanMetric label={hasEntry ? "Faixa travada" : "Faixa entrada"} value={entryLabel} />
-        <BtcPlanMetric label={hasEntry ? "Stop movel" : "Stop inicial"} value={formatPrice(displayStop)} highlight />
-        <BtcPlanMetric label="Distancia" value={formatPercent(distanceToPrice)} />
-        <BtcPlanMetric
-          label={Number.isFinite(protectedFromEntry) && protectedFromEntry >= 0 ? "Lucro protegido" : "Risco restante"}
-          value={hasEntry ? formatPercent(protectedFromEntry) : "-"}
-          intent={Number.isFinite(protectedFromEntry) && protectedFromEntry >= 0 ? "success" : "danger"}
-        />
-      </div>
-
-      <div className="btc-plan-actions">
-        {hasEntry ? (
-          <button type="button" className="ghost" onClick={onResetPlan}>
-            Reiniciar plano
-          </button>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function BtcPlanMetric({ highlight = false, intent, label, value }) {
-  const className = ["btc-plan-metric", highlight ? "highlight" : "", intent || ""].filter(Boolean).join(" ");
-  return (
-    <span className={className}>
-      {label}
-      <strong>{value}</strong>
-    </span>
   );
 }
 
@@ -797,6 +660,45 @@ function toChartBandLineFromBars(bars, bands, key) {
     .filter(Boolean);
 }
 
+function toChartLineEma(bars, period) {
+  const ema = calculateEMA(
+    bars.map((bar) => bar.close),
+    period
+  );
+
+  return bars
+    .map((bar, index) => ({
+      time: bar.time,
+      value: ema[index],
+    }))
+    .filter((item) => Number.isFinite(item.value));
+}
+
+function toChartLineVwma(bars, period) {
+  if (!Array.isArray(bars) || bars.length < period) return [];
+
+  return bars
+    .map((bar, index) => {
+      if (index < period - 1) return null;
+
+      const window = bars.slice(index - period + 1, index + 1);
+      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
+      if (!volumeSum) return null;
+
+      const value = window.reduce((sum, item) => {
+        const close = Number.isFinite(item.close) ? item.close : 0;
+        const volume = Number.isFinite(item.volume) ? item.volume : 0;
+        return sum + close * volume;
+      }, 0) / volumeSum;
+
+      return {
+        time: bar.time,
+        value,
+      };
+    })
+    .filter(Boolean);
+}
+
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
   const start = toScreenPoint(drawing.start, chart, series, chartMeta);
   const end = toScreenPoint(drawing.end, chart, series, chartMeta);
@@ -1054,376 +956,6 @@ function getPricePaneWidth(chart) {
     return chart?.paneSize(0)?.width ?? null;
   } catch {
     return null;
-  }
-}
-
-function buildBtcTradePlan(chartCandles, btcPrice) {
-  const btc15mCandles = chartCandles["candles-15m"] || [];
-  const btc1hCandles = chartCandles["candles-1h"] || [];
-  const btc4hCandles = chartCandles["candles-4h"] || [];
-  const frame15m = getCandleFrameState(btc15mCandles);
-  const frame1h = getCandleFrameState(btc1hCandles);
-  const frame4h = getCandleFrameState(btc4hCandles);
-  const tradeSide = getTradeSide(frame15m, frame1h, frame4h);
-  const shouldTrack = tradeSide.direction !== "neutral";
-  const scenario = getTradeScenario(tradeSide, frame15m, frame1h, frame4h);
-  const entry = buildEntryZone({ btcPrice, direction: tradeSide.direction, frame15m, frame1h, shouldTrack });
-  const buffer = getStopBuffer(btcPrice);
-  const stop = buildDirectionalStop({
-    btcPrice,
-    buffer,
-    direction: tradeSide.direction,
-    frame15m,
-    frame1h,
-    btc15mCandles,
-    btc1hCandles,
-  });
-
-  return {
-    direction: tradeSide.direction,
-    entryHigh: entry.high,
-    entryLow: entry.low,
-    reason: tradeSide.reason,
-    scenario,
-    shouldTrack,
-    stop,
-  };
-}
-
-function buildStopCandidate(level, buffer, btcPrice, direction = "long") {
-  if (!Number.isFinite(level) || !Number.isFinite(buffer)) return null;
-  const stop = direction === "short" ? level + buffer : level - buffer;
-  if (Number.isFinite(btcPrice)) {
-    if (direction === "short" && stop <= btcPrice) return null;
-    if (direction !== "short" && stop >= btcPrice) return null;
-  }
-  return stop;
-}
-
-function toChartLineEma(bars, period) {
-  const ema = calculateEMA(
-    bars.map((bar) => bar.close),
-    period
-  );
-
-  return bars
-    .map((bar, index) => ({
-      time: bar.time,
-      value: ema[index],
-    }))
-    .filter((item) => Number.isFinite(item.value));
-}
-
-function toChartLineVwma(bars, period) {
-  if (!Array.isArray(bars) || bars.length < period) return [];
-
-  return bars
-    .map((bar, index) => {
-      if (index < period - 1) return null;
-
-      const window = bars.slice(index - period + 1, index + 1);
-      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
-      if (!volumeSum) return null;
-
-      const value = window.reduce((sum, item) => {
-        const close = Number.isFinite(item.close) ? item.close : 0;
-        const volume = Number.isFinite(item.volume) ? item.volume : 0;
-        return sum + close * volume;
-      }, 0) / volumeSum;
-
-      return {
-        time: bar.time,
-        value,
-      };
-    })
-    .filter(Boolean);
-}
-
-function getCandleFrameState(candles) {
-  const last = candles.at(-1);
-  const ema = toChartEma(candles, BTC_QUAD_EMA_PERIOD).at(-1)?.value;
-  const vwma = toChartVwma(candles, BTC_QUAD_VWMA_PERIOD).at(-1)?.value;
-  const chartCandles = toChartCandles(candles);
-  const bands = toChartBandLinesFromBars(chartCandles, BTC_BB_PERIOD, BTC_BB_MULTIPLIER);
-  const dpo = toChartDpoFromBars(chartCandles, BTC_DPO_PERIOD);
-  const latestDpo = dpo.at(-1)?.value;
-  const previousDpo = dpo.at(-4)?.value ?? dpo.at(-2)?.value;
-  const price = last?.close;
-  const aboveEma = Number.isFinite(price) && Number.isFinite(ema) && price >= ema;
-  const aboveVwma = Number.isFinite(price) && Number.isFinite(vwma) && price >= vwma;
-  const aboveBothAverages = aboveEma && aboveVwma;
-  const belowBoth = Number.isFinite(price) && Number.isFinite(ema) && Number.isFinite(vwma) && price < ema && price < vwma;
-  const lowerBand = bands.lower.at(-1)?.value;
-  const upperBand = bands.upper.at(-1)?.value;
-  const middleBand = bands.middle.at(-1)?.value;
-  const nearLowerBand = Number.isFinite(price) && Number.isFinite(lowerBand) && price <= lowerBand * 1.006;
-  const nearUpperBand = Number.isFinite(price) && Number.isFinite(upperBand) && price >= upperBand * 0.994;
-  const strongBullish = Number.isFinite(price) && Number.isFinite(upperBand) && price > upperBand;
-  const strongBearish = Number.isFinite(price) && Number.isFinite(lowerBand) && price < lowerBand;
-  const vwmaBelowEma = Number.isFinite(vwma) && Number.isFinite(ema) && vwma < ema;
-  const vwmaAboveEma = Number.isFinite(vwma) && Number.isFinite(ema) && vwma > ema;
-  const emaDistance = getPercentDistance(price, ema);
-  const vwmaDistance = getPercentDistance(price, vwma);
-  const nearEma = Number.isFinite(emaDistance) && emaDistance <= BTC_NEAR_AVERAGE_PERCENT_15M;
-  const nearVwma = Number.isFinite(vwmaDistance) && vwmaDistance <= BTC_NEAR_AVERAGE_PERCENT_15M;
-  const nearAverage = nearEma || nearVwma;
-  const dpoTurningUp = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo > previousDpo;
-  const dpoTurningDown = Number.isFinite(latestDpo) && Number.isFinite(previousDpo) && latestDpo < previousDpo;
-
-  return {
-    aboveEma,
-    aboveBothAverages,
-    aboveVwma,
-    bearish: belowBoth,
-    belowEma: Number.isFinite(price) && Number.isFinite(ema) && price < ema,
-    belowVwma: Number.isFinite(price) && Number.isFinite(vwma) && price < vwma,
-    confirmed: (aboveEma || aboveVwma || nearLowerBand) && dpoTurningUp,
-    dpo: latestDpo,
-    dpoTurningDown,
-    dpoTurningUp,
-    ema,
-    emaDistance,
-    lowerBand,
-    middleBand,
-    nearAverage,
-    nearEma,
-    nearLowerBand,
-    nearUpperBand,
-    nearVwma,
-    price,
-    strongBearish,
-    strongBullish,
-    upperBand,
-    vwma,
-    vwmaAboveEma,
-    vwmaBelowEma,
-    vwmaDistance,
-  };
-}
-
-function getTradeSide(frame15m, frame1h, frame4h) {
-  if (frame15m.strongBullish || frame1h.strongBullish || frame4h.strongBullish) {
-    return {
-      direction: "neutral",
-      reason: "preco acima da BB superior, aguardar retorno para zona tecnica",
-    };
-  }
-
-  if (frame15m.strongBearish || frame1h.strongBearish || frame4h.strongBearish) {
-    return {
-      direction: "neutral",
-      reason: "preco abaixo da BB inferior, aguardar retorno para zona tecnica",
-    };
-  }
-
-  const frame1hNearAverage = isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H);
-  const averageZone = frame15m.nearAverage || frame1hNearAverage;
-  const longTrend = frame4h.aboveBothAverages || frame1h.aboveBothAverages;
-  const shortTrend = frame4h.bearish || frame1h.bearish;
-  const longTrigger = frame15m.dpoTurningUp && averageZone && (frame15m.aboveVwma || frame15m.aboveEma || frame15m.nearAverage);
-  const shortTrigger = frame15m.dpoTurningDown && averageZone && (frame15m.belowVwma || frame15m.belowEma || frame15m.nearAverage);
-
-  if (!averageZone) {
-    return {
-      direction: "neutral",
-      reason: "preco longe da EMA/VWMA, aguardar novo toque nas medias",
-    };
-  }
-
-  if (longTrend && longTrigger) {
-    return {
-      direction: "long",
-      reason: buildBtcReason("Long", frame15m, frame1h, frame4h),
-    };
-  }
-
-  if (shortTrend && shortTrigger) {
-    return {
-      direction: "short",
-      reason: buildBtcReason("Short", frame15m, frame1h, frame4h),
-    };
-  }
-
-  return {
-    direction: "neutral",
-    reason: "aguardando alinhamento entre 15m, 1H e 4H",
-  };
-}
-
-function isNearAverage(frame, maxDistancePercent) {
-  return (
-    (Number.isFinite(frame.emaDistance) && frame.emaDistance <= maxDistancePercent) ||
-    (Number.isFinite(frame.vwmaDistance) && frame.vwmaDistance <= maxDistancePercent)
-  );
-}
-
-function buildBtcReason(side, frame15m, frame1h, frame4h) {
-  if (side === "Long") {
-    if (frame15m.nearVwma) return "15m perto da VWMA, tendencia maior favorece alta";
-    if (frame15m.nearEma) return "15m perto da EMA, aguardando retomada de alta";
-    if (frame4h.aboveBothAverages) return "preco acima da EMA e VWMA no 4H, pressao de alta";
-    return "preco voltou para as medias, possivel suporte";
-  }
-
-  if (frame15m.nearVwma) return "15m perto da VWMA, tendencia maior favorece baixa";
-  if (frame15m.nearEma) return "15m perto da EMA, aguardando rejeicao";
-  if (frame4h.bearish) return "preco abaixo da EMA e VWMA no 4H, pressao de baixa";
-  return "preco voltou para as medias, possivel resistencia";
-}
-
-function getTradeScenario(tradeSide, frame15m, frame1h, frame4h) {
-  if (tradeSide.direction === "long") {
-    if (frame4h.strongBullish || frame15m.strongBullish) return "Long em rompimento";
-    if (frame1h.nearLowerBand || frame15m.nearLowerBand) return "Long em suporte";
-    return "Long em retomada";
-  }
-
-  if (tradeSide.direction === "short") {
-    if (frame4h.strongBearish || frame15m.strongBearish) return "Short em rompimento";
-    if (frame1h.nearUpperBand || frame15m.nearUpperBand) return "Short em resistencia";
-    return "Short em rejeicao";
-  }
-
-  if (frame4h.strongBullish) return "Alta forte, aguardar suporte";
-  if (frame4h.strongBearish) return "Baixa forte, aguardar resistencia";
-  return "Aguardar";
-}
-
-function buildEntryZone({ btcPrice, direction, frame15m, frame1h, shouldTrack }) {
-  if (!shouldTrack) return { high: null, low: null, reference: null };
-  if (!Number.isFinite(btcPrice)) return { high: null, low: null, reference: null };
-  const references = direction === "short"
-    ? [
-        frame15m.nearVwma ? frame15m.vwma : null,
-        frame15m.nearEma ? frame15m.ema : null,
-        isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H) ? nearestAverageValue(frame1h) : null,
-      ].filter(Number.isFinite)
-    : [
-        frame15m.nearVwma ? frame15m.vwma : null,
-        frame15m.nearEma ? frame15m.ema : null,
-        isNearAverage(frame1h, BTC_NEAR_AVERAGE_PERCENT_1H) ? nearestAverageValue(frame1h) : null,
-      ].filter(Number.isFinite);
-  if (references.length === 0) return { high: null, low: null, reference: null };
-  const nearPriceReferences = references.filter((value) => direction === "short" ? value >= btcPrice * 0.994 : value <= btcPrice * 1.006);
-  const reference = nearPriceReferences.length
-    ? direction === "short" ? Math.min(...nearPriceReferences) : Math.max(...nearPriceReferences)
-    : references[0];
-  const width = Math.max(15, btcPrice * (shouldTrack ? 0.0018 : 0.0012));
-  const low = Math.min(reference, btcPrice) - width * 0.45;
-  const high = Math.max(reference, btcPrice) + width * 0.25;
-  return { high, low };
-}
-
-function nearestAverageValue(frame) {
-  if (!Number.isFinite(frame.emaDistance)) return frame.vwma;
-  if (!Number.isFinite(frame.vwmaDistance)) return frame.ema;
-  return frame.emaDistance <= frame.vwmaDistance ? frame.ema : frame.vwma;
-}
-
-function buildDirectionalStop({ btcPrice, buffer, direction, frame15m, frame1h, btc15mCandles, btc1hCandles }) {
-  if (direction === "short") {
-    const stopCandidates = [
-      buildStopCandidate(frame15m.upperBand, buffer, btcPrice, "short"),
-      buildStopCandidate(frame1h.upperBand, buffer, btcPrice, "short"),
-      buildStopCandidate(getRecentCandleHigh(btc15mCandles), buffer, btcPrice, "short"),
-      buildStopCandidate(getRecentCandleHigh(btc1hCandles), buffer, btcPrice, "short"),
-    ].filter(Boolean);
-    return stopCandidates.length ? Math.min(...stopCandidates) : null;
-  }
-
-  if (direction === "long") {
-    const stopCandidates = [
-      buildStopCandidate(frame15m.lowerBand, buffer, btcPrice, "long"),
-      buildStopCandidate(frame1h.lowerBand, buffer, btcPrice, "long"),
-      buildStopCandidate(getRecentCandleLow(btc15mCandles), buffer, btcPrice, "long"),
-      buildStopCandidate(getRecentCandleLow(btc1hCandles), buffer, btcPrice, "long"),
-    ].filter(Boolean);
-    return stopCandidates.length ? Math.max(...stopCandidates) : null;
-  }
-
-  return null;
-}
-
-function getRecentCandleLow(candles) {
-  const recentCandles = candles
-    .filter((candle) => candle && candle.closed !== false && Number.isFinite(candle.low))
-    .slice(-BTC_STOP_LOOKBACK_CANDLES);
-
-  return getFiniteMin(recentCandles.map((candle) => candle.low));
-}
-
-function getRecentCandleHigh(candles) {
-  const recentCandles = candles
-    .filter((candle) => candle && candle.closed !== false && Number.isFinite(candle.high))
-    .slice(-BTC_STOP_LOOKBACK_CANDLES);
-
-  return getFiniteMax(recentCandles.map((candle) => candle.high));
-}
-
-function getFiniteMin(values) {
-  const finiteValues = values.filter(Number.isFinite);
-  if (finiteValues.length === 0) return null;
-  return Math.min(...finiteValues);
-}
-
-function getFiniteMax(values) {
-  const finiteValues = values.filter(Number.isFinite);
-  if (finiteValues.length === 0) return null;
-  return Math.max(...finiteValues);
-}
-
-function getPercentDistance(value, reference) {
-  if (!Number.isFinite(value) || !Number.isFinite(reference) || reference === 0) return null;
-  return Math.abs(((value - reference) / reference) * 100);
-}
-
-function getStopBuffer(price) {
-  if (!Number.isFinite(price)) return 15;
-  return Math.max(15, price * BTC_STOP_BUFFER_PERCENT);
-}
-
-function getBtcPlanStatus(hasEntry, activeStop, trackedPlan, protectedFromEntry, tradePlan) {
-  if (!hasEntry) return tradePlan.scenario;
-  if (!Number.isFinite(activeStop)) return "Aguardando dados do stop";
-  if (trackedPlan?.direction === "short" && activeStop <= trackedPlan.entryLow) return "Short protegido, seguir tendencia";
-  if (trackedPlan?.direction !== "short" && activeStop >= trackedPlan.entryHigh) return "Long protegido, seguir tendencia";
-  if (Number.isFinite(protectedFromEntry) && protectedFromEntry > -0.35) return "Risco bem reduzido";
-  return `${trackedScenarioLabel(tradePlan.scenario)} com stop tecnico`;
-}
-
-function trackedScenarioLabel(scenario) {
-  return scenario?.startsWith("Long") || scenario?.startsWith("Short") ? scenario : "Plano ativo";
-}
-
-function readStoredBtcPlan() {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(BTC_PLAN_STORAGE_KEY) || "null");
-    if (!parsed || !Number.isFinite(parsed.entryLow) || !Number.isFinite(parsed.entryHigh)) return null;
-    return {
-      direction: parsed.direction === "short" ? "short" : parsed.direction === "long" ? "long" : null,
-      entryHigh: Number(parsed.entryHigh),
-      entryLow: Number(parsed.entryLow),
-      entryTime: Number(parsed.entryTime) || Date.now(),
-      initialStop: Number.isFinite(parsed.initialStop) ? Number(parsed.initialStop) : null,
-      reason: typeof parsed.reason === "string" ? parsed.reason : null,
-      scenario: typeof parsed.scenario === "string" ? parsed.scenario : null,
-      stop: Number.isFinite(parsed.stop) ? Number(parsed.stop) : null,
-      updatedAt: Number(parsed.updatedAt) || Date.now(),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredBtcPlan(plan) {
-  try {
-    if (!plan) {
-      window.localStorage.removeItem(BTC_PLAN_STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(BTC_PLAN_STORAGE_KEY, JSON.stringify(plan));
-  } catch {
-    // localStorage can fail in private modes; the open session still keeps the stop plan.
   }
 }
 
