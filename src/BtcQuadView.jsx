@@ -256,8 +256,12 @@ function BtcQuadChart({
   const palette = useMemo(() => getPalette(theme), [theme]);
   const emaPeriod = getChartEmaPeriod(config);
   const vwmaPeriod = getChartVwmaPeriod(config);
+  const showBollingerBands = !isOneMinuteChart(config);
   const chartData = useMemo(() => toChartCandles(candles), [candles]);
-  const bandFillData = useMemo(() => toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER), [chartData]);
+  const bandFillData = useMemo(
+    () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER) : null,
+    [chartData, showBollingerBands]
+  );
   const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
 
   useEffect(() => {
@@ -477,8 +481,8 @@ function BtcQuadChart({
 
     priceSeriesRef.current.setData(chartData);
 
-    fastLineRef.current?.setData(bandFillData?.upper || []);
-    slowLineRef.current?.setData(bandFillData?.lower || []);
+    fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
+    slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
     renkoEmaLineRef.current?.setData(toChartLineEma(chartData, emaPeriod));
     renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
     dpoSeriesRef.current?.setData(toChartDpoFromBars(chartData, BTC_DPO_PERIOD));
@@ -487,7 +491,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, emaPeriod, vwmaPeriod]);
+  }, [bandFillData, chartData, emaPeriod, showBollingerBands, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -525,7 +529,12 @@ function BtcQuadChart({
     setDraftDrawing((current) => (current ? { ...current, end: point } : current));
   };
 
-  const legends = [`BB ${BTC_BB_PERIOD}`, `EMA ${emaPeriod}`, `VWMA ${vwmaPeriod}`, `DPO ${BTC_DPO_PERIOD}`];
+  const legends = [
+    showBollingerBands ? `BB ${BTC_BB_PERIOD}` : null,
+    `EMA ${emaPeriod}`,
+    `VWMA ${vwmaPeriod}`,
+    `DPO ${BTC_DPO_PERIOD}`,
+  ].filter(Boolean);
 
   return (
     <article className="btc-quad-card">
@@ -551,13 +560,15 @@ function BtcQuadChart({
           onPointerMove={handleToolPointerMove}
           onPointerCancel={() => setDraftDrawing(null)}
         >
-          <BollingerBandFill
-            chart={drawingContext.chart}
-            chartMeta={chartMeta}
-            lower={bandFillData?.lower}
-            series={drawingContext.series}
-            upper={bandFillData?.upper}
-          />
+          {showBollingerBands ? (
+            <BollingerBandFill
+              chart={drawingContext.chart}
+              chartMeta={chartMeta}
+              lower={bandFillData?.lower}
+              series={drawingContext.series}
+              upper={bandFillData?.upper}
+            />
+          ) : null}
           {[...drawings, draftDrawing].filter(Boolean).map((drawing) => (
             <DrawingLayer
               key={drawing.id}
