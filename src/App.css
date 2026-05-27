@@ -1708,18 +1708,24 @@ input:focus,
   }
 
   .btc-quad-overlay {
+    grid-template-rows: auto auto minmax(0, 1fr);
     gap: 6px;
     padding: 6px;
   }
 
   .btc-quad-topbar {
-    min-height: 38px;
-    padding: 6px 9px;
+    min-height: 34px;
+    padding: 5px 8px;
+  }
+
+  .btc-quad-topbar h2 {
+    font-size: 0.95rem;
+    line-height: 1;
   }
 
   .btc-quad-close {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 
   .btc-quad-actions {
@@ -1727,15 +1733,15 @@ input:focus,
   }
 
   .btc-quad-price {
-    min-height: 34px;
+    min-height: 32px;
     font-size: 0.78rem;
     padding: 0 8px;
   }
 
   .btc-plan-strip {
     grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 6px;
+    gap: 4px;
+    padding: 5px;
   }
 
   .btc-plan-main,
@@ -1751,29 +1757,31 @@ input:focus,
   }
 
   .btc-plan-main > div {
-    min-width: 108px;
+    min-width: 96px;
   }
 
   .btc-plan-main strong {
-    font-size: 0.72rem;
-  }
-
-  .btc-plan-metric {
-    min-height: 32px;
-    font-size: 0.54rem;
-    padding: 5px 7px;
-  }
-
-  .btc-plan-metric strong {
     font-size: 0.68rem;
   }
 
+  .btc-plan-metric {
+    min-height: 28px;
+    font-size: 0.5rem;
+    padding: 4px 6px;
+  }
+
+  .btc-plan-metric strong {
+    font-size: 0.63rem;
+  }
+
   .btc-plan-actions button {
-    min-height: 32px;
-    font-size: 0.66rem;
+    min-height: 28px;
+    font-size: 0.62rem;
   }
 
   .btc-quad-grid {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1.18fr) minmax(0, 1fr);
     gap: 6px;
   }
 
@@ -1783,8 +1791,8 @@ input:focus,
   }
 
   .btc-quad-card-header {
-    min-height: 30px;
-    padding: 5px 8px;
+    min-height: 26px;
+    padding: 4px 7px;
   }
 
   .btc-quad-card-header strong {
@@ -1796,6 +1804,48 @@ input:focus,
     display: none;
   }
 
+}
+
+@media (max-width: 820px) and (max-height: 760px) {
+  .btc-quad-overlay {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .btc-quad-topbar {
+    min-height: 31px;
+    padding: 4px 7px;
+  }
+
+  .btc-quad-close,
+  .btc-quad-price,
+  .tool-button {
+    min-height: 29px;
+  }
+
+  .btc-quad-close {
+    width: 29px;
+    height: 29px;
+  }
+
+  .btc-plan-strip {
+    padding: 4px;
+  }
+
+  .btc-plan-main > div,
+  .btc-plan-actions {
+    display: none;
+  }
+
+  .btc-plan-metric {
+    min-height: 25px;
+    padding: 3px 5px;
+  }
+
+  .btc-quad-card-header {
+    min-height: 23px;
+    padding: 3px 6px;
+  }
 }
 
 @media (max-width: 560px) {
