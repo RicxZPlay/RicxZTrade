@@ -18,7 +18,6 @@ import {
   formatPrice,
   mergeLiveCandle,
   toChartCandles,
-  toChartRenko,
 } from "./market";
 
 const BTC_SYMBOL = "BTCUSDT";
@@ -45,8 +44,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const visibleCharts = useMemo(
     () => BTC_QUAD_CHARTS.filter((config) => (
       higherTimeframesCollapsed
-        ? !isHigherTimeframeChart(config)
-        : !isCollapsedOnlyChart(config)
+        ? !isFourHourChart(config)
+        : !isOneMinuteChart(config)
     )),
     [higherTimeframesCollapsed]
   );
@@ -181,7 +180,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           {higherTimeframesCollapsed ? (
             <button className="btc-quad-restore" type="button" onClick={() => setHigherTimeframesCollapsed(false)}>
               <Maximize2 size={15} />
-              Mostrar 1H/4H
+              Mostrar 4H
             </button>
           ) : null}
           {embedded ? (
@@ -254,16 +253,13 @@ function BtcQuadChart({
   const emaPeriod = getChartEmaPeriod(config);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
-  const showBollingerBands = shouldShowBollingerBands(config);
-  const chartData = useMemo(() => toChartData(candles, config), [candles, config]);
+  const showBollingerBands = !isOneMinuteChart(config);
+  const chartData = useMemo(() => toChartCandles(candles), [candles]);
   const bandFillData = useMemo(
     () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER) : null,
     [chartData, showBollingerBands]
   );
-  const chartMeta = useMemo(
-    () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
-    [chartData, config.fallbackSeconds, config.type]
-  );
+  const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -511,7 +507,7 @@ function BtcQuadChart({
         <strong>{config.title}</strong>
         <div className="btc-quad-card-meta">
           <span>{legends.join(" / ")}</span>
-          {isHigherTimeframeChart(config) ? (
+          {isFourHourChart(config) ? (
             <button className="btc-card-collapse" type="button" onClick={onToggleHigherTimeframes}>
               <Minimize2 size={13} />
               {higherTimeframesCollapsed ? "Mostrar" : "Recolher"}
@@ -579,28 +575,12 @@ function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
 }
 
-function toChartData(candles, config) {
-  if (config?.type === "renko") {
-    return toChartRenko(candles, config.boxSize || 1);
-  }
-
-  return toChartCandles(candles);
-}
-
-function shouldShowBollingerBands(config) {
-  return config?.type === "renko" || !isOneMinuteChart(config);
-}
-
-function isHigherTimeframeChart(config) {
-  return config?.id === "candles-1h" || config?.id === "candles-4h";
+function isFourHourChart(config) {
+  return config?.id === "candles-4h";
 }
 
 function isOneMinuteChart(config) {
   return config?.id === "candles-1m";
-}
-
-function isCollapsedOnlyChart(config) {
-  return isOneMinuteChart(config) || config?.id === "renko-1m";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
