@@ -44,7 +44,7 @@ export const BTC_QUAD_VWMA_PERIOD = 850;
 export const BTC_FAST_EMA_PERIOD = 200;
 export const BTC_FAST_VWMA_PERIOD = 550;
 export const BTC_ONE_MINUTE_VWMA_PERIOD = 555;
-export const BTC_RENKO_ONE_MINUTE_VWMA_PERIOD = 1200;
+export const BTC_RENKO_ONE_MINUTE_VWMA_PERIOD = 1150;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
