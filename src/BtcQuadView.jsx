@@ -177,12 +177,14 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             </ToolButton>
           </div>
           <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
-          {higherTimeframesCollapsed ? (
-            <button className="btc-quad-restore" type="button" onClick={() => setHigherTimeframesCollapsed(false)}>
-              <Maximize2 size={15} />
-              Mostrar 4H
-            </button>
-          ) : null}
+          <button
+            className="btc-quad-restore"
+            type="button"
+            onClick={() => setHigherTimeframesCollapsed((current) => !current)}
+          >
+            {higherTimeframesCollapsed ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
+            {higherTimeframesCollapsed ? "Mostrar 4H" : "Recolher 4H"}
+          </button>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
               <Maximize2 size={15} />
@@ -205,9 +207,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             error={errors[config.id]}
             activeTool={activeTool}
             clearSignal={clearSignal}
-            higherTimeframesCollapsed={higherTimeframesCollapsed}
             isCompact={isCompact}
-            onToggleHigherTimeframes={() => setHigherTimeframesCollapsed((current) => !current)}
             selectedDrawing={selectedDrawing}
             setSelectedDrawing={setSelectedDrawing}
             theme={theme}
@@ -224,9 +224,7 @@ function BtcQuadChart({
   clearSignal,
   config,
   error,
-  higherTimeframesCollapsed,
   isCompact,
-  onToggleHigherTimeframes,
   selectedDrawing,
   setSelectedDrawing,
   theme,
@@ -507,12 +505,6 @@ function BtcQuadChart({
         <strong>{config.title}</strong>
         <div className="btc-quad-card-meta">
           <span>{legends.join(" / ")}</span>
-          {isFourHourChart(config) ? (
-            <button className="btc-card-collapse" type="button" onClick={onToggleHigherTimeframes}>
-              <Minimize2 size={13} />
-              {higherTimeframesCollapsed ? "Mostrar" : "Recolher"}
-            </button>
-          ) : null}
         </div>
       </div>
       <div className="btc-quad-chart-area">
