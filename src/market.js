@@ -335,6 +335,9 @@ export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
 
     let diff = close - anchorClose;
     let bricksInCandle = 0;
+    const bricksToBuild = Math.floor(Math.abs(diff) / boxSize);
+    const candleVolume = Number.isFinite(candle.volume) ? candle.volume : 0;
+    const volumePerBrick = bricksToBuild > 0 ? candleVolume / bricksToBuild : 0;
 
     while (Math.abs(diff) >= boxSize) {
       const direction = diff > 0 ? 1 : -1;
@@ -347,7 +350,7 @@ export function buildRenkoBricks(candles, boxSize = RENKO_BOX_SIZE) {
         openTime: lastChartTime * 1000,
         sourceOpenTime: candle.openTime,
         projected: candle.closed === false,
-        volume: Number.isFinite(candle.volume) ? candle.volume : 0,
+        volume: volumePerBrick,
         open,
         high: Math.max(open, brickClose),
         low: Math.min(open, brickClose),
