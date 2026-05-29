@@ -879,6 +879,11 @@ input:focus,
   white-space: nowrap;
 }
 
+.btc-quad-restore.active {
+  border-color: color-mix(in srgb, var(--success) 70%, var(--border));
+  background: color-mix(in srgb, var(--success-soft) 92%, transparent);
+}
+
 .btc-quad-fullscreen:hover,
 .btc-quad-fullscreen:focus-visible,
 .btc-quad-restore:hover,
@@ -1703,7 +1708,7 @@ input:focus,
     width: 100%;
     min-width: 0;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     gap: 5px;
   }
 

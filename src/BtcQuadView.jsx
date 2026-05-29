@@ -18,6 +18,7 @@ import {
   formatPrice,
   mergeLiveCandle,
   toChartCandles,
+  toChartRenko,
 } from "./market";
 
 const BTC_SYMBOL = "BTCUSDT";
@@ -40,14 +41,19 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
   const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(true);
+  const [renkoActive, setRenkoActive] = useState(false);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => (
-      higherTimeframesCollapsed
-        ? !isFourHourChart(config)
-        : !isOneMinuteChart(config)
-    )),
-    [higherTimeframesCollapsed]
+    () => BTC_QUAD_CHARTS.filter((config) => {
+      if (renkoActive) {
+        return isRenkoOneMinuteChart(config) || isOneMinuteChart(config) || isFiveMinuteChart(config) || isFifteenMinuteChart(config);
+      }
+
+      return higherTimeframesCollapsed
+        ? !isFourHourChart(config) && !isRenkoOneMinuteChart(config)
+        : !isOneMinuteChart(config) && !isRenkoOneMinuteChart(config);
+    }),
+    [higherTimeframesCollapsed, renkoActive]
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -180,10 +186,24 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           <button
             className="btc-quad-restore"
             type="button"
-            onClick={() => setHigherTimeframesCollapsed((current) => !current)}
+            onClick={() => {
+              setRenkoActive(false);
+              setHigherTimeframesCollapsed((current) => !current);
+            }}
           >
             {higherTimeframesCollapsed ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
             {higherTimeframesCollapsed ? "Mostrar 4H" : "Recolher 4H"}
+          </button>
+          <button
+            className={renkoActive ? "btc-quad-restore active" : "btc-quad-restore"}
+            type="button"
+            onClick={() => {
+              setRenkoActive((current) => !current);
+              setHigherTimeframesCollapsed(true);
+            }}
+          >
+            {renkoActive ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            {renkoActive ? "Fechar Renko" : "Renko 1m"}
           </button>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
@@ -251,13 +271,16 @@ function BtcQuadChart({
   const emaPeriod = getChartEmaPeriod(config);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
-  const showBollingerBands = !isOneMinuteChart(config);
-  const chartData = useMemo(() => toChartCandles(candles), [candles]);
+  const showBollingerBands = !isOneMinuteChart(config) || isRenkoOneMinuteChart(config);
+  const chartData = useMemo(() => toChartData(candles, config), [candles, config]);
   const bandFillData = useMemo(
     () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER) : null,
     [chartData, showBollingerBands]
   );
-  const chartMeta = useMemo(() => buildChartMeta(chartData, config.fallbackSeconds, "candles"), [chartData, config.fallbackSeconds]);
+  const chartMeta = useMemo(
+    () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
+    [chartData, config.fallbackSeconds, config.type]
+  );
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -567,12 +590,32 @@ function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
 }
 
+function toChartData(candles, config) {
+  if (config?.type === "renko") {
+    return toChartRenko(candles, config.boxSize || 1);
+  }
+
+  return toChartCandles(candles);
+}
+
 function isFourHourChart(config) {
   return config?.id === "candles-4h";
 }
 
+function isFiveMinuteChart(config) {
+  return config?.id === "candles-5m";
+}
+
+function isFifteenMinuteChart(config) {
+  return config?.id === "candles-15m";
+}
+
 function isOneMinuteChart(config) {
   return config?.id === "candles-1m";
+}
+
+function isRenkoOneMinuteChart(config) {
+  return config?.id === "renko-1m";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
