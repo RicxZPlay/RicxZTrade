@@ -41,7 +41,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
   const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(true);
-  const [renkoActive, setRenkoActive] = useState(false);
+  const [renkoActive, setRenkoActive] = useState(true);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
     () => BTC_QUAD_CHARTS.filter((config) => {
