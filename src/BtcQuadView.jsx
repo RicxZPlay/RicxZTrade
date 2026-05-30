@@ -27,6 +27,7 @@ const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
+const BTC_LSMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const TOOLS = {
   cursor: "cursor",
@@ -256,6 +257,7 @@ function BtcQuadChart({
   const fastLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
+  const renkoLsmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
   const centeredOnceRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
@@ -269,8 +271,10 @@ function BtcQuadChart({
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
   const emaPeriod = getChartEmaPeriod(config);
+  const lsmaPeriod = getChartLsmaPeriod(config);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
+  const showLsma = Number.isFinite(lsmaPeriod);
   const showBollingerBands = !isOneMinuteChart(config) || isRenkoOneMinuteChart(config);
   const chartData = useMemo(() => toChartData(candles, config), [candles, config]);
   const bandFillData = useMemo(
@@ -363,6 +367,13 @@ function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     });
+    const renkoLsmaLine = chart.addSeries(LineSeries, {
+      color: BTC_LSMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
     const renkoVwmaLine = chart.addSeries(LineSeries, {
       color: BTC_VWMA_COLOR,
       lineWidth: 2,
@@ -389,6 +400,7 @@ function BtcQuadChart({
     fastLineRef.current = fastLine;
     slowLineRef.current = slowLine;
     renkoEmaLineRef.current = renkoEmaLine;
+    renkoLsmaLineRef.current = renkoLsmaLine;
     renkoVwmaLineRef.current = renkoVwmaLine;
     setDrawingContext({ chart, series: priceSeries });
 
@@ -418,6 +430,7 @@ function BtcQuadChart({
       fastLineRef.current = null;
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
+      renkoLsmaLineRef.current = null;
       renkoVwmaLineRef.current = null;
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
@@ -472,13 +485,14 @@ function BtcQuadChart({
     fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
     slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
     renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
+    renkoLsmaLineRef.current?.setData(showLsma ? toChartLineLsma(chartData, lsmaPeriod) : []);
     renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, emaPeriod, showBollingerBands, showEma, vwmaPeriod]);
+  }, [bandFillData, chartData, emaPeriod, lsmaPeriod, showBollingerBands, showEma, showLsma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -520,6 +534,7 @@ function BtcQuadChart({
     showBollingerBands ? `BB ${BTC_BB_PERIOD}` : null,
     showEma ? `EMA ${emaPeriod}` : null,
     `VWMA ${vwmaPeriod}`,
+    showLsma ? `LSMA ${lsmaPeriod}` : null,
   ].filter(Boolean);
 
   return (
@@ -584,6 +599,10 @@ function ToolButton({ active = false, children, label, onClick }) {
 
 function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
+}
+
+function getChartLsmaPeriod(config) {
+  return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
 }
 
 function getChartVwmaPeriod(config) {
@@ -692,6 +711,37 @@ function toChartLineEma(bars, period) {
       value: ema[index],
     }))
     .filter((item) => Number.isFinite(item.value));
+}
+
+function toChartLineLsma(bars, period) {
+  if (!Array.isArray(bars) || bars.length < period) return [];
+
+  const xSum = (period * (period - 1)) / 2;
+  const xSquaredSum = ((period - 1) * period * (2 * period - 1)) / 6;
+  const denominator = period * xSquaredSum - xSum * xSum;
+  if (!denominator) return [];
+
+  return bars
+    .map((bar, index) => {
+      if (index < period - 1) return null;
+
+      let ySum = 0;
+      let xySum = 0;
+      for (let offset = 0; offset < period; offset += 1) {
+        const close = bars[index - period + 1 + offset]?.close;
+        if (!Number.isFinite(close)) return null;
+        ySum += close;
+        xySum += offset * close;
+      }
+
+      const slope = (period * xySum - xSum * ySum) / denominator;
+      const intercept = (ySum - slope * xSum) / period;
+      return {
+        time: bar.time,
+        value: intercept + slope * (period - 1),
+      };
+    })
+    .filter((item) => Number.isFinite(item?.value));
 }
 
 function toChartLineVwma(bars, period) {
