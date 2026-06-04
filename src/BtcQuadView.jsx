@@ -469,10 +469,10 @@ function BtcQuadChart({
     renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
-      showRecentBars(chartRef.current, 150, chartData.length);
+      showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, emaPeriod, showBollingerBands, showEma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, showBollingerBands, showEma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -586,6 +586,10 @@ function getChartEmaPeriod(config) {
 
 function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
+}
+
+function getChartVisibleBars(config) {
+  return Number.isFinite(config?.visibleBars) ? config.visibleBars : 150;
 }
 
 function formatBbLegend(period, multiplier) {
