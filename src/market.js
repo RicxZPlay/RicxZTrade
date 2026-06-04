@@ -45,16 +45,17 @@ export const BTC_FAST_EMA_PERIOD = 200;
 export const BTC_FAST_VWMA_PERIOD = 550;
 export const BTC_ONE_MINUTE_EMA_PERIOD = 555;
 export const BTC_ONE_MINUTE_VWMA_PERIOD = 1250;
-export const BTC_RENKO_ONE_MINUTE_LSMA_PERIOD = 1500;
 export const BTC_RENKO_ONE_MINUTE_VWMA_PERIOD = 1150;
+export const BTC_RENKO_ONE_HOUR_VWMA_PERIOD = 1150;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
 export const BTC_QUAD_CHARTS = [
-  { id: "renko-1m", title: "BTC Renko 1m", interval: "1m", historyLimit: 5000, fallbackSeconds: 60, type: "renko", boxSize: 1, showEma: false, vwmaPeriod: BTC_RENKO_ONE_MINUTE_VWMA_PERIOD, lsmaPeriod: BTC_RENKO_ONE_MINUTE_LSMA_PERIOD },
+  { id: "renko-1m", title: "BTC Renko 1m", interval: "1m", historyLimit: 5000, fallbackSeconds: 60, type: "renko", boxSize: 1, showEma: false, vwmaPeriod: BTC_RENKO_ONE_MINUTE_VWMA_PERIOD },
   { id: "candles-1m", title: "BTC 1m", interval: "1m", historyLimit: 5000, fallbackSeconds: 60, type: "candles", emaPeriod: BTC_ONE_MINUTE_EMA_PERIOD, vwmaPeriod: BTC_ONE_MINUTE_VWMA_PERIOD },
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 1500, fallbackSeconds: 900, type: "candles" },
+  { id: "renko-1h", title: "BTC Renko 1H", interval: "1h", historyLimit: 5000, fallbackSeconds: 3600, type: "renko", boxSize: 10, bbMultiplier: 2.001, showEma: false, vwmaPeriod: BTC_RENKO_ONE_HOUR_VWMA_PERIOD },
   { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1500, fallbackSeconds: 3600, type: "candles" },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 1500, fallbackSeconds: 14400, type: "candles" },
 ];

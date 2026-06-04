@@ -5,7 +5,7 @@ import {
   createChart,
   LineSeries,
 } from "lightweight-charts";
-import { Maximize2, Minimize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
+import { Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
   BTC_QUAD_CHARTS,
   BTC_QUAD_EMA_PERIOD,
@@ -27,8 +27,13 @@ const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
-const BTC_LSMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
+const CHART_MODES = {
+  fast: "fast",
+  slow: "slow",
+};
+const FAST_CHART_IDS = new Set(["renko-1m", "candles-1m", "candles-5m", "candles-15m"]);
+const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -41,24 +46,19 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
-  const [higherTimeframesCollapsed, setHigherTimeframesCollapsed] = useState(true);
-  const [renkoActive, setRenkoActive] = useState(true);
+  const [chartMode, setChartMode] = useState(CHART_MODES.fast);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => {
-      if (renkoActive) {
-        return isRenkoOneMinuteChart(config) || isOneMinuteChart(config) || isFiveMinuteChart(config) || isFifteenMinuteChart(config);
-      }
-
-      return higherTimeframesCollapsed
-        ? !isFourHourChart(config) && !isRenkoOneMinuteChart(config)
-        : !isOneMinuteChart(config) && !isRenkoOneMinuteChart(config);
-    }),
-    [higherTimeframesCollapsed, renkoActive]
+    () => BTC_QUAD_CHARTS.filter((config) => (
+      chartMode === CHART_MODES.fast
+        ? FAST_CHART_IDS.has(config.id)
+        : SLOW_CHART_IDS.has(config.id)
+    )),
+    [chartMode]
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["candles-1m"],
+      chartCandles["renko-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
       chartCandles["candles-1h"],
@@ -185,26 +185,18 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           </div>
           <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
           <button
-            className="btc-quad-restore"
+            className={chartMode === CHART_MODES.fast ? "btc-quad-restore active" : "btc-quad-restore"}
             type="button"
-            onClick={() => {
-              setRenkoActive(false);
-              setHigherTimeframesCollapsed((current) => !current);
-            }}
+            onClick={() => setChartMode(CHART_MODES.fast)}
           >
-            {higherTimeframesCollapsed ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
-            {higherTimeframesCollapsed ? "Mostrar 4H" : "Recolher 4H"}
+            GRAFICO RAPIDO
           </button>
           <button
-            className={renkoActive ? "btc-quad-restore active" : "btc-quad-restore"}
+            className={chartMode === CHART_MODES.slow ? "btc-quad-restore active" : "btc-quad-restore"}
             type="button"
-            onClick={() => {
-              setRenkoActive((current) => !current);
-              setHigherTimeframesCollapsed(true);
-            }}
+            onClick={() => setChartMode(CHART_MODES.slow)}
           >
-            {renkoActive ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            {renkoActive ? "Fechar Renko" : "Renko 1m"}
+            GRAFICO LENTO
           </button>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
@@ -219,7 +211,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         </div>
       </header>
 
-      <div className={higherTimeframesCollapsed ? "btc-quad-grid higher-collapsed" : "btc-quad-grid"}>
+      <div className="btc-quad-grid">
         {visibleCharts.map((config) => (
           <BtcQuadChart
             key={config.id}
@@ -257,7 +249,6 @@ function BtcQuadChart({
   const fastLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
-  const renkoLsmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
   const centeredOnceRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
@@ -270,16 +261,15 @@ function BtcQuadChart({
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
+  const bbMultiplier = getChartBbMultiplier(config);
   const emaPeriod = getChartEmaPeriod(config);
-  const lsmaPeriod = getChartLsmaPeriod(config);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
-  const showLsma = Number.isFinite(lsmaPeriod);
-  const showBollingerBands = !isOneMinuteChart(config) || isRenkoOneMinuteChart(config);
+  const showBollingerBands = !isOneMinuteCandleChart(config);
   const chartData = useMemo(() => toChartData(candles, config), [candles, config]);
   const bandFillData = useMemo(
-    () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, BTC_BB_MULTIPLIER) : null,
-    [chartData, showBollingerBands]
+    () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, bbMultiplier) : null,
+    [bbMultiplier, chartData, showBollingerBands]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -367,13 +357,6 @@ function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     });
-    const renkoLsmaLine = chart.addSeries(LineSeries, {
-      color: BTC_LSMA_COLOR,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: !isCompact,
-      title: "",
-    });
     const renkoVwmaLine = chart.addSeries(LineSeries, {
       color: BTC_VWMA_COLOR,
       lineWidth: 2,
@@ -400,7 +383,6 @@ function BtcQuadChart({
     fastLineRef.current = fastLine;
     slowLineRef.current = slowLine;
     renkoEmaLineRef.current = renkoEmaLine;
-    renkoLsmaLineRef.current = renkoLsmaLine;
     renkoVwmaLineRef.current = renkoVwmaLine;
     setDrawingContext({ chart, series: priceSeries });
 
@@ -430,7 +412,6 @@ function BtcQuadChart({
       fastLineRef.current = null;
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
-      renkoLsmaLineRef.current = null;
       renkoVwmaLineRef.current = null;
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
@@ -485,14 +466,13 @@ function BtcQuadChart({
     fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
     slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
     renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
-    renkoLsmaLineRef.current?.setData(showLsma ? toChartLineLsma(chartData, lsmaPeriod) : []);
     renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, 150, chartData.length);
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, emaPeriod, lsmaPeriod, showBollingerBands, showEma, showLsma, vwmaPeriod]);
+  }, [bandFillData, chartData, emaPeriod, showBollingerBands, showEma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -531,10 +511,9 @@ function BtcQuadChart({
   };
 
   const legends = [
-    showBollingerBands ? `BB ${BTC_BB_PERIOD}` : null,
+    showBollingerBands ? formatBbLegend(BTC_BB_PERIOD, bbMultiplier) : null,
     showEma ? `EMA ${emaPeriod}` : null,
     `VWMA ${vwmaPeriod}`,
-    showLsma ? `LSMA ${lsmaPeriod}` : null,
   ].filter(Boolean);
 
   return (
@@ -597,16 +576,20 @@ function ToolButton({ active = false, children, label, onClick }) {
   );
 }
 
+function getChartBbMultiplier(config) {
+  return Number.isFinite(config?.bbMultiplier) ? config.bbMultiplier : BTC_BB_MULTIPLIER;
+}
+
 function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
 }
 
-function getChartLsmaPeriod(config) {
-  return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
-}
-
 function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
+}
+
+function formatBbLegend(period, multiplier) {
+  return multiplier === BTC_BB_MULTIPLIER ? `BB ${period}` : `BB ${period} ${multiplier}`;
 }
 
 function toChartData(candles, config) {
@@ -617,24 +600,8 @@ function toChartData(candles, config) {
   return toChartCandles(candles);
 }
 
-function isFourHourChart(config) {
-  return config?.id === "candles-4h";
-}
-
-function isFiveMinuteChart(config) {
-  return config?.id === "candles-5m";
-}
-
-function isFifteenMinuteChart(config) {
-  return config?.id === "candles-15m";
-}
-
-function isOneMinuteChart(config) {
+function isOneMinuteCandleChart(config) {
   return config?.id === "candles-1m";
-}
-
-function isRenkoOneMinuteChart(config) {
-  return config?.id === "renko-1m";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
@@ -711,37 +678,6 @@ function toChartLineEma(bars, period) {
       value: ema[index],
     }))
     .filter((item) => Number.isFinite(item.value));
-}
-
-function toChartLineLsma(bars, period) {
-  if (!Array.isArray(bars) || bars.length < period) return [];
-
-  const xSum = (period * (period - 1)) / 2;
-  const xSquaredSum = ((period - 1) * period * (2 * period - 1)) / 6;
-  const denominator = period * xSquaredSum - xSum * xSum;
-  if (!denominator) return [];
-
-  return bars
-    .map((bar, index) => {
-      if (index < period - 1) return null;
-
-      let ySum = 0;
-      let xySum = 0;
-      for (let offset = 0; offset < period; offset += 1) {
-        const close = bars[index - period + 1 + offset]?.close;
-        if (!Number.isFinite(close)) return null;
-        ySum += close;
-        xySum += offset * close;
-      }
-
-      const slope = (period * xySum - xSum * ySum) / denominator;
-      const intercept = (ySum - slope * xSum) / period;
-      return {
-        time: bar.time,
-        value: intercept + slope * (period - 1),
-      };
-    })
-    .filter((item) => Number.isFinite(item?.value));
 }
 
 function toChartLineVwma(bars, period) {
