@@ -47,7 +47,7 @@ export const BTC_OFFSET_MA_PERIOD = 50;
 export const BTC_OFFSET_MA_OFFSET = 50;
 export const BTC_ONE_MINUTE_EMA_PERIOD = 555;
 export const BTC_ONE_MINUTE_VWMA_PERIOD = 1250;
-export const BTC_RENKO_ONE_HOUR_VWMA_PERIOD = 1150;
+export const BTC_RENKO_ONE_HOUR_VWMA_PERIOD = 1500;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
