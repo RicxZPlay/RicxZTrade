@@ -256,6 +256,8 @@ function BtcQuadChart({
   const renkoEmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
   const centeredOnceRef = useRef(false);
+  const interactionTimeoutRef = useRef(null);
+  const isInteractingRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
   const activeToolRef = useRef(activeTool);
   const drawingsRef = useRef([]);
@@ -264,6 +266,7 @@ function BtcQuadChart({
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
+  const [interactionRevision, setInteractionRevision] = useState(0);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
   const bbMultiplier = getChartBbMultiplier(config);
@@ -289,8 +292,9 @@ function BtcQuadChart({
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
+    const containerElement = containerRef.current;
 
-    const chart = createChart(containerRef.current, {
+    const chart = createChart(containerElement, {
       autoSize: true,
       height: 300,
       layout: {
@@ -425,14 +429,42 @@ function BtcQuadChart({
       chart.applyOptions({ autoSize: true });
       window.requestAnimationFrame(syncPaneHeight);
     });
-    observer.observe(containerRef.current);
+    observer.observe(containerElement);
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       forceOverlayUpdate((value) => value + 1);
     });
     chart.subscribeClick(handleChartClick);
     window.requestAnimationFrame(syncPaneHeight);
 
+    const finishInteraction = () => {
+      interactionTimeoutRef.current = null;
+      if (!isInteractingRef.current) return;
+      isInteractingRef.current = false;
+      setInteractionRevision((value) => value + 1);
+    };
+    const markInteraction = () => {
+      if (!isHighFrequencyChart(config)) return;
+      isInteractingRef.current = true;
+      if (interactionTimeoutRef.current) {
+        window.clearTimeout(interactionTimeoutRef.current);
+      }
+      interactionTimeoutRef.current = window.setTimeout(finishInteraction, 650);
+    };
+
+    containerElement.addEventListener("pointerdown", markInteraction, { passive: true });
+    containerElement.addEventListener("pointermove", markInteraction, { passive: true });
+    containerElement.addEventListener("wheel", markInteraction, { passive: true });
+    containerElement.addEventListener("touchmove", markInteraction, { passive: true });
+
     return () => {
+      if (interactionTimeoutRef.current) {
+        window.clearTimeout(interactionTimeoutRef.current);
+        interactionTimeoutRef.current = null;
+      }
+      containerElement.removeEventListener("pointerdown", markInteraction);
+      containerElement.removeEventListener("pointermove", markInteraction);
+      containerElement.removeEventListener("wheel", markInteraction);
+      containerElement.removeEventListener("touchmove", markInteraction);
       observer.disconnect();
       chart.unsubscribeClick(handleChartClick);
       chart.remove();
@@ -446,8 +478,9 @@ function BtcQuadChart({
       renkoVwmaLineRef.current = null;
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
+      isInteractingRef.current = false;
     };
-  }, [config.id, isCompact, palette, setSelectedDrawing]);
+  }, [config, isCompact, palette, setSelectedDrawing]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -491,6 +524,7 @@ function BtcQuadChart({
 
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
+    if (isHighFrequencyChart(config) && isInteractingRef.current) return;
 
     try {
       priceSeriesRef.current.setData(chartData);
@@ -508,7 +542,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, lsmaOffset, lsmaPeriod, maOffset, maPeriod, showBollingerBands, showEma, showLsma, showMa, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, interactionRevision, lsmaOffset, lsmaPeriod, maOffset, maPeriod, showBollingerBands, showEma, showLsma, showMa, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -689,6 +723,10 @@ function sanitizeChartData(data) {
 
 function isOneMinuteCandleChart(config) {
   return config?.id === "candles-1m";
+}
+
+function isHighFrequencyChart(config) {
+  return config?.interval === "1s";
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
