@@ -277,6 +277,7 @@ function BtcQuadChart({
   const showMa = Number.isFinite(maPeriod);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
+  const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
   const chartData = useMemo(() => sanitizeChartData(toChartData(candles, config)), [candles, config]);
   const bandFillData = useMemo(
@@ -531,7 +532,7 @@ function BtcQuadChart({
       maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
       slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
       renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
-      renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
+      renkoVwmaLineRef.current?.setData(showVwma ? toChartLineVwma(chartData, vwmaPeriod) : []);
     } catch {
       return;
     }
@@ -540,7 +541,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -583,7 +584,7 @@ function BtcQuadChart({
     showEma ? `EMA ${emaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
-    `VWMA ${vwmaPeriod}`,
+    showVwma ? `VWMA ${vwmaPeriod}` : null,
   ].filter(Boolean);
 
   return (
