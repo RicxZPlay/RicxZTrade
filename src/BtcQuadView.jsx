@@ -277,7 +277,7 @@ function BtcQuadChart({
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
   const showBollingerBands = config.showBollingerBands !== false && !isOneMinuteCandleChart(config);
-  const chartData = useMemo(() => toChartData(candles, config), [candles, config]);
+  const chartData = useMemo(() => sanitizeChartData(toChartData(candles, config)), [candles, config]);
   const bandFillData = useMemo(
     () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, bbMultiplier) : null,
     [bbMultiplier, chartData, showBollingerBands]
@@ -492,14 +492,17 @@ function BtcQuadChart({
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
 
-    priceSeriesRef.current.setData(chartData);
-
-    fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
-    lsmaLineRef.current?.setData(showLsma ? toChartLineLsmaOffset(chartData, lsmaPeriod, lsmaOffset, config.fallbackSeconds) : []);
-    maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
-    slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
-    renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
-    renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
+    try {
+      priceSeriesRef.current.setData(chartData);
+      fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
+      lsmaLineRef.current?.setData(showLsma ? toChartLineLsmaOffset(chartData, lsmaPeriod, lsmaOffset, config.fallbackSeconds) : []);
+      maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
+      slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
+      renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
+      renkoVwmaLineRef.current?.setData(toChartLineVwma(chartData, vwmaPeriod));
+    } catch {
+      return;
+    }
 
     if (chartData.length > 0 && !centeredOnceRef.current) {
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
@@ -663,6 +666,27 @@ function toChartData(candles, config) {
   return toChartCandles(candles);
 }
 
+function sanitizeChartData(data) {
+  if (!Array.isArray(data) || data.length === 0) return [];
+
+  const byTime = new Map();
+  data.forEach((item) => {
+    if (
+      !Number.isFinite(item?.time) ||
+      !Number.isFinite(item.open) ||
+      !Number.isFinite(item.high) ||
+      !Number.isFinite(item.low) ||
+      !Number.isFinite(item.close)
+    ) {
+      return;
+    }
+
+    byTime.set(item.time, item);
+  });
+
+  return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
 function isOneMinuteCandleChart(config) {
   return config?.id === "candles-1m";
 }
@@ -813,26 +837,33 @@ function getBarIntervalSeconds(bars, fallbackSeconds) {
 function toChartLineVwma(bars, period) {
   if (!Array.isArray(bars) || bars.length < period) return [];
 
-  return bars
-    .map((bar, index) => {
-      if (index < period - 1) return null;
+  const points = [];
+  let priceVolumeSum = 0;
+  let volumeSum = 0;
 
-      const window = bars.slice(index - period + 1, index + 1);
-      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
-      if (!volumeSum) return null;
+  bars.forEach((bar, index) => {
+    const volume = Number.isFinite(bar.volume) ? bar.volume : 0;
+    const close = Number.isFinite(bar.close) ? bar.close : 0;
+    priceVolumeSum += close * volume;
+    volumeSum += volume;
 
-      const value = window.reduce((sum, item) => {
-        const close = Number.isFinite(item.close) ? item.close : 0;
-        const volume = Number.isFinite(item.volume) ? item.volume : 0;
-        return sum + close * volume;
-      }, 0) / volumeSum;
+    if (index >= period) {
+      const removed = bars[index - period];
+      const removedVolume = Number.isFinite(removed?.volume) ? removed.volume : 0;
+      const removedClose = Number.isFinite(removed?.close) ? removed.close : 0;
+      priceVolumeSum -= removedClose * removedVolume;
+      volumeSum -= removedVolume;
+    }
 
-      return {
-        time: bar.time,
-        value,
-      };
-    })
-    .filter(Boolean);
+    if (index < period - 1 || !volumeSum) return;
+
+    points.push({
+      time: bar.time,
+      value: priceVolumeSum / volumeSum,
+    });
+  });
+
+  return points;
 }
 
 function DrawingLayer({ drawing, chart, series, chartMeta, draft, selected }) {
