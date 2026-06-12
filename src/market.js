@@ -43,8 +43,8 @@ export const BTC_QUAD_EMA_PERIOD = 450;
 export const BTC_QUAD_VWMA_PERIOD = 850;
 export const BTC_FAST_EMA_PERIOD = 200;
 export const BTC_FAST_VWMA_PERIOD = 550;
-export const BTC_OFFSET_MA_PERIOD = 50;
-export const BTC_OFFSET_MA_OFFSET = 50;
+export const BTC_ONE_HOUR_MA_PERIOD = 200;
+export const BTC_ONE_HOUR_MA_OFFSET = 40;
 export const BTC_ONE_MINUTE_EMA_PERIOD = 555;
 export const BTC_ONE_MINUTE_MA_PERIOD = 800;
 export const BTC_ONE_MINUTE_MA_OFFSET = 2;
@@ -60,7 +60,7 @@ export const BTC_QUAD_CHARTS = [
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 1500, fallbackSeconds: 900, type: "candles" },
   { id: "renko-1h", title: "BTC Renko 1H", interval: "1h", historyLimit: 5000, fallbackSeconds: 3600, type: "renko", boxSize: 10, bbMultiplier: 2.001, showEma: false, visibleBars: 5000, vwmaPeriod: BTC_RENKO_ONE_HOUR_VWMA_PERIOD },
-  { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1500, fallbackSeconds: 3600, type: "candles", maOffset: BTC_OFFSET_MA_OFFSET, maPeriod: BTC_OFFSET_MA_PERIOD },
+  { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 1500, fallbackSeconds: 3600, type: "candles", maOffset: BTC_ONE_HOUR_MA_OFFSET, maPeriod: BTC_ONE_HOUR_MA_PERIOD },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 1500, fallbackSeconds: 14400, type: "candles" },
 ];
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
