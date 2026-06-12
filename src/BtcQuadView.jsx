@@ -11,7 +11,6 @@ import {
   BTC_QUAD_EMA_PERIOD,
   BTC_QUAD_VWMA_PERIOD,
   calculateEMA,
-  calculateBollingerBands,
   buildSocketUrl,
   fetchCandles,
   formatIndicator,
@@ -744,30 +743,39 @@ function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
 }
 
 function toChartBandLinesFromBars(bars, period = BTC_BB_PERIOD, multiplier = BTC_BB_MULTIPLIER) {
-  const bands = calculateBollingerBands(
-    bars.map((bar) => bar.close),
-    period,
-    multiplier
-  );
+  if (!Array.isArray(bars) || bars.length < period) {
+    return { upper: [], middle: [], lower: [] };
+  }
 
-  return {
-    upper: toChartBandLineFromBars(bars, bands, "upper"),
-    middle: toChartBandLineFromBars(bars, bands, "middle"),
-    lower: toChartBandLineFromBars(bars, bands, "lower"),
-  };
-}
+  const upper = [];
+  const middle = [];
+  const lower = [];
+  let sum = 0;
+  let squaredSum = 0;
 
-function toChartBandLineFromBars(bars, bands, key) {
-  return bars
-    .map((bar, index) => {
-      const value = bands[index]?.[key];
-      if (!Number.isFinite(value)) return null;
-      return {
-        time: bar.time,
-        value,
-      };
-    })
-    .filter(Boolean);
+  bars.forEach((bar, index) => {
+    const close = Number.isFinite(bar.close) ? bar.close : 0;
+    sum += close;
+    squaredSum += close * close;
+
+    if (index >= period) {
+      const removedClose = Number.isFinite(bars[index - period]?.close) ? bars[index - period].close : 0;
+      sum -= removedClose;
+      squaredSum -= removedClose * removedClose;
+    }
+
+    if (index < period - 1) return;
+
+    const basis = sum / period;
+    const variance = Math.max(0, squaredSum / period - basis * basis);
+    const deviation = Math.sqrt(variance) * multiplier;
+    const time = bar.time;
+    upper.push({ time, value: basis + deviation });
+    middle.push({ time, value: basis });
+    lower.push({ time, value: basis - deviation });
+  });
+
+  return { upper, middle, lower };
 }
 
 function toChartLineEma(bars, period) {
