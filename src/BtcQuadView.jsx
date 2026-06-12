@@ -27,12 +27,13 @@ const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_MA_COLOR = "#22c55e";
+const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const CHART_MODES = {
   fast: "fast",
   slow: "slow",
 };
-const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
+const FAST_CHART_IDS = new Set(["candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
   cursor: "cursor",
@@ -58,7 +59,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["candles-1s"],
       chartCandles["candles-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
@@ -247,6 +247,7 @@ function BtcQuadChart({
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
   const priceSeriesRef = useRef(null);
+  const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
@@ -269,12 +270,14 @@ function BtcQuadChart({
   const bbMultiplier = getChartBbMultiplier(config);
   const bbPeriod = getChartBbPeriod(config);
   const emaPeriod = getChartEmaPeriod(config);
+  const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
+  const showExtraVwma = Number.isFinite(extraVwmaPeriod);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
   const vwmaPeriod = getChartVwmaPeriod(config);
   const showEma = config.showEma !== false;
-  const showBollingerBands = config.showBollingerBands !== false && !isOneMinuteCandleChart(config);
+  const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
   const chartData = useMemo(() => sanitizeChartData(toChartData(candles, config)), [candles, config]);
   const bandFillData = useMemo(
     () => showBollingerBands ? toChartBandLinesFromBars(chartData, bbPeriod, bbMultiplier) : null,
@@ -360,6 +363,14 @@ function BtcQuadChart({
       title: "",
     });
 
+    const extraVwmaLine = chart.addSeries(LineSeries, {
+      color: BTC_EXTRA_VWMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const maLine = chart.addSeries(LineSeries, {
       color: BTC_MA_COLOR,
       lineWidth: 2,
@@ -398,6 +409,7 @@ function BtcQuadChart({
 
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
+    extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
@@ -456,6 +468,7 @@ function BtcQuadChart({
       chart.remove();
       chartRef.current = null;
       priceSeriesRef.current = null;
+      extraVwmaLineRef.current = null;
       fastLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
@@ -513,6 +526,7 @@ function BtcQuadChart({
 
     try {
       priceSeriesRef.current.setData(chartData);
+      extraVwmaLineRef.current?.setData(showExtraVwma ? toChartLineVwma(chartData, extraVwmaPeriod) : []);
       fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
       maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
       slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
@@ -526,7 +540,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showMa, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -568,6 +582,7 @@ function BtcQuadChart({
     showBollingerBands ? formatBbLegend(bbPeriod, bbMultiplier) : null,
     showEma ? `EMA ${emaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
+    showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     `VWMA ${vwmaPeriod}`,
   ].filter(Boolean);
 
@@ -641,6 +656,10 @@ function getChartBbPeriod(config) {
 
 function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
+}
+
+function getChartExtraVwmaPeriod(config) {
+  return Number.isFinite(config?.extraVwmaPeriod) ? config.extraVwmaPeriod : null;
 }
 
 function getChartMaPeriod(config) {
