@@ -213,7 +213,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         </div>
       </header>
 
-      <div className="btc-quad-grid">
+      <div className={chartMode === CHART_MODES.fast ? "btc-quad-grid fast-mode" : "btc-quad-grid"}>
         {visibleCharts.map((config) => (
           <BtcQuadChart
             key={config.id}

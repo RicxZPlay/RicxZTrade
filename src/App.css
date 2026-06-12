@@ -906,6 +906,11 @@ input:focus,
   gap: 8px;
 }
 
+.btc-quad-grid.fast-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .btc-quad-grid.higher-collapsed {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -1749,6 +1754,11 @@ input:focus,
     overflow: hidden;
     grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .btc-quad-grid.fast-mode {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 
   .btc-quad-grid.higher-collapsed {
