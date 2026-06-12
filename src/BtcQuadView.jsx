@@ -33,7 +33,7 @@ const CHART_MODES = {
   fast: "fast",
   slow: "slow",
 };
-const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m", "candles-5m", "candles-15m"]);
+const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
   cursor: "cursor",
