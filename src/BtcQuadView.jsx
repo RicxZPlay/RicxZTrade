@@ -27,7 +27,6 @@ const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
-const BTC_LSMA_COLOR = "#8b5cf6";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_VWMA_COLOR = "#f8fafc";
 const CHART_MODES = {
@@ -250,7 +249,6 @@ function BtcQuadChart({
   const chartRef = useRef(null);
   const priceSeriesRef = useRef(null);
   const fastLineRef = useRef(null);
-  const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
@@ -270,10 +268,8 @@ function BtcQuadChart({
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
   const bbMultiplier = getChartBbMultiplier(config);
+  const bbPeriod = getChartBbPeriod(config);
   const emaPeriod = getChartEmaPeriod(config);
-  const lsmaOffset = getChartLsmaOffset(config);
-  const lsmaPeriod = getChartLsmaPeriod(config);
-  const showLsma = Number.isFinite(lsmaPeriod);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
@@ -282,8 +278,8 @@ function BtcQuadChart({
   const showBollingerBands = config.showBollingerBands !== false && !isOneMinuteCandleChart(config);
   const chartData = useMemo(() => sanitizeChartData(toChartData(candles, config)), [candles, config]);
   const bandFillData = useMemo(
-    () => showBollingerBands ? toChartBandLinesFromBars(chartData, BTC_BB_PERIOD, bbMultiplier) : null,
-    [bbMultiplier, chartData, showBollingerBands]
+    () => showBollingerBands ? toChartBandLinesFromBars(chartData, bbPeriod, bbMultiplier) : null,
+    [bbMultiplier, bbPeriod, chartData, showBollingerBands]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -365,14 +361,6 @@ function BtcQuadChart({
       title: "",
     });
 
-    const lsmaLine = chart.addSeries(LineSeries, {
-      color: BTC_LSMA_COLOR,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: !isCompact,
-      title: "",
-    });
-
     const maLine = chart.addSeries(LineSeries, {
       color: BTC_MA_COLOR,
       lineWidth: 2,
@@ -412,7 +400,6 @@ function BtcQuadChart({
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
     fastLineRef.current = fastLine;
-    lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
     renkoEmaLineRef.current = renkoEmaLine;
@@ -471,7 +458,6 @@ function BtcQuadChart({
       chartRef.current = null;
       priceSeriesRef.current = null;
       fastLineRef.current = null;
-      lsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
@@ -529,7 +515,6 @@ function BtcQuadChart({
     try {
       priceSeriesRef.current.setData(chartData);
       fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
-      lsmaLineRef.current?.setData(showLsma ? toChartLineLsmaOffset(chartData, lsmaPeriod, lsmaOffset, config.fallbackSeconds) : []);
       maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
       slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
       renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
@@ -542,7 +527,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, interactionRevision, lsmaOffset, lsmaPeriod, maOffset, maPeriod, showBollingerBands, showEma, showLsma, showMa, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showMa, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -581,9 +566,8 @@ function BtcQuadChart({
   };
 
   const legends = [
-    showBollingerBands ? formatBbLegend(BTC_BB_PERIOD, bbMultiplier) : null,
+    showBollingerBands ? formatBbLegend(bbPeriod, bbMultiplier) : null,
     showEma ? `EMA ${emaPeriod}` : null,
-    showLsma ? `LSMA ${lsmaPeriod} off ${lsmaOffset}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     `VWMA ${vwmaPeriod}`,
   ].filter(Boolean);
@@ -652,16 +636,12 @@ function getChartBbMultiplier(config) {
   return Number.isFinite(config?.bbMultiplier) ? config.bbMultiplier : BTC_BB_MULTIPLIER;
 }
 
+function getChartBbPeriod(config) {
+  return Number.isFinite(config?.bbPeriod) ? config.bbPeriod : BTC_BB_PERIOD;
+}
+
 function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
-}
-
-function getChartLsmaPeriod(config) {
-  return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
-}
-
-function getChartLsmaOffset(config) {
-  return Number.isFinite(config?.lsmaOffset) ? config.lsmaOffset : 0;
 }
 
 function getChartMaPeriod(config) {
@@ -683,7 +663,6 @@ function getChartVisibleBars(config) {
 function getChartRightOffset(config) {
   return Math.max(
     5,
-    Number.isFinite(config?.lsmaOffset) ? config.lsmaOffset + 5 : 5,
     Number.isFinite(config?.maOffset) ? config.maOffset + 5 : 5
   );
 }
@@ -822,47 +801,6 @@ function toChartLineMaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
       };
     })
     .filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
-}
-
-function toChartLineLsmaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
-  if (!Array.isArray(bars) || bars.length < period) return [];
-
-  const intervalSeconds = getBarIntervalSeconds(bars, fallbackSeconds);
-  const xSum = (period * (period - 1)) / 2;
-  const x2Sum = ((period - 1) * period * (2 * period - 1)) / 6;
-  const denominator = period * x2Sum - xSum * xSum;
-  if (!denominator) return [];
-
-  const points = [];
-  let ySum = 0;
-  let xySum = 0;
-
-  for (let index = 0; index < bars.length; index += 1) {
-    const close = bars[index]?.close;
-    if (!Number.isFinite(close)) continue;
-
-    if (index < period) {
-      ySum += close;
-      xySum += index * close;
-    } else {
-      const removed = bars[index - period]?.close;
-      if (!Number.isFinite(removed)) continue;
-      xySum = xySum - (ySum - removed) + (period - 1) * close;
-      ySum = ySum - removed + close;
-    }
-
-    if (index < period - 1) continue;
-
-    const slope = (period * xySum - xSum * ySum) / denominator;
-    const intercept = (ySum - slope * xSum) / period;
-    const targetBar = bars[index + offset];
-    points.push({
-      time: targetBar?.time ?? bars[index].time + offset * intervalSeconds,
-      value: intercept + slope * (period - 1),
-    });
-  }
-
-  return points.filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
 }
 
 function getBarIntervalSeconds(bars, fallbackSeconds) {
