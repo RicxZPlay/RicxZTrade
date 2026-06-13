@@ -271,12 +271,14 @@ function BtcQuadChart({
   const bbMultiplier = getChartBbMultiplier(config);
   const bbPeriod = getChartBbPeriod(config);
   const emaPeriod = getChartEmaPeriod(config);
+  const extraVwmaColor = getChartExtraVwmaColor(config);
   const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
   const showExtraVwma = Number.isFinite(extraVwmaPeriod);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
   const vwmaPeriod = getChartVwmaPeriod(config);
+  const vwmaColor = getChartVwmaColor(config);
   const showEma = config.showEma !== false;
   const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
@@ -366,7 +368,7 @@ function BtcQuadChart({
     });
 
     const extraVwmaLine = chart.addSeries(LineSeries, {
-      color: BTC_EXTRA_VWMA_COLOR,
+      color: extraVwmaColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -389,7 +391,7 @@ function BtcQuadChart({
       title: "",
     });
     const renkoVwmaLine = chart.addSeries(LineSeries, {
-      color: BTC_VWMA_COLOR,
+      color: vwmaColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -480,7 +482,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [config, isCompact, palette, setSelectedDrawing]);
+  }, [config, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -660,6 +662,10 @@ function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
 }
 
+function getChartExtraVwmaColor(config) {
+  return typeof config?.extraVwmaColor === "string" ? config.extraVwmaColor : BTC_EXTRA_VWMA_COLOR;
+}
+
 function getChartExtraVwmaPeriod(config) {
   return Number.isFinite(config?.extraVwmaPeriod) ? config.extraVwmaPeriod : null;
 }
@@ -674,6 +680,10 @@ function getChartMaOffset(config) {
 
 function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
+}
+
+function getChartVwmaColor(config) {
+  return typeof config?.vwmaColor === "string" ? config.vwmaColor : BTC_VWMA_COLOR;
 }
 
 function getChartVisibleBars(config) {
