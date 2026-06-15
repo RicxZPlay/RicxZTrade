@@ -12,6 +12,7 @@ import {
   formatPrice,
   ALT_FAST_EMA,
   ALT_SLOW_EMA,
+  ALT_VWMA_PERIOD,
   ALT_CHART_INTERVALS,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
@@ -22,6 +23,7 @@ import {
   toChartCandles,
   toChartEma,
   toChartRenko,
+  toChartVwma,
 } from "./market";
 
 const TOOLS = {
@@ -46,6 +48,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const upperBandSeriesRef = useRef(null);
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
+  const altVwmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -146,11 +149,20 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       title: isAltChart ? "EMA 450" : "BB Inferior",
     });
 
+    const altVwmaSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.altVwma,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      title: "VWMA 190",
+    });
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
+    altVwmaSeriesRef.current = altVwmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -195,6 +207,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       upperBandSeriesRef.current = null;
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
+      altVwmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, timeframe]);
 
@@ -225,6 +238,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     upperBandSeriesRef.current.setData(bands.upper);
     middleBandSeriesRef.current.setData(bands.middle);
     lowerBandSeriesRef.current.setData(bands.lower);
+    altVwmaSeriesRef.current?.setData(isAltChart ? toChartVwma(candles, ALT_VWMA_PERIOD) : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
@@ -743,6 +757,7 @@ function getChartPalette(theme) {
       lowerBand: "#268f6c",
       emaFast: "#2f8be8",
       emaSlow: "#c28a18",
+      altVwma: "#16a34a",
     };
   }
 
@@ -756,6 +771,7 @@ function getChartPalette(theme) {
     lowerBand: "#62d992",
     emaFast: "#6bb4ff",
     emaSlow: "#f6c85f",
+    altVwma: "#22c55e",
   };
 }
 

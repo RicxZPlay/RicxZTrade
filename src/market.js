@@ -80,6 +80,7 @@ export const ALT_CHART_INTERVALS = {
 export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
 export const ALT_FAST_EMA = 50;
 export const ALT_SLOW_EMA = 450;
+export const ALT_VWMA_PERIOD = 190;
 export const ADX_PERIOD = 14;
 export const RELATIVE_LOOKBACK = 24;
 
