@@ -35,7 +35,7 @@ const CHART_MODES = {
 };
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
+const FAST_CHART_IDS = new Set(["candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
   cursor: "cursor",
@@ -61,7 +61,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["candles-1s"],
       chartCandles["candles-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
