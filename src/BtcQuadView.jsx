@@ -34,6 +34,7 @@ const CHART_MODES = {
   slow: "slow",
 };
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
+const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
@@ -287,10 +288,11 @@ function BtcQuadChart({
   const showEma = config.showEma !== false;
   const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
-  const chartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
+  const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
+  const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
   const bandFillData = useMemo(
-    () => showBollingerBands ? toChartBandLinesFromBars(chartData, bbPeriod, bbMultiplier) : null,
-    [bbMultiplier, bbPeriod, chartData, showBollingerBands]
+    () => showBollingerBands ? clipBandLines(toChartBandLinesFromBars(fullChartData, bbPeriod, bbMultiplier), chartData) : null,
+    [bbMultiplier, bbPeriod, chartData, fullChartData, showBollingerBands]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -573,12 +575,12 @@ function BtcQuadChart({
 
     try {
       priceSeriesRef.current.setData(chartData);
-      extraVwmaLineRef.current?.setData(showExtraVwma ? toChartLineVwma(chartData, extraVwmaPeriod) : []);
+      extraVwmaLineRef.current?.setData(showExtraVwma ? clipLineData(toChartLineVwma(fullChartData, extraVwmaPeriod), chartData) : []);
       fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
-      maLineRef.current?.setData(showMa ? toChartLineMaOffset(chartData, maPeriod, maOffset, config.fallbackSeconds) : []);
+      maLineRef.current?.setData(showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : []);
       slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
-      renkoEmaLineRef.current?.setData(showEma ? toChartLineEma(chartData, emaPeriod) : []);
-      renkoVwmaLineRef.current?.setData(showVwma ? toChartLineVwma(chartData, vwmaPeriod) : []);
+      renkoEmaLineRef.current?.setData(showEma ? clipLineData(toChartLineEma(fullChartData, emaPeriod), chartData) : []);
+      renkoVwmaLineRef.current?.setData(showVwma ? clipLineData(toChartLineVwma(fullChartData, vwmaPeriod), chartData) : []);
     } catch {
       return;
     }
@@ -587,7 +589,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -771,6 +773,41 @@ function sanitizeChartData(data) {
   });
 
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function trimRenderableChartData(data, config) {
+  if (!isHighFrequencyChart(config) || data.length <= HIGH_FREQUENCY_VISIBLE_BARS) return data;
+  return data.slice(-HIGH_FREQUENCY_VISIBLE_BARS);
+}
+
+function clipBandLines(lines, chartData) {
+  if (!lines || !chartData.length) return lines;
+
+  return {
+    upper: clipLineData(lines.upper, chartData),
+    middle: clipLineData(lines.middle, chartData),
+    lower: clipLineData(lines.lower, chartData),
+  };
+}
+
+function clipLineData(lineData, chartData) {
+  if (!Array.isArray(lineData) || lineData.length === 0 || !chartData.length) return [];
+
+  const fromTime = chartData[0].time;
+  const toTime = chartData.at(-1).time + getVisibleIntervalSeconds(chartData) * getLineForwardPadding(lineData, chartData);
+  return lineData.filter((point) => point.time >= fromTime && point.time <= toTime);
+}
+
+function getVisibleIntervalSeconds(chartData) {
+  if (chartData.length < 2) return 1;
+  return Math.max(1, chartData.at(-1).time - chartData.at(-2).time);
+}
+
+function getLineForwardPadding(lineData, chartData) {
+  const lastLineTime = lineData.at(-1)?.time;
+  const lastChartTime = chartData.at(-1)?.time;
+  if (!Number.isFinite(lastLineTime) || !Number.isFinite(lastChartTime) || lastLineTime <= lastChartTime) return 5;
+  return Math.ceil((lastLineTime - lastChartTime) / getVisibleIntervalSeconds(chartData)) + 5;
 }
 
 function isOneMinuteCandleChart(config) {
