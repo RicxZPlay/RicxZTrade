@@ -263,6 +263,7 @@ function BtcQuadChart({
   const lastHandledClearSignalRef = useRef(0);
   const lastDataSyncAtRef = useRef(0);
   const latestCandlesRef = useRef(candles);
+  const seriesSyncRef = useRef(new Map());
   const activeToolRef = useRef(activeTool);
   const drawingsRef = useRef([]);
   const chartMetaRef = useRef(null);
@@ -302,6 +303,7 @@ function BtcQuadChart({
   useEffect(() => {
     if (!containerRef.current) return undefined;
     const containerElement = containerRef.current;
+    const seriesSyncMap = seriesSyncRef.current;
 
     const chart = createChart(containerElement, {
       autoSize: true,
@@ -489,6 +491,7 @@ function BtcQuadChart({
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
       renkoVwmaLineRef.current = null;
+      seriesSyncMap.clear();
       setDrawingContext({ chart: null, series: null });
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
@@ -573,14 +576,52 @@ function BtcQuadChart({
     if (!chartRef.current || !priceSeriesRef.current) return;
     if (isHighFrequencyChart(config) && isInteractingRef.current) return;
 
+    const incrementalSync = isHighFrequencyChart(config);
+
     try {
-      priceSeriesRef.current.setData(chartData);
-      extraVwmaLineRef.current?.setData(showExtraVwma ? clipLineData(toChartLineVwma(fullChartData, extraVwmaPeriod), chartData) : []);
-      fastLineRef.current?.setData(showBollingerBands ? bandFillData?.upper || [] : []);
-      maLineRef.current?.setData(showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : []);
-      slowLineRef.current?.setData(showBollingerBands ? bandFillData?.lower || [] : []);
-      renkoEmaLineRef.current?.setData(showEma ? clipLineData(toChartLineEma(fullChartData, emaPeriod), chartData) : []);
-      renkoVwmaLineRef.current?.setData(showVwma ? clipLineData(toChartLineVwma(fullChartData, vwmaPeriod), chartData) : []);
+      syncSeriesData(priceSeriesRef.current, chartData, seriesSyncRef.current, "price", incrementalSync);
+      syncSeriesData(
+        extraVwmaLineRef.current,
+        showExtraVwma ? clipLineData(toChartLineVwma(fullChartData, extraVwmaPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "extraVwma",
+        incrementalSync
+      );
+      syncSeriesData(
+        fastLineRef.current,
+        showBollingerBands ? bandFillData?.upper || [] : [],
+        seriesSyncRef.current,
+        "bbUpper",
+        incrementalSync
+      );
+      syncSeriesData(
+        maLineRef.current,
+        showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : [],
+        seriesSyncRef.current,
+        "ma",
+        incrementalSync
+      );
+      syncSeriesData(
+        slowLineRef.current,
+        showBollingerBands ? bandFillData?.lower || [] : [],
+        seriesSyncRef.current,
+        "bbLower",
+        incrementalSync
+      );
+      syncSeriesData(
+        renkoEmaLineRef.current,
+        showEma ? clipLineData(toChartLineEma(fullChartData, emaPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "ema",
+        incrementalSync
+      );
+      syncSeriesData(
+        renkoVwmaLineRef.current,
+        showVwma ? clipLineData(toChartLineVwma(fullChartData, vwmaPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "vwma",
+        incrementalSync
+      );
     } catch {
       return;
     }
@@ -816,6 +857,52 @@ function isOneMinuteCandleChart(config) {
 
 function isHighFrequencyChart(config) {
   return config?.interval === "1s";
+}
+
+function syncSeriesData(series, data, syncMap, key, incremental = false) {
+  if (!series) return;
+
+  const cleanData = Array.isArray(data) ? data.filter((point) => (
+    Number.isFinite(point?.time) && Number.isFinite(point.value ?? point.close)
+  )) : [];
+  const firstTime = cleanData[0]?.time;
+  const lastTime = cleanData.at(-1)?.time;
+  const previous = syncMap.get(key);
+  const shouldReset = (
+    !incremental ||
+    !previous ||
+    cleanData.length === 0 ||
+    !Number.isFinite(firstTime) ||
+    !Number.isFinite(lastTime) ||
+    firstTime < previous.firstTime ||
+    lastTime < previous.lastTime ||
+    cleanData.length < Math.min(previous.length, HIGH_FREQUENCY_VISIBLE_BARS) * 0.5
+  );
+
+  if (shouldReset) {
+    series.setData(cleanData);
+    syncMap.set(key, {
+      firstTime: Number.isFinite(firstTime) ? firstTime : 0,
+      lastTime: Number.isFinite(lastTime) ? lastTime : 0,
+      length: cleanData.length,
+    });
+    return;
+  }
+
+  let startIndex = cleanData.findIndex((point) => point.time >= previous.lastTime);
+  if (startIndex === -1) {
+    startIndex = Math.max(0, cleanData.length - 1);
+  }
+
+  for (let index = startIndex; index < cleanData.length; index += 1) {
+    series.update(cleanData[index]);
+  }
+
+  syncMap.set(key, {
+    firstTime,
+    lastTime,
+    length: Math.max(previous.length, cleanData.length),
+  });
 }
 
 function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
