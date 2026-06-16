@@ -27,6 +27,7 @@ const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_MA_COLOR = "#22c55e";
+const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const CHART_MODES = {
@@ -35,7 +36,7 @@ const CHART_MODES = {
 };
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const FAST_CHART_IDS = new Set(["candles-1m"]);
+const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
   cursor: "cursor",
@@ -61,6 +62,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
+      chartCandles["candles-1s"],
       chartCandles["candles-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
@@ -251,6 +253,7 @@ function BtcQuadChart({
   const priceSeriesRef = useRef(null);
   const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
+  const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
@@ -280,6 +283,8 @@ function BtcQuadChart({
   const extraVwmaColor = getChartExtraVwmaColor(config);
   const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
   const showExtraVwma = Number.isFinite(extraVwmaPeriod);
+  const lsmaPeriod = getChartLsmaPeriod(config);
+  const showLsma = Number.isFinite(lsmaPeriod);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
@@ -383,6 +388,14 @@ function BtcQuadChart({
       title: "",
     });
 
+    const lsmaLine = chart.addSeries(LineSeries, {
+      color: BTC_LSMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const maLine = chart.addSeries(LineSeries, {
       color: BTC_MA_COLOR,
       lineWidth: 2,
@@ -423,6 +436,7 @@ function BtcQuadChart({
     priceSeriesRef.current = priceSeries;
     extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
+    lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
     renkoEmaLineRef.current = renkoEmaLine;
@@ -486,6 +500,7 @@ function BtcQuadChart({
       priceSeriesRef.current = null;
       extraVwmaLineRef.current = null;
       fastLineRef.current = null;
+      lsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
       renkoEmaLineRef.current = null;
@@ -594,6 +609,13 @@ function BtcQuadChart({
         incrementalSync
       );
       syncSeriesData(
+        lsmaLineRef.current,
+        showLsma ? clipLineData(toChartLineLsma(fullChartData, lsmaPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "lsma",
+        incrementalSync
+      );
+      syncSeriesData(
         maLineRef.current,
         showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : [],
         seriesSyncRef.current,
@@ -629,7 +651,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -670,6 +692,7 @@ function BtcQuadChart({
   const legends = [
     showBollingerBands ? formatBbLegend(bbPeriod, bbMultiplier) : null,
     showEma ? `EMA ${emaPeriod}` : null,
+    showLsma ? `LSMA ${lsmaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
@@ -753,6 +776,10 @@ function getChartExtraVwmaColor(config) {
 
 function getChartExtraVwmaPeriod(config) {
   return Number.isFinite(config?.extraVwmaPeriod) ? config.extraVwmaPeriod : null;
+}
+
+function getChartLsmaPeriod(config) {
+  return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
 }
 
 function getChartMaPeriod(config) {
@@ -1013,6 +1040,41 @@ function toChartLineMaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
       value: sum / period,
     });
   });
+
+  return points.filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
+}
+
+function toChartLineLsma(bars, period) {
+  if (!Array.isArray(bars) || bars.length < period) return [];
+
+  const points = [];
+  const sumX = (period * (period - 1)) / 2;
+  const sumX2 = ((period - 1) * period * (2 * period - 1)) / 6;
+  const denominator = period * sumX2 - sumX * sumX;
+  let sumY = 0;
+  let sumXY = 0;
+
+  for (let index = 0; index < bars.length; index += 1) {
+    const close = Number.isFinite(bars[index]?.close) ? bars[index].close : 0;
+
+    if (index < period) {
+      sumY += close;
+      sumXY += index * close;
+    } else {
+      const removedClose = Number.isFinite(bars[index - period]?.close) ? bars[index - period].close : 0;
+      sumXY = sumXY - (sumY - removedClose) + (period - 1) * close;
+      sumY = sumY - removedClose + close;
+    }
+
+    if (index < period - 1 || denominator === 0) continue;
+
+    const slope = (period * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / period;
+    points.push({
+      time: bars[index].time,
+      value: intercept + slope * (period - 1),
+    });
+  }
 
   return points.filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
 }
