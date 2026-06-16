@@ -33,6 +33,7 @@ const CHART_MODES = {
   fast: "fast",
   slow: "slow",
 };
+const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
 const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
 const TOOLS = {
@@ -255,9 +256,12 @@ function BtcQuadChart({
   const renkoEmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
   const centeredOnceRef = useRef(false);
+  const dataSyncTimeoutRef = useRef(null);
   const interactionTimeoutRef = useRef(null);
   const isInteractingRef = useRef(false);
   const lastHandledClearSignalRef = useRef(0);
+  const lastDataSyncAtRef = useRef(0);
+  const latestCandlesRef = useRef(candles);
   const activeToolRef = useRef(activeTool);
   const drawingsRef = useRef([]);
   const chartMetaRef = useRef(null);
@@ -265,6 +269,7 @@ function BtcQuadChart({
   const [draftDrawing, setDraftDrawing] = useState(null);
   const [drawingContext, setDrawingContext] = useState({ chart: null, series: null });
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
+  const [renderCandles, setRenderCandles] = useState(() => candles);
   const [interactionRevision, setInteractionRevision] = useState(0);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
@@ -282,7 +287,7 @@ function BtcQuadChart({
   const showEma = config.showEma !== false;
   const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
-  const chartData = useMemo(() => sanitizeChartData(toChartData(candles, config)), [candles, config]);
+  const chartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const bandFillData = useMemo(
     () => showBollingerBands ? toChartBandLinesFromBars(chartData, bbPeriod, bbMultiplier) : null,
     [bbMultiplier, bbPeriod, chartData, showBollingerBands]
@@ -459,6 +464,10 @@ function BtcQuadChart({
     containerElement.addEventListener("touchmove", markInteraction, { passive: true });
 
     return () => {
+      if (dataSyncTimeoutRef.current) {
+        window.clearTimeout(dataSyncTimeoutRef.current);
+        dataSyncTimeoutRef.current = null;
+      }
       if (interactionTimeoutRef.current) {
         window.clearTimeout(interactionTimeoutRef.current);
         interactionTimeoutRef.current = null;
@@ -483,6 +492,40 @@ function BtcQuadChart({
       isInteractingRef.current = false;
     };
   }, [config, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
+
+  useEffect(() => {
+    latestCandlesRef.current = candles;
+
+    const syncCandles = () => {
+      dataSyncTimeoutRef.current = null;
+      lastDataSyncAtRef.current = Date.now();
+      setRenderCandles(latestCandlesRef.current);
+    };
+    const scheduleCandlesSync = (delay) => {
+      if (dataSyncTimeoutRef.current) {
+        window.clearTimeout(dataSyncTimeoutRef.current);
+      }
+      dataSyncTimeoutRef.current = window.setTimeout(syncCandles, delay);
+    };
+
+    if (!isHighFrequencyChart(config)) {
+      scheduleCandlesSync(0);
+      return undefined;
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastDataSyncAtRef.current;
+    if (!lastDataSyncAtRef.current || elapsed >= HIGH_FREQUENCY_RENDER_INTERVAL_MS) {
+      scheduleCandlesSync(0);
+      return undefined;
+    }
+
+    if (!dataSyncTimeoutRef.current) {
+      scheduleCandlesSync(HIGH_FREQUENCY_RENDER_INTERVAL_MS - elapsed);
+    }
+
+    return undefined;
+  }, [candles, config]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
