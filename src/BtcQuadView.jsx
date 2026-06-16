@@ -827,19 +827,28 @@ function toChartLineMaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
   if (!Array.isArray(bars) || bars.length < period) return [];
 
   const intervalSeconds = getBarIntervalSeconds(bars, fallbackSeconds);
-  return bars
-    .map((bar, index) => {
-      if (index < period - 1) return null;
+  const points = [];
+  let sum = 0;
 
-      const window = bars.slice(index - period + 1, index + 1);
-      const value = window.reduce((sum, item) => sum + item.close, 0) / period;
-      const targetBar = bars[index + offset];
-      return {
-        time: targetBar?.time ?? bar.time + offset * intervalSeconds,
-        value,
-      };
-    })
-    .filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
+  bars.forEach((bar, index) => {
+    const close = Number.isFinite(bar.close) ? bar.close : 0;
+    sum += close;
+
+    if (index >= period) {
+      const removedClose = Number.isFinite(bars[index - period]?.close) ? bars[index - period].close : 0;
+      sum -= removedClose;
+    }
+
+    if (index < period - 1) return;
+
+    const targetBar = bars[index + offset];
+    points.push({
+      time: targetBar?.time ?? bar.time + offset * intervalSeconds,
+      value: sum / period,
+    });
+  });
+
+  return points.filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
 }
 
 function getBarIntervalSeconds(bars, fallbackSeconds) {
