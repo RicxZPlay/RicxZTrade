@@ -281,6 +281,7 @@ function BtcQuadChart({
   const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
   const showBbMiddle = showBollingerBands && config.showBbMiddle === true;
+  const bbMiddleColor = config.bbMiddleColor || BTC_BAND_MIDDLE_COLOR;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
   const bandFillData = useMemo(
@@ -373,7 +374,7 @@ function BtcQuadChart({
     });
 
     const middleLine = chart.addSeries(LineSeries, {
-      color: BTC_BAND_MIDDLE_COLOR,
+      color: bbMiddleColor,
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -544,7 +545,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
+  }, [bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
