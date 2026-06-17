@@ -380,8 +380,8 @@ function BtcQuadChart({
       title: "",
     });
 
-    const extraBandLines = extraBollingerBands.flatMap((_, index) => {
-      const color = BTC_EXTRA_BAND_COLORS[index % BTC_EXTRA_BAND_COLORS.length];
+    const extraBandLines = extraBollingerBands.flatMap((band, index) => {
+      const color = band.color || BTC_EXTRA_BAND_COLORS[index % BTC_EXTRA_BAND_COLORS.length];
       return [
         chart.addSeries(LineSeries, {
           color,
@@ -836,7 +836,11 @@ function getChartExtraBollingerBands(config) {
   if (!Array.isArray(config?.extraBollingerBands)) return [];
   return config.extraBollingerBands.filter((band) => (
     Number.isFinite(band?.period) && Number.isFinite(band?.multiplier)
-  ));
+  )).map((band) => ({
+    color: typeof band.color === "string" ? band.color : null,
+    period: band.period,
+    multiplier: band.multiplier,
+  }));
 }
 
 function getChartEmaPeriod(config) {
