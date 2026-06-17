@@ -25,6 +25,7 @@ const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
+const BTC_BAND_MIDDLE_COLOR = "rgba(248, 250, 252, 0.72)";
 const BTC_EXTRA_BAND_COLORS = ["#8b5cf6", "#c084fc", "#a855f7"];
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_LSMA_COLOR = "#f8fafc";
@@ -254,6 +255,7 @@ function BtcQuadChart({
   const priceSeriesRef = useRef(null);
   const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
+  const middleLineRef = useRef(null);
   const extraBandLineRefs = useRef([]);
   const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
@@ -296,6 +298,7 @@ function BtcQuadChart({
   const showEma = config.showEma !== false;
   const showVwma = config.showVwma !== false;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
+  const showBbMiddle = showBollingerBands && config.showBbMiddle === true;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
   const bandFillData = useMemo(
@@ -387,6 +390,14 @@ function BtcQuadChart({
       title: "",
     });
 
+    const middleLine = chart.addSeries(LineSeries, {
+      color: BTC_BAND_MIDDLE_COLOR,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const extraBandLines = extraBollingerBands.flatMap((_, index) => {
       const color = BTC_EXTRA_BAND_COLORS[index % BTC_EXTRA_BAND_COLORS.length];
       return [
@@ -463,6 +474,7 @@ function BtcQuadChart({
     priceSeriesRef.current = priceSeries;
     extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
+    middleLineRef.current = middleLine;
     extraBandLineRefs.current = extraBandLines;
     lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
@@ -528,6 +540,7 @@ function BtcQuadChart({
       priceSeriesRef.current = null;
       extraVwmaLineRef.current = null;
       fastLineRef.current = null;
+      middleLineRef.current = null;
       extraBandLineRefs.current = [];
       lsmaLineRef.current = null;
       maLineRef.current = null;
@@ -637,6 +650,13 @@ function BtcQuadChart({
         "bbUpper",
         incrementalSync
       );
+      syncSeriesData(
+        middleLineRef.current,
+        showBbMiddle ? bandFillData?.middle || [] : [],
+        seriesSyncRef.current,
+        "bbMiddle",
+        incrementalSync
+      );
       secondaryBandData.forEach((bandData, index) => {
         syncSeriesData(
           extraBandLineRefs.current[index * 2],
@@ -696,7 +716,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
