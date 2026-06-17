@@ -49,6 +49,7 @@ export const BTC_SLOW_VWMA_PERIOD = 190;
 export const BTC_SLOW_EMA_PERIOD = 450;
 export const BTC_SLOW_SETUP_BB_PERIOD = 8000;
 export const BTC_SLOW_SETUP_BB_MULTIPLIER = 3.001;
+export const BTC_ONE_HOUR_SETUP_BB_MULTIPLIER = 2.001;
 export const BTC_SLOW_SETUP_LSMA_PERIOD = 3800;
 export const BTC_ONE_SECOND_VWMA_PERIOD = 9000;
 export const BTC_ONE_SECOND_MA_PERIOD = 450;
@@ -75,7 +76,7 @@ export const BTC_QUAD_CHARTS = [
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 8500, fallbackSeconds: 900, type: "candles", bbMultiplier: BTC_SLOW_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBollingerBands: true, showVwma: false },
   { id: "renko-1h", title: "BTC Renko 1H", interval: "1h", historyLimit: 5000, fallbackSeconds: 3600, type: "renko", boxSize: 10, bbMultiplier: 2.001, showEma: false, visibleBars: 5000, vwmaPeriod: BTC_RENKO_ONE_HOUR_VWMA_PERIOD },
-  { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 8500, fallbackSeconds: 3600, type: "candles", bbMultiplier: BTC_SLOW_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBollingerBands: true, showVwma: false },
+  { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 8500, fallbackSeconds: 3600, type: "candles", bbMultiplier: BTC_ONE_HOUR_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBollingerBands: true, showVwma: false },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 1500, fallbackSeconds: 14400, type: "candles", emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, extraEmaOffset: BTC_SLOW_FAST_EMA_OFFSET, extraEmaPeriod: BTC_SLOW_FAST_EMA_PERIOD, extraVwmaPeriod: BTC_SLOW_VWMA_PERIOD, vwmaPeriod: BTC_QUAD_VWMA_PERIOD },
 ];
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
