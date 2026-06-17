@@ -25,6 +25,7 @@ const QUAD_DRAWINGS_STORAGE_KEY = "ricxz.btcQuadDrawings.v1";
 const BTC_BB_PERIOD = 600;
 const BTC_BB_MULTIPLIER = 1.001;
 const BTC_BAND_COLOR = "#4c1d95";
+const BTC_SECONDARY_BAND_COLOR = "#8b5cf6";
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_LSMA_COLOR = "#f8fafc";
@@ -253,6 +254,8 @@ function BtcQuadChart({
   const priceSeriesRef = useRef(null);
   const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
+  const secondaryFastLineRef = useRef(null);
+  const secondarySlowLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
@@ -279,6 +282,9 @@ function BtcQuadChart({
   const palette = useMemo(() => getPalette(theme), [theme]);
   const bbMultiplier = getChartBbMultiplier(config);
   const bbPeriod = getChartBbPeriod(config);
+  const secondaryBbMultiplier = getChartSecondaryBbMultiplier(config);
+  const secondaryBbPeriod = getChartSecondaryBbPeriod(config);
+  const showSecondaryBollingerBands = Number.isFinite(secondaryBbMultiplier) && Number.isFinite(secondaryBbPeriod);
   const emaPeriod = getChartEmaPeriod(config);
   const extraVwmaColor = getChartExtraVwmaColor(config);
   const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
@@ -298,6 +304,10 @@ function BtcQuadChart({
   const bandFillData = useMemo(
     () => showBollingerBands ? clipBandLines(toChartBandLinesFromBars(fullChartData, bbPeriod, bbMultiplier), chartData) : null,
     [bbMultiplier, bbPeriod, chartData, fullChartData, showBollingerBands]
+  );
+  const secondaryBandData = useMemo(
+    () => showSecondaryBollingerBands ? clipBandLines(toChartBandLinesFromBars(fullChartData, secondaryBbPeriod, secondaryBbMultiplier), chartData) : null,
+    [chartData, fullChartData, secondaryBbMultiplier, secondaryBbPeriod, showSecondaryBollingerBands]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -380,6 +390,22 @@ function BtcQuadChart({
       title: "",
     });
 
+    const secondaryFastLine = chart.addSeries(LineSeries, {
+      color: BTC_SECONDARY_BAND_COLOR,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
+    const secondarySlowLine = chart.addSeries(LineSeries, {
+      color: BTC_SECONDARY_BAND_COLOR,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const extraVwmaLine = chart.addSeries(LineSeries, {
       color: extraVwmaColor,
       lineWidth: 2,
@@ -436,6 +462,8 @@ function BtcQuadChart({
     priceSeriesRef.current = priceSeries;
     extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
+    secondaryFastLineRef.current = secondaryFastLine;
+    secondarySlowLineRef.current = secondarySlowLine;
     lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
@@ -500,6 +528,8 @@ function BtcQuadChart({
       priceSeriesRef.current = null;
       extraVwmaLineRef.current = null;
       fastLineRef.current = null;
+      secondaryFastLineRef.current = null;
+      secondarySlowLineRef.current = null;
       lsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
@@ -609,6 +639,20 @@ function BtcQuadChart({
         incrementalSync
       );
       syncSeriesData(
+        secondaryFastLineRef.current,
+        showSecondaryBollingerBands ? secondaryBandData?.upper || [] : [],
+        seriesSyncRef.current,
+        "secondaryBbUpper",
+        incrementalSync
+      );
+      syncSeriesData(
+        secondarySlowLineRef.current,
+        showSecondaryBollingerBands ? secondaryBandData?.lower || [] : [],
+        seriesSyncRef.current,
+        "secondaryBbLower",
+        incrementalSync
+      );
+      syncSeriesData(
         lsmaLineRef.current,
         showLsma ? clipLineData(toChartLineLsma(fullChartData, lsmaPeriod), chartData) : [],
         seriesSyncRef.current,
@@ -651,7 +695,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showSecondaryBollingerBands, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -691,6 +735,7 @@ function BtcQuadChart({
 
   const legends = [
     showBollingerBands ? formatBbLegend(bbPeriod, bbMultiplier) : null,
+    showSecondaryBollingerBands ? formatBbLegend(secondaryBbPeriod, secondaryBbMultiplier) : null,
     showEma ? `EMA ${emaPeriod}` : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
@@ -766,6 +811,14 @@ function getChartBbPeriod(config) {
   return Number.isFinite(config?.bbPeriod) ? config.bbPeriod : BTC_BB_PERIOD;
 }
 
+function getChartSecondaryBbMultiplier(config) {
+  return Number.isFinite(config?.secondaryBbMultiplier) ? config.secondaryBbMultiplier : null;
+}
+
+function getChartSecondaryBbPeriod(config) {
+  return Number.isFinite(config?.secondaryBbPeriod) ? config.secondaryBbPeriod : null;
+}
+
 function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
 }
@@ -810,7 +863,7 @@ function getChartRightOffset(config) {
 }
 
 function formatBbLegend(period, multiplier) {
-  return multiplier === BTC_BB_MULTIPLIER ? `BB ${period}` : `BB ${period} ${multiplier}`;
+  return `BB ${period} ${multiplier}`;
 }
 
 function toChartData(candles, config) {
