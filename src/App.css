@@ -861,33 +861,8 @@ input:focus,
   white-space: nowrap;
 }
 
-.btc-quad-restore {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--border));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
-  color: var(--text-strong);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 950;
-  padding: 0 10px;
-  white-space: nowrap;
-}
-
-.btc-quad-restore.active {
-  border-color: color-mix(in srgb, var(--success) 70%, var(--border));
-  background: color-mix(in srgb, var(--success-soft) 92%, transparent);
-}
-
 .btc-quad-fullscreen:hover,
-.btc-quad-fullscreen:focus-visible,
-.btc-quad-restore:hover,
-.btc-quad-restore:focus-visible {
+.btc-quad-fullscreen:focus-visible {
   filter: brightness(1.07);
   box-shadow: 0 0 0 3px var(--warning-soft);
 }
@@ -904,16 +879,6 @@ input:focus,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 8px;
-}
-
-.btc-quad-grid.fast-mode {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.btc-quad-grid.higher-collapsed {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .btc-quad-card {
@@ -1738,32 +1703,12 @@ input:focus,
     text-overflow: ellipsis;
   }
 
-  .btc-quad-restore {
-    min-width: 29px;
-    min-height: 29px;
-    gap: 0;
-    overflow: hidden;
-    font-size: 0;
-    padding: 0 7px;
-  }
-
-
   .btc-quad-grid {
     width: 100%;
     min-height: 0;
     overflow: hidden;
     grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: 6px;
-  }
-
-  .btc-quad-grid.fast-mode {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-  }
-
-  .btc-quad-grid.higher-collapsed {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 
   .btc-quad-card-header {

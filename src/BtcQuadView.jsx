@@ -33,14 +33,9 @@ const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
-const CHART_MODES = {
-  fast: "fast",
-  slow: "slow",
-};
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const FAST_CHART_IDS = new Set(["candles-1s", "candles-1m"]);
-const SLOW_CHART_IDS = new Set(["candles-15m", "renko-1h", "candles-1h", "candles-4h"]);
+const BTC_MAIN_CHART_IDS = new Set(["candles-1s", "candles-1m", "candles-15m", "candles-1h"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -53,15 +48,10 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
-  const [chartMode, setChartMode] = useState(CHART_MODES.fast);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => (
-      chartMode === CHART_MODES.fast
-        ? FAST_CHART_IDS.has(config.id)
-        : SLOW_CHART_IDS.has(config.id)
-    )),
-    [chartMode]
+    () => BTC_QUAD_CHARTS.filter((config) => BTC_MAIN_CHART_IDS.has(config.id)),
+    []
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -78,7 +68,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   useEffect(() => {
     const controller = new AbortController();
     const sockets = [];
-    const configsByInterval = BTC_QUAD_CHARTS.reduce((groups, config) => {
+    const configsByInterval = visibleCharts.reduce((groups, config) => {
       const group = groups.get(config.interval) || [];
       group.push(config);
       groups.set(config.interval, group);
@@ -148,7 +138,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
       controller.abort();
       sockets.forEach((socket) => socket.close());
     };
-  }, []);
+  }, [visibleCharts]);
 
   return (
     <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Quatro graficos do BTC">
@@ -192,20 +182,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             </ToolButton>
           </div>
           <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
-          <button
-            className={chartMode === CHART_MODES.fast ? "btc-quad-restore active" : "btc-quad-restore"}
-            type="button"
-            onClick={() => setChartMode(CHART_MODES.fast)}
-          >
-            GRAFICO RAPIDO
-          </button>
-          <button
-            className={chartMode === CHART_MODES.slow ? "btc-quad-restore active" : "btc-quad-restore"}
-            type="button"
-            onClick={() => setChartMode(CHART_MODES.slow)}
-          >
-            GRAFICO LENTO
-          </button>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
               <Maximize2 size={15} />
@@ -219,7 +195,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         </div>
       </header>
 
-      <div className={chartMode === CHART_MODES.fast ? "btc-quad-grid fast-mode" : "btc-quad-grid"}>
+      <div className="btc-quad-grid">
         {visibleCharts.map((config) => (
           <BtcQuadChart
             key={config.id}
