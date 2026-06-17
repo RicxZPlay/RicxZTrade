@@ -909,7 +909,10 @@ function formatEmaLegend(period, offset = 0) {
 
 function toChartData(candles, config) {
   if (config?.type === "renko") {
-    return toChartRenko(candles, config.boxSize || 1);
+    return toChartRenko(candles, config.boxSize || 1, {
+      down: config.projectedDownColor,
+      up: config.projectedUpColor,
+    });
   }
 
   return toChartCandles(candles);

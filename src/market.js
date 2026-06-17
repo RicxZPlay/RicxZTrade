@@ -75,7 +75,7 @@ export const BTC_QUAD_CHARTS = [
   { id: "candles-1m", title: "BTC 1m", interval: "1m", historyLimit: 10000, fallbackSeconds: 60, type: "candles", bbMultiplier: BTC_ONE_MINUTE_BB_MULTIPLIER, bbPeriod: BTC_ONE_MINUTE_BB_PERIOD, extraVwmaPeriod: BTC_ONE_MINUTE_EXTRA_VWMA_PERIOD, maOffset: BTC_ONE_MINUTE_MA_OFFSET, maPeriod: BTC_ONE_MINUTE_MA_PERIOD, showBbMiddle: true, showBollingerBands: true, showEma: false, showVwma: false },
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 8500, fallbackSeconds: 900, type: "candles", bbMultiplier: BTC_SLOW_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBbMiddle: true, showBollingerBands: true, showVwma: false },
-  { id: "renko-1h", title: "BTC Renko 1H", interval: "1h", historyLimit: 8500, fallbackSeconds: 3600, type: "renko", boxSize: 5, bbMiddleColor: "#facc15", bbMultiplier: 3, bbPeriod: 8000, lsmaPeriod: 5500, showBbMiddle: true, showBollingerBands: true, showEma: false, showVwma: false, visibleBars: 5000 },
+  { id: "renko-1h", title: "BTC Renko 1H", interval: "1h", historyLimit: 8500, fallbackSeconds: 3600, type: "renko", boxSize: 5, bbMiddleColor: "#facc15", bbMultiplier: 3, bbPeriod: 8000, lsmaPeriod: 5500, projectedDownColor: "#f59e0b", projectedUpColor: "#38bdf8", showBbMiddle: true, showBollingerBands: true, showEma: false, showVwma: false, visibleBars: 5000 },
   { id: "candles-1h", title: "BTC 1H", interval: "1h", historyLimit: 8500, fallbackSeconds: 3600, type: "candles", bbMultiplier: BTC_ONE_HOUR_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBbMiddle: true, showBollingerBands: true, showVwma: false },
   { id: "candles-4h", title: "BTC 4H", interval: "4h", historyLimit: 1500, fallbackSeconds: 14400, type: "candles", emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, extraEmaOffset: BTC_SLOW_FAST_EMA_OFFSET, extraEmaPeriod: BTC_SLOW_FAST_EMA_PERIOD, extraVwmaPeriod: BTC_SLOW_VWMA_PERIOD, vwmaPeriod: BTC_QUAD_VWMA_PERIOD },
 ];
@@ -459,7 +459,7 @@ export function toChartVwma(candles, period = BTC_QUAD_VWMA_PERIOD) {
     .filter(Boolean);
 }
 
-export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE) {
+export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE, projectedColors) {
   return buildRenkoBricks(candles, boxSize).slice(-MAX_RENKO_CHART_BRICKS).map((brick) => ({
     time: Math.floor(brick.openTime / 1000),
     open: brick.open,
@@ -467,7 +467,7 @@ export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE) {
     low: brick.low,
     close: brick.close,
     volume: brick.volume,
-    ...(brick.projected ? getProjectedRenkoColors(brick.direction) : {}),
+    ...(brick.projected ? getProjectedRenkoColors(brick.direction, projectedColors) : {}),
   }));
 }
 
@@ -653,7 +653,16 @@ function normalizeCandle(row) {
   };
 }
 
-function getProjectedRenkoColors(direction) {
+function getProjectedRenkoColors(direction, projectedColors) {
+  const customColor = direction > 0 ? projectedColors?.up : projectedColors?.down;
+  if (customColor) {
+    return {
+      color: customColor,
+      borderColor: customColor,
+      wickColor: customColor,
+    };
+  }
+
   if (direction > 0) {
     return {
       color: "rgba(111, 216, 164, 0.36)",
