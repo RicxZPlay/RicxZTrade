@@ -61,7 +61,7 @@ export const BTC_ONE_MINUTE_MA_PERIOD = 800;
 export const BTC_ONE_MINUTE_MA_OFFSET = 2;
 export const BTC_ONE_MINUTE_EXTRA_VWMA_PERIOD = 7000;
 export const BTC_ONE_MINUTE_BB_PERIOD = 8000;
-export const BTC_ONE_MINUTE_BB_MULTIPLIER = 1.001;
+export const BTC_ONE_MINUTE_BB_MULTIPLIER = 3.001;
 export const BTC_RENKO_ONE_HOUR_VWMA_PERIOD = 1500;
 export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
