@@ -28,6 +28,7 @@ const BTC_BAND_COLOR = "#4c1d95";
 const BTC_BAND_MIDDLE_COLOR = "rgba(248, 250, 252, 0.72)";
 const BTC_EXTRA_BAND_COLORS = ["#8b5cf6", "#c084fc", "#a855f7"];
 const BTC_EMA_COLOR = "#d4af37";
+const BTC_EXTRA_EMA_COLOR = "#22c55e";
 const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
@@ -260,6 +261,7 @@ function BtcQuadChart({
   const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
+  const extraEmaLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
   const renkoVwmaLineRef = useRef(null);
   const centeredOnceRef = useRef(false);
@@ -284,7 +286,11 @@ function BtcQuadChart({
   const bbMultiplier = getChartBbMultiplier(config);
   const bbPeriod = getChartBbPeriod(config);
   const extraBollingerBands = useMemo(() => getChartExtraBollingerBands(config), [config]);
+  const emaOffset = getChartEmaOffset(config);
   const emaPeriod = getChartEmaPeriod(config);
+  const extraEmaOffset = getChartExtraEmaOffset(config);
+  const extraEmaPeriod = getChartExtraEmaPeriod(config);
+  const showExtraEma = Number.isFinite(extraEmaPeriod);
   const extraVwmaColor = getChartExtraVwmaColor(config);
   const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
   const showExtraVwma = Number.isFinite(extraVwmaPeriod);
@@ -442,6 +448,14 @@ function BtcQuadChart({
       title: "",
     });
 
+    const extraEmaLine = chart.addSeries(LineSeries, {
+      color: BTC_EXTRA_EMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const renkoEmaLine = chart.addSeries(LineSeries, {
       color: BTC_EMA_COLOR,
       lineWidth: 2,
@@ -479,6 +493,7 @@ function BtcQuadChart({
     lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
+    extraEmaLineRef.current = extraEmaLine;
     renkoEmaLineRef.current = renkoEmaLine;
     renkoVwmaLineRef.current = renkoVwmaLine;
     setDrawingContext({ chart, series: priceSeries });
@@ -545,6 +560,7 @@ function BtcQuadChart({
       lsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
+      extraEmaLineRef.current = null;
       renkoEmaLineRef.current = null;
       renkoVwmaLineRef.current = null;
       seriesSyncMap.clear();
@@ -695,8 +711,15 @@ function BtcQuadChart({
         incrementalSync
       );
       syncSeriesData(
+        extraEmaLineRef.current,
+        showExtraEma ? clipLineData(toChartLineEmaOffset(fullChartData, extraEmaPeriod, extraEmaOffset, config.fallbackSeconds), chartData) : [],
+        seriesSyncRef.current,
+        "extraEma",
+        incrementalSync
+      );
+      syncSeriesData(
         renkoEmaLineRef.current,
-        showEma ? clipLineData(toChartLineEma(fullChartData, emaPeriod), chartData) : [],
+        showEma ? clipLineData(toChartLineEmaOffset(fullChartData, emaPeriod, emaOffset, config.fallbackSeconds), chartData) : [],
         seriesSyncRef.current,
         "ema",
         incrementalSync
@@ -716,7 +739,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -757,7 +780,8 @@ function BtcQuadChart({
   const legends = [
     showBollingerBands ? formatBbLegend(bbPeriod, bbMultiplier) : null,
     ...extraBollingerBands.map((band) => formatBbLegend(band.period, band.multiplier)),
-    showEma ? `EMA ${emaPeriod}` : null,
+    showEma ? formatEmaLegend(emaPeriod, emaOffset) : null,
+    showExtraEma ? formatEmaLegend(extraEmaPeriod, extraEmaOffset) : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
@@ -843,6 +867,18 @@ function getChartEmaPeriod(config) {
   return Number.isFinite(config?.emaPeriod) ? config.emaPeriod : BTC_QUAD_EMA_PERIOD;
 }
 
+function getChartEmaOffset(config) {
+  return Number.isFinite(config?.emaOffset) ? config.emaOffset : 0;
+}
+
+function getChartExtraEmaPeriod(config) {
+  return Number.isFinite(config?.extraEmaPeriod) ? config.extraEmaPeriod : null;
+}
+
+function getChartExtraEmaOffset(config) {
+  return Number.isFinite(config?.extraEmaOffset) ? config.extraEmaOffset : 0;
+}
+
 function getChartExtraVwmaColor(config) {
   return typeof config?.extraVwmaColor === "string" ? config.extraVwmaColor : BTC_EXTRA_VWMA_COLOR;
 }
@@ -884,6 +920,10 @@ function getChartRightOffset(config) {
 
 function formatBbLegend(period, multiplier) {
   return `BB ${period} ${multiplier}`;
+}
+
+function formatEmaLegend(period, offset = 0) {
+  return offset ? `EMA ${period} off ${offset}` : `EMA ${period}`;
 }
 
 function toChartData(candles, config) {
@@ -1087,6 +1127,17 @@ function toChartLineEma(bars, period) {
       value: ema[index],
     }))
     .filter((item) => Number.isFinite(item.value));
+}
+
+function toChartLineEmaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
+  const line = toChartLineEma(bars, period);
+  if (!offset || line.length === 0) return line;
+
+  const intervalSeconds = getBarIntervalSeconds(bars, fallbackSeconds);
+  return line.map((point, index) => ({
+    time: line[index + offset]?.time ?? point.time + offset * intervalSeconds,
+    value: point.value,
+  })).filter((item) => Number.isFinite(item?.time) && Number.isFinite(item.value));
 }
 
 function toChartLineMaOffset(bars, period, offset = 0, fallbackSeconds = 60) {
