@@ -59,6 +59,7 @@ export const BTC_ONE_SECOND_SECONDARY_BB_PERIOD = 10000;
 export const BTC_ONE_SECOND_BB_MULTIPLIER = 2.001;
 export const BTC_ONE_SECOND_SECONDARY_BB_MULTIPLIER = 1.001;
 export const BTC_ONE_SECOND_THIRD_BB_MULTIPLIER = 3;
+export const BTC_ONE_SECOND_LRC_PERIOD = 1500;
 export const BTC_ONE_SECOND_LSMA_PERIOD = 3800;
 export const BTC_ONE_MINUTE_EMA_PERIOD = 555;
 export const BTC_ONE_MINUTE_MA_PERIOD = 800;
@@ -71,7 +72,7 @@ export const BTC_RENKO_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 3000, fallbackSeconds: 900, boxSize: 5 },
 };
 export const BTC_QUAD_CHARTS = [
-  { id: "candles-1s", title: "BTC 1s", interval: "1s", historyLimit: 11500, fallbackSeconds: 1, type: "candles", bbMultiplier: BTC_ONE_SECOND_BB_MULTIPLIER, bbPeriod: BTC_ONE_SECOND_BB_PERIOD, extraBollingerBands: [{ color: "#38bdf8", period: BTC_ONE_SECOND_SECONDARY_BB_PERIOD, multiplier: BTC_ONE_SECOND_SECONDARY_BB_MULTIPLIER }, { period: BTC_ONE_SECOND_BB_PERIOD, multiplier: BTC_ONE_SECOND_THIRD_BB_MULTIPLIER }], lsmaPeriod: BTC_ONE_SECOND_LSMA_PERIOD, showBollingerBands: true, showEma: false, showVwma: false },
+  { id: "candles-1s", title: "BTC 1s", interval: "1s", historyLimit: 11500, fallbackSeconds: 1, type: "candles", bbMultiplier: BTC_ONE_SECOND_BB_MULTIPLIER, bbPeriod: BTC_ONE_SECOND_BB_PERIOD, extraBollingerBands: [{ color: "#38bdf8", period: BTC_ONE_SECOND_SECONDARY_BB_PERIOD, multiplier: BTC_ONE_SECOND_SECONDARY_BB_MULTIPLIER }, { period: BTC_ONE_SECOND_BB_PERIOD, multiplier: BTC_ONE_SECOND_THIRD_BB_MULTIPLIER }], lrcPeriod: BTC_ONE_SECOND_LRC_PERIOD, lsmaPeriod: BTC_ONE_SECOND_LSMA_PERIOD, showBollingerBands: true, showEma: false, showVwma: false },
   { id: "candles-1m", title: "BTC 1m", interval: "1m", historyLimit: 10000, fallbackSeconds: 60, type: "candles", bbMultiplier: BTC_ONE_MINUTE_BB_MULTIPLIER, bbPeriod: BTC_ONE_MINUTE_BB_PERIOD, extraVwmaPeriod: BTC_ONE_MINUTE_EXTRA_VWMA_PERIOD, maOffset: BTC_ONE_MINUTE_MA_OFFSET, maPeriod: BTC_ONE_MINUTE_MA_PERIOD, showBbMiddle: true, showBollingerBands: true, showEma: false, showVwma: false },
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
   { id: "candles-15m", title: "BTC 15m", interval: "15m", historyLimit: 8500, fallbackSeconds: 900, type: "candles", bbMultiplier: BTC_SLOW_SETUP_BB_MULTIPLIER, bbPeriod: BTC_SLOW_SETUP_BB_PERIOD, emaOffset: 0, emaPeriod: BTC_SLOW_EMA_PERIOD, lsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, showBbMiddle: true, showBollingerBands: true, showVwma: false },

@@ -29,6 +29,7 @@ const BTC_BAND_MIDDLE_COLOR = "rgba(248, 250, 252, 0.72)";
 const BTC_EXTRA_BAND_COLORS = ["#8b5cf6", "#c084fc", "#a855f7"];
 const BTC_EMA_COLOR = "#d4af37";
 const BTC_EXTRA_EMA_COLOR = "#22c55e";
+const BTC_LRC_COLOR = "#facc15";
 const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
@@ -234,6 +235,7 @@ function BtcQuadChart({
   const fastLineRef = useRef(null);
   const middleLineRef = useRef(null);
   const extraBandLineRefs = useRef([]);
+  const lrcLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
@@ -270,6 +272,8 @@ function BtcQuadChart({
   const extraVwmaColor = getChartExtraVwmaColor(config);
   const extraVwmaPeriod = getChartExtraVwmaPeriod(config);
   const showExtraVwma = Number.isFinite(extraVwmaPeriod);
+  const lrcPeriod = getChartLrcPeriod(config);
+  const showLrc = Number.isFinite(lrcPeriod);
   const lsmaPeriod = getChartLsmaPeriod(config);
   const showLsma = Number.isFinite(lsmaPeriod);
   const maOffset = getChartMaOffset(config);
@@ -417,6 +421,14 @@ function BtcQuadChart({
       title: "",
     });
 
+    const lrcLine = chart.addSeries(LineSeries, {
+      color: BTC_LRC_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
+
     const maLine = chart.addSeries(LineSeries, {
       color: BTC_MA_COLOR,
       lineWidth: 2,
@@ -467,6 +479,7 @@ function BtcQuadChart({
     fastLineRef.current = fastLine;
     middleLineRef.current = middleLine;
     extraBandLineRefs.current = extraBandLines;
+    lrcLineRef.current = lrcLine;
     lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
@@ -534,6 +547,7 @@ function BtcQuadChart({
       fastLineRef.current = null;
       middleLineRef.current = null;
       extraBandLineRefs.current = [];
+      lrcLineRef.current = null;
       lsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
@@ -667,6 +681,13 @@ function BtcQuadChart({
         );
       });
       syncSeriesData(
+        lrcLineRef.current,
+        showLrc ? clipLineData(toChartLineLsma(fullChartData, lrcPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "lrc",
+        incrementalSync
+      );
+      syncSeriesData(
         lsmaLineRef.current,
         showLsma ? clipLineData(toChartLineLsma(fullChartData, lsmaPeriod), chartData) : [],
         seriesSyncRef.current,
@@ -716,7 +737,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -759,6 +780,7 @@ function BtcQuadChart({
     ...extraBollingerBands.map((band) => formatBbLegend(band.period, band.multiplier)),
     showEma ? formatEmaLegend(emaPeriod, emaOffset) : null,
     showExtraEma ? formatEmaLegend(extraEmaPeriod, extraEmaOffset) : null,
+    showLrc ? `LRC ${lrcPeriod}` : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
@@ -870,6 +892,10 @@ function getChartExtraVwmaPeriod(config) {
 
 function getChartLsmaPeriod(config) {
   return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
+}
+
+function getChartLrcPeriod(config) {
+  return Number.isFinite(config?.lrcPeriod) ? config.lrcPeriod : null;
 }
 
 function getChartMaPeriod(config) {
