@@ -10,7 +10,7 @@ import {
   formatIndicator,
   formatPercent,
   formatPrice,
-  ALT_FAST_EMA,
+  ALT_LRC_PERIOD,
   ALT_SLOW_EMA,
   ALT_VWMA_PERIOD,
   ALT_CHART_INTERVALS,
@@ -22,6 +22,7 @@ import {
   toChartBollingerBands,
   toChartCandles,
   toChartEma,
+  toChartLrc,
   toChartRenko,
   toChartVwma,
 } from "./market";
@@ -126,11 +127,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     });
 
     const upperBandSeries = chart.addSeries(LineSeries, {
-      color: isAltChart ? chartPalette.emaFast : chartPalette.upperBand,
+      color: isAltChart ? chartPalette.altLrc : chartPalette.upperBand,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: isAltChart ? "EMA 50" : "BB Superior",
+      title: isAltChart ? "LRC 200" : "BB Superior",
     });
 
     const middleBandSeries = chart.addSeries(LineSeries, {
@@ -228,7 +229,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
 
     const bands = isAltChart
       ? {
-          upper: toChartEma(candles, ALT_FAST_EMA),
+          upper: toChartLrc(candles, ALT_LRC_PERIOD),
           middle: [],
           lower: toChartEma(candles, ALT_SLOW_EMA),
         }
@@ -389,8 +390,9 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         {isAltChart ? (
           <>
             <Metric label="Preco" value={formatPrice(stats.price)} />
-            <Metric label="EMA 50" value={formatPrice(stats.ema50)} />
             <Metric label="EMA 450" value={formatPrice(stats.ema450)} />
+            <Metric label="VWMA 190" value={formatPrice(stats.vwma190)} />
+            <Metric label="LRC 200" value={formatPrice(stats.lrc200)} />
             <Metric label="Distancia" value={formatPercent(stats.distance)} intent={stats.distance < 0 ? "danger" : "success"} />
             <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
           </>
@@ -755,7 +757,7 @@ function getChartPalette(theme) {
       upperBand: "#d8902d",
       middleBand: "rgba(81, 103, 135, 0.62)",
       lowerBand: "#268f6c",
-      emaFast: "#2f8be8",
+      altLrc: "#2f8be8",
       emaSlow: "#c28a18",
       altVwma: "#16a34a",
     };
@@ -769,7 +771,7 @@ function getChartPalette(theme) {
     upperBand: "#f6c85f",
     middleBand: "rgba(168, 179, 199, 0.52)",
     lowerBand: "#62d992",
-    emaFast: "#6bb4ff",
+    altLrc: "#6bb4ff",
     emaSlow: "#f6c85f",
     altVwma: "#22c55e",
   };

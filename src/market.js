@@ -94,6 +94,7 @@ export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
 export const ALT_FAST_EMA = 50;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
+export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
 export const RELATIVE_LOOKBACK = 24;
 
@@ -436,6 +437,41 @@ export function toChartEma(candles, period) {
     .filter((item) => Number.isFinite(item.value));
 }
 
+export function toChartLrc(candles, period) {
+  if (!Array.isArray(candles) || candles.length < period) return [];
+
+  const points = [];
+  const sumX = (period * (period - 1)) / 2;
+  const sumX2 = ((period - 1) * period * (2 * period - 1)) / 6;
+  const denominator = period * sumX2 - sumX * sumX;
+  let sumY = 0;
+  let sumXY = 0;
+
+  for (let index = 0; index < candles.length; index += 1) {
+    const close = Number.isFinite(candles[index]?.close) ? candles[index].close : 0;
+
+    if (index < period) {
+      sumY += close;
+      sumXY += index * close;
+    } else {
+      const removedClose = Number.isFinite(candles[index - period]?.close) ? candles[index - period].close : 0;
+      sumXY = sumXY - (sumY - removedClose) + (period - 1) * close;
+      sumY = sumY - removedClose + close;
+    }
+
+    if (index < period - 1 || denominator === 0) continue;
+
+    const slope = (period * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / period;
+    points.push({
+      time: Math.floor(candles[index].openTime / 1000),
+      value: intercept + slope * (period - 1),
+    });
+  }
+
+  return points.filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+}
+
 export function toChartVwma(candles, period = BTC_QUAD_VWMA_PERIOD) {
   if (!Array.isArray(candles) || candles.length < period) return [];
 
@@ -561,6 +597,8 @@ export function getLatestAltChartStats(candles) {
     candles.map((candle) => candle.close),
     ALT_SLOW_EMA
   ).at(-1);
+  const lrc200 = toChartLrc(candles, ALT_LRC_PERIOD).at(-1)?.value;
+  const vwma190 = toChartVwma(candles, ALT_VWMA_PERIOD).at(-1)?.value;
   const distance = last && ema450 ? ((last.close - ema450) / ema450) * 100 : null;
   const change = last && previous ? ((last.close - previous.close) / previous.close) * 100 : null;
 
@@ -568,6 +606,8 @@ export function getLatestAltChartStats(candles) {
     price: last?.close,
     ema50,
     ema450,
+    lrc200,
+    vwma190,
     distance,
     change,
   };
