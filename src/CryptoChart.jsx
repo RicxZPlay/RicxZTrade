@@ -109,6 +109,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       crosshair: {
         mode: 0,
       },
+      handleScale: {
+        pinch: true,
+      },
+      handleScroll: {
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {

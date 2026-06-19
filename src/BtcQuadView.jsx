@@ -346,6 +346,13 @@ function BtcQuadChart({
       crosshair: {
         mode: 0,
       },
+      handleScale: {
+        pinch: true,
+      },
+      handleScroll: {
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
     });
 
     const priceSeries = chart.addSeries(CandlestickSeries, {

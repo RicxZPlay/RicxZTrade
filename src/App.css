@@ -1736,6 +1736,11 @@ input:focus,
     min-height: 29px;
   }
 
+  .btc-quad-canvas,
+  .chart-canvas {
+    touch-action: none;
+  }
+
   .btc-quad-price {
     min-width: 0;
     min-height: 29px;
