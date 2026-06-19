@@ -289,8 +289,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Baixa 1H" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Alta 1H" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da LRC" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima da LRC" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -306,7 +306,7 @@ export default function App() {
             <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
-                <span>{filteredBelowResults.length} em baixa 1H</span>
+                <span>{filteredBelowResults.length} abaixo da LRC 200</span>
               </div>
 
               <div className="coin-list">
@@ -324,8 +324,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita em baixa 1H apareceu nos filtros atuais."
-                      : "Nenhuma altcoin em baixa 1H passou pelos filtros atuais."}
+                      ? "Nenhuma favorita abaixo da LRC 200 apareceu nos filtros atuais."
+                      : "Nenhuma altcoin abaixo da LRC 200 passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -334,7 +334,7 @@ export default function App() {
             <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
-                <span>{filteredAboveResults.length} em alta 1H</span>
+                <span>{filteredAboveResults.length} acima da LRC 200</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
                   <button
                     className={chartMode === CHART_MODES.btc ? "btc-chart-button active" : "btc-chart-button"}
@@ -369,8 +369,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita em alta 1H apareceu nos filtros atuais."
-                      : "Nenhuma altcoin em alta 1H passou pelos filtros atuais."}
+                      ? "Nenhuma favorita acima da LRC 200 apareceu nos filtros atuais."
+                      : "Nenhuma altcoin acima da LRC 200 passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -404,7 +404,7 @@ export default function App() {
               </div>
             ) : null}
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="EMA 50" value={formatPrice(selected?.ema50)} />
+            <SelectedMetric label="LRC 200" value={formatPrice(selected?.lrc200)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="Vol rel" value={formatRatio(selected?.volumeRelative)} />
@@ -602,7 +602,7 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
           <Star size={15} fill={favorite ? "currentColor" : "none"} />
         </button>
         <strong>{formatPrice(item.price)}</strong>
-        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.emaSpreadPercent)}</span>
+        <span className={isAbove ? "success" : "danger"}>{formatPercent(item.priceDistancePercent)}</span>
       </div>
       <div className="coin-tags">
         <span>{item.trend}</span>

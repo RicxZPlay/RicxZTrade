@@ -91,7 +91,6 @@ export const ALT_CHART_INTERVALS = {
   "4h": { interval: "4h", historyLimit: 900, fallbackSeconds: 14400 },
 };
 export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
-export const ALT_FAST_EMA = 50;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
@@ -222,32 +221,29 @@ export async function scanMarket(filters, signal, onProgress) {
 export async function buildSignal(ticker, btcCloses, signal) {
   const candles = await fetchCandles(ticker.symbol, ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
   const closes = candles.map((candle) => candle.close);
-  const ema50Series = calculateEMA(closes, ALT_FAST_EMA);
   const ema450Series = calculateEMA(closes, ALT_SLOW_EMA);
+  const lrc200 = toChartLrc(candles, ALT_LRC_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
-  const ema50 = ema50Series.at(-1);
   const ema450 = ema450Series.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (!Number.isFinite(price) || !Number.isFinite(ema50) || !Number.isFinite(ema450)) {
+  if (!Number.isFinite(price) || !Number.isFinite(ema450) || !Number.isFinite(lrc200)) {
     return null;
   }
 
-  const trendDirection = getTrendDirection(price, ema50, ema450);
-  const emaSpreadPercent = ((ema50 - ema450) / ema450) * 100;
-  const priceDistancePercent = ((price - ema450) / ema450) * 100;
+  const trendDirection = getTrendDirection(price, lrc200);
+  const priceDistancePercent = ((price - lrc200) / lrc200) * 100;
   const volumeRelative = calculateVolumeRelative(candles);
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection, adx, emaSpreadPercent);
+  const trend = getAltTrendLabel(trendDirection);
 
   return {
     ...ticker,
     price,
-    ema50,
     ema450,
-    emaSpreadPercent,
+    lrc200,
     priceDistancePercent,
     adx,
     volumeRelative,
@@ -589,10 +585,6 @@ export function getLatestBollingerStats(candles, boxSize = RENKO_BOX_SIZE) {
 export function getLatestAltChartStats(candles) {
   const last = candles.at(-1);
   const previous = candles.at(-2);
-  const ema50 = calculateEMA(
-    candles.map((candle) => candle.close),
-    ALT_FAST_EMA
-  ).at(-1);
   const ema450 = calculateEMA(
     candles.map((candle) => candle.close),
     ALT_SLOW_EMA
@@ -604,7 +596,6 @@ export function getLatestAltChartStats(candles) {
 
   return {
     price: last?.close,
-    ema50,
     ema450,
     lrc200,
     vwma190,
@@ -737,19 +728,15 @@ function toChartBandLine(bricks, bands, key) {
     .filter(Boolean);
 }
 
-function getTrendDirection(price, ema50, ema450) {
-  if (!Number.isFinite(price) || !Number.isFinite(ema50) || !Number.isFinite(ema450)) return "neutral";
-  if (price >= ema450) return "bullish";
+function getTrendDirection(price, lrc200) {
+  if (!Number.isFinite(price) || !Number.isFinite(lrc200)) return "neutral";
+  if (price >= lrc200) return "bullish";
   return "bearish";
 }
 
-function getAltTrendLabel(direction, adx, emaSpreadPercent) {
+function getAltTrendLabel(direction) {
   if (direction === "neutral") return "lateral";
-  const aligned = direction === "bullish" ? emaSpreadPercent >= 0 : emaSpreadPercent < 0;
-  if (!aligned) return direction === "bullish" ? "acima da EMA" : "abaixo da EMA";
-
-  const strength = adx >= 25 ? "forte" : "fraca";
-  return direction === "bullish" ? `alta ${strength}` : `baixa ${strength}`;
+  return direction === "bullish" ? "acima da LRC 200" : "abaixo da LRC 200";
 }
 
 function calculateVolumeRelative(candles, period = 20) {
@@ -778,8 +765,8 @@ function calculateRelativePerformance(closes, btcCloses, lookback) {
 
 function sortAltSignals(a, b) {
   if (a.trendDirection !== b.trendDirection) return a.trendDirection === "bearish" ? -1 : 1;
-  if (a.trendDirection === "bullish") return b.emaSpreadPercent - a.emaSpreadPercent;
-  return a.emaSpreadPercent - b.emaSpreadPercent;
+  if (a.trendDirection === "bullish") return b.priceDistancePercent - a.priceDistancePercent;
+  return a.priceDistancePercent - b.priceDistancePercent;
 }
 
 function average(values) {
