@@ -5,7 +5,7 @@ import {
   createChart,
   LineSeries,
 } from "lightweight-charts";
-import { Clock3, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock3, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
   BTC_QUAD_CHARTS,
   BTC_QUAD_EMA_PERIOD,
@@ -334,6 +334,7 @@ function BtcQuadChart({
         entireTextOnly: !isCompact,
         borderColor: palette.border,
         minimumWidth: 0,
+        textColor: isCompact ? "transparent" : palette.text,
         ticksVisible: false,
         visible: true,
       },
@@ -820,6 +821,10 @@ function BtcQuadChart({
       </div>
       <div className="btc-quad-chart-area">
         <div className="btc-quad-canvas" ref={containerRef} />
+        <div className="btc-price-scale-hint" aria-hidden="true">
+          <ChevronUp size={14} strokeWidth={2.5} />
+          <ChevronDown size={14} strokeWidth={2.5} />
+        </div>
         <svg
           ref={overlayRef}
           className={activeTool === TOOLS.cursor ? "drawing-overlay idle" : "drawing-overlay active"}

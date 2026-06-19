@@ -1001,6 +1001,10 @@ input:focus,
   background: var(--chart-bg);
 }
 
+.btc-price-scale-hint {
+  display: none;
+}
+
 .btc-quad-error,
 .btc-quad-loading {
   position: absolute;
@@ -1743,6 +1747,21 @@ input:focus,
 
   .btc-quad-canvas {
     width: calc(100% + 20px);
+  }
+
+  .btc-price-scale-hint {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    filter: drop-shadow(0 1px 2px var(--chart-bg));
+    pointer-events: none;
+    transform: translateY(-50%);
   }
 
   .btc-quad-price {
