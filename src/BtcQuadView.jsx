@@ -320,7 +320,7 @@ function BtcQuadChart({
       layout: {
         background: { type: ColorType.Solid, color: palette.background },
         textColor: palette.text,
-        fontSize: isCompact ? 9 : 12,
+        fontSize: isCompact ? 8 : 12,
         fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
       },
       localization: {
@@ -333,7 +333,7 @@ function BtcQuadChart({
       rightPriceScale: {
         entireTextOnly: !isCompact,
         borderColor: palette.border,
-        minimumWidth: isCompact ? 30 : 0,
+        minimumWidth: 0,
         ticksVisible: false,
         visible: true,
       },
