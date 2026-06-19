@@ -331,11 +331,11 @@ function BtcQuadChart({
         horzLines: { color: palette.grid },
       },
       rightPriceScale: {
-        entireTextOnly: true,
+        entireTextOnly: !isCompact,
         borderColor: palette.border,
-        minimumWidth: 0,
+        minimumWidth: isCompact ? 30 : 0,
         ticksVisible: false,
-        visible: !isCompact,
+        visible: true,
       },
       timeScale: {
         borderColor: palette.border,
@@ -347,6 +347,14 @@ function BtcQuadChart({
         mode: 0,
       },
       handleScale: {
+        axisDoubleClickReset: {
+          price: true,
+          time: true,
+        },
+        axisPressedMouseMove: {
+          price: true,
+          time: true,
+        },
         pinch: true,
       },
       handleScroll: {

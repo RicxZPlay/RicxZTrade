@@ -110,6 +110,14 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         mode: 0,
       },
       handleScale: {
+        axisDoubleClickReset: {
+          price: true,
+          time: true,
+        },
+        axisPressedMouseMove: {
+          price: true,
+          time: true,
+        },
         pinch: true,
       },
       handleScroll: {
