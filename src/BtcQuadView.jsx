@@ -182,13 +182,15 @@ export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute
               <Trash2 size={15} />
             </ToolButton>
           </div>
-          <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
-          {!singleChartId && onFifteenMinute ? (
-            <button className="btc-fifteen-button" type="button" onClick={onFifteenMinute}>
-              <Clock3 size={15} />
-              Grafico 15 min
-            </button>
-          ) : null}
+          <div className="btc-quad-quote-actions">
+            <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
+            {!singleChartId && onFifteenMinute ? (
+              <button className="btc-fifteen-button" type="button" onClick={onFifteenMinute}>
+                <Clock3 size={15} />
+                Grafico 15 min
+              </button>
+            ) : null}
+          </div>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
               <Maximize2 size={15} />
