@@ -53,6 +53,7 @@ export default function App() {
   const [theme, setTheme] = useState(readStoredTheme);
   const [chartOverlayOpen, setChartOverlayOpen] = useState(false);
   const [btcQuadOpen, setBtcQuadOpen] = useState(false);
+  const [btcFifteenOpen, setBtcFifteenOpen] = useState(false);
   const isCompactLayout = useMediaQuery("(max-width: 820px)");
   const [scanState, setScanState] = useState("idle");
   const [progress, setProgress] = useState({ checked: 0, total: 0 });
@@ -412,7 +413,7 @@ export default function App() {
           </div>
 
           {chartMode === CHART_MODES.btc && !isCompactLayout ? (
-            <BtcQuadView embedded theme={theme} onFullscreen={() => setBtcQuadOpen(true)} />
+            <BtcQuadView embedded theme={theme} onFifteenMinute={() => setBtcFifteenOpen(true)} onFullscreen={() => setBtcQuadOpen(true)} />
           ) : null}
 
           {chartMode === CHART_MODES.alt && (!isCompactLayout || chartOverlayOpen) ? (
@@ -430,7 +431,8 @@ export default function App() {
         </section>
       </section>
 
-      {btcQuadOpen ? <BtcQuadView theme={theme} onClose={() => setBtcQuadOpen(false)} /> : null}
+      {btcQuadOpen ? <BtcQuadView theme={theme} onClose={() => setBtcQuadOpen(false)} onFifteenMinute={() => setBtcFifteenOpen(true)} /> : null}
+      {btcFifteenOpen ? <BtcQuadView singleChartId="candles-15m" theme={theme} onClose={() => setBtcFifteenOpen(false)} /> : null}
     </main>
   );
 }

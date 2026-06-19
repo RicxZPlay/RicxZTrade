@@ -861,6 +861,30 @@ input:focus,
   white-space: nowrap;
 }
 
+.btc-fifteen-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--success) 70%, var(--border));
+  border-radius: 8px;
+  background: var(--success-soft);
+  color: var(--success);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 950;
+  padding: 0 11px;
+  white-space: nowrap;
+}
+
+.btc-fifteen-button:hover,
+.btc-fifteen-button:focus-visible {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
 .btc-quad-fullscreen:hover,
 .btc-quad-fullscreen:focus-visible {
   filter: brightness(1.07);
@@ -879,6 +903,11 @@ input:focus,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.btc-quad-grid.single-chart {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .btc-quad-card {
