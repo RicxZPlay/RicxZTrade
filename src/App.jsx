@@ -290,8 +290,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da LRC" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da LRC" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo LRC / acima medias" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima LRC / sob media" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -307,7 +307,7 @@ export default function App() {
             <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
-                <span>{filteredBelowResults.length} abaixo da LRC 200</span>
+                <span>{filteredBelowResults.length} abaixo da LRC e acima das medias</span>
               </div>
 
               <div className="coin-list">
@@ -325,8 +325,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da LRC 200 apareceu nos filtros atuais."
-                      : "Nenhuma altcoin abaixo da LRC 200 passou pelos filtros atuais."}
+                      ? "Nenhuma favorita abaixo da LRC e acima das medias apareceu nos filtros atuais."
+                      : "Nenhuma altcoin abaixo da LRC e acima das medias passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -335,7 +335,7 @@ export default function App() {
             <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
-                <span>{filteredAboveResults.length} acima da LRC 200</span>
+                <span>{filteredAboveResults.length} acima da LRC e abaixo de media</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
                   <button
                     className={chartMode === CHART_MODES.btc ? "btc-chart-button active" : "btc-chart-button"}
@@ -370,8 +370,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da LRC 200 apareceu nos filtros atuais."
-                      : "Nenhuma altcoin acima da LRC 200 passou pelos filtros atuais."}
+                      ? "Nenhuma favorita acima da LRC e abaixo de media apareceu nos filtros atuais."
+                      : "Nenhuma altcoin acima da LRC e abaixo de media passou pelos filtros atuais."}
                   </div>
                 ) : null}
               </div>
@@ -407,8 +407,8 @@ export default function App() {
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="LRC 200" value={formatPrice(selected?.lrc200)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
+            <SelectedMetric label="VWMA 190" value={formatPrice(selected?.vwma190)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
-            <SelectedMetric label="Vol rel" value={formatRatio(selected?.volumeRelative)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
 
@@ -636,11 +636,6 @@ function SelectedMetric({ label, value, danger }) {
 function formatNumber(value, digits = 1) {
   if (!Number.isFinite(value)) return "-";
   return value.toFixed(digits);
-}
-
-function formatRatio(value) {
-  if (!Number.isFinite(value)) return "-";
-  return `${value.toFixed(2)}x`;
 }
 
 function formatUniverseLimit(value) {

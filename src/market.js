@@ -223,30 +223,30 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const closes = candles.map((candle) => candle.close);
   const ema450Series = calculateEMA(closes, ALT_SLOW_EMA);
   const lrc200 = toChartLrc(candles, ALT_LRC_PERIOD).at(-1)?.value;
+  const vwma190 = calculateLatestVwma(candles, ALT_VWMA_PERIOD);
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const ema450 = ema450Series.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (!Number.isFinite(price) || !Number.isFinite(ema450) || !Number.isFinite(lrc200)) {
+  if (!Number.isFinite(price) || !Number.isFinite(ema450) || !Number.isFinite(lrc200) || !Number.isFinite(vwma190)) {
     return null;
   }
 
-  const trendDirection = getTrendDirection(price, lrc200);
+  const trendDirection = getTrendDirection(price, lrc200, ema450, vwma190);
   const priceDistancePercent = ((price - lrc200) / lrc200) * 100;
-  const volumeRelative = calculateVolumeRelative(candles);
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection);
+  const trend = getAltTrendLabel(trendDirection, price, ema450, vwma190);
 
   return {
     ...ticker,
     price,
     ema450,
     lrc200,
+    vwma190,
     priceDistancePercent,
     adx,
-    volumeRelative,
     relativeToBtcPercent,
     relativeLabel: relativeToBtcPercent >= 0 ? "mais forte que BTC" : "mais fraca que BTC",
     trendDirection,
@@ -728,24 +728,42 @@ function toChartBandLine(bricks, bands, key) {
     .filter(Boolean);
 }
 
-function getTrendDirection(price, lrc200) {
-  if (!Number.isFinite(price) || !Number.isFinite(lrc200)) return "neutral";
-  if (price >= lrc200) return "bullish";
-  return "bearish";
+function getTrendDirection(price, lrc200, ema450, vwma190) {
+  if (![price, lrc200, ema450, vwma190].every(Number.isFinite)) return "neutral";
+
+  if (price < lrc200 && price > ema450 && price > vwma190) {
+    return "bearish";
+  }
+
+  if (price > lrc200 && (price < ema450 || price < vwma190)) {
+    return "bullish";
+  }
+
+  return "neutral";
 }
 
-function getAltTrendLabel(direction) {
+function getAltTrendLabel(direction, price, ema450, vwma190) {
   if (direction === "neutral") return "lateral";
-  return direction === "bullish" ? "acima da LRC 200" : "abaixo da LRC 200";
+  if (direction === "bearish") return "abaixo LRC, acima EMA e VWMA";
+
+  const belowEma = price < ema450;
+  const belowVwma = price < vwma190;
+  if (belowEma && belowVwma) return "acima LRC, abaixo EMA e VWMA";
+  return belowEma ? "acima LRC, abaixo EMA 450" : "acima LRC, abaixo VWMA 190";
 }
 
-function calculateVolumeRelative(candles, period = 20) {
-  if (!Array.isArray(candles) || candles.length <= period) return null;
+function calculateLatestVwma(candles, period) {
+  if (!Array.isArray(candles) || candles.length < period) return null;
 
-  const last = candles.at(-1)?.quoteVolume;
-  const previous = candles.slice(-(period + 1), -1).map((candle) => candle.quoteVolume);
-  const baseline = average(previous);
-  return Number.isFinite(last) && baseline > 0 ? last / baseline : null;
+  const window = candles.slice(-period);
+  const volumeSum = window.reduce((sum, candle) => sum + (Number.isFinite(candle.volume) ? candle.volume : 0), 0);
+  if (!volumeSum) return null;
+
+  return window.reduce((sum, candle) => {
+    const close = Number.isFinite(candle.close) ? candle.close : 0;
+    const volume = Number.isFinite(candle.volume) ? candle.volume : 0;
+    return sum + close * volume;
+  }, 0) / volumeSum;
 }
 
 function calculateRelativePerformance(closes, btcCloses, lookback) {
