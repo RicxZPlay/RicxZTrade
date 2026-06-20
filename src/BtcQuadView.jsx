@@ -36,7 +36,7 @@ const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const BTC_MAIN_CHART_IDS = new Set(["candles-1s", "candles-1m", "candles-15m", "candles-1h"]);
+const BTC_MAIN_CHART_IDS = new Set(["candles-1s", "candles-1m", "renko-1h", "candles-1h"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
