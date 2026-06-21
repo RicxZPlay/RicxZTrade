@@ -295,7 +295,7 @@ export default function App() {
             <div className="table-card below-table">
               <div className="table-title">
                 <Filter size={18} />
-                <span>{filteredBelowResults.length} abaixo da MA 800 e acima da BB inferior 8000 / 3</span>
+                <span>{filteredBelowResults.length} abaixo</span>
               </div>
 
               <div className="coin-list">
@@ -323,7 +323,7 @@ export default function App() {
             <div className="table-card above-table secondary-table">
               <div className="table-title">
                 <TrendingUp size={18} />
-                <span>{filteredAboveResults.length} acima da MA 800 e abaixo da BB superior 5000 / 2</span>
+                <span>{filteredAboveResults.length} acima</span>
                 <div className="btc-chart-actions" aria-label="Timeframes dos graficos">
                   <button
                     className={chartMode === CHART_MODES.btc ? "btc-chart-button active" : "btc-chart-button"}
