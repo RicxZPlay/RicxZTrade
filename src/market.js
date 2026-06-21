@@ -2,6 +2,12 @@ const REST_ENDPOINTS = [
   "https://api.binance.com/api/v3",
   "https://data-api.binance.vision/api/v3",
 ];
+const KUCOIN_PROXY_ENDPOINT = "/api/kucoin";
+const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
+const HYPE_SYMBOL = "HYPEUSDC";
+const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
+const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
+const INTERVAL_SECONDS = { "15m": 15 * 60 };
 
 const LEVERAGED_PATTERN = /(UP|DOWN|BULL|BEAR|[0-9]+L|[0-9]+S)USDT$/;
 const EXCLUDED_BASE_ASSETS = new Set([
@@ -132,9 +138,10 @@ export async function fetchBinance(path, params = {}, signal) {
 }
 
 export async function loadTradableUniverse(filters, signal) {
-  const [exchangeInfo, ticker24h] = await Promise.all([
+  const [exchangeInfo, ticker24h, hypeTicker] = await Promise.all([
     fetchBinance("/exchangeInfo", {}, signal),
     fetchBinance("/ticker/24hr", {}, signal),
+    fetchKucoinTicker(signal).catch(() => null),
   ]);
 
   const tradable = new Set(
@@ -160,10 +167,23 @@ export async function loadTradableUniverse(filters, signal) {
     .filter((item) => item.spreadPercent <= filters.maxSpreadPercent)
     .sort((a, b) => b.quoteVolume - a.quoteVolume);
 
-  return filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
+  const limitedUniverse = filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
+  if (
+    hypeTicker &&
+    hypeTicker.quoteVolume >= filters.minQuoteVolume &&
+    hypeTicker.spreadPercent <= filters.maxSpreadPercent
+  ) {
+    limitedUniverse.push(hypeTicker);
+  }
+
+  return limitedUniverse;
 }
 
 export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {
+  if (symbol === HYPE_SYMBOL) {
+    return fetchKucoinCandles(limit, signal, interval);
+  }
+
   const candles = [];
   let endTime;
 
@@ -812,6 +832,92 @@ function getAltTrendLabel(direction) {
   if (direction === "bearish") return "abaixo da MA 800, acima da BB inferior 8000 / 3";
   if (direction === "bullish") return "acima da MA 800, abaixo da BB superior 5000 / 2";
   return "fora das zonas";
+}
+
+export function usesPollingMarketData(symbol) {
+  return symbol === HYPE_SYMBOL;
+}
+
+async function fetchKucoin(path, params = {}, signal) {
+  const query = toQuery({ endpoint: path, ...params });
+  const url = typeof window === "undefined"
+    ? `${KUCOIN_DIRECT_ENDPOINT}/${path}?${toQuery(params)}`
+    : `${KUCOIN_PROXY_ENDPOINT}?${query}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+
+  const payload = await response.json();
+  if (payload?.code !== "200000") {
+    throw new Error(payload?.msg || "Falha ao acessar dados publicos da KuCoin.");
+  }
+  return payload.data;
+}
+
+async function fetchKucoinTicker(signal) {
+  const ticker = await fetchKucoin("stats", { symbol: HYPE_KUCOIN_SYMBOL }, signal);
+  const bid = Number(ticker?.buy);
+  const ask = Number(ticker?.sell);
+  const lastPrice = Number(ticker?.last);
+  const spreadPercent = bid > 0 && ask > 0 && lastPrice > 0 ? ((ask - bid) / lastPrice) * 100 : 0;
+
+  if (!Number.isFinite(lastPrice) || lastPrice <= 0) return null;
+  return {
+    symbol: HYPE_SYMBOL,
+    baseAsset: "HYPE",
+    lastPrice,
+    quoteVolume: Number(ticker?.volValue) || 0,
+    priceChangePercent: (Number(ticker?.changeRate) || 0) * 100,
+    spreadPercent,
+    source: "kucoin",
+  };
+}
+
+async function fetchKucoinCandles(limit, signal, interval) {
+  const intervalSeconds = INTERVAL_SECONDS[interval];
+  if (!intervalSeconds) throw new Error(`Intervalo ${interval} indisponivel para HYPE-USDC.`);
+
+  const candlesByTime = new Map();
+  let endAt = Math.floor(Date.now() / 1000);
+
+  while (candlesByTime.size < limit) {
+    const batchLimit = Math.min(KUCOIN_CANDLE_BATCH_LIMIT, limit - candlesByTime.size);
+    const startAt = endAt - intervalSeconds * (batchLimit + 5);
+    const rows = await fetchKucoin(
+      "candles",
+      { type: interval === "15m" ? "15min" : interval, symbol: HYPE_KUCOIN_SYMBOL, startAt, endAt },
+      signal
+    );
+    if (!Array.isArray(rows) || rows.length === 0) break;
+
+    rows.forEach((row) => {
+      const candle = normalizeKucoinCandle(row, intervalSeconds);
+      if (Number.isFinite(candle.openTime)) candlesByTime.set(candle.openTime, candle);
+    });
+    const earliestOpenTime = Math.min(...rows.map((row) => Number(row?.[0])).filter(Number.isFinite));
+    if (!Number.isFinite(earliestOpenTime)) break;
+    endAt = earliestOpenTime - 1;
+    if (rows.length < batchLimit) break;
+  }
+
+  return [...candlesByTime.values()]
+    .sort((a, b) => a.openTime - b.openTime)
+    .slice(-limit);
+}
+
+function normalizeKucoinCandle(row, intervalSeconds) {
+  const openTime = Number(row?.[0]) * 1000;
+  return {
+    openTime,
+    open: Number(row?.[1]),
+    close: Number(row?.[2]),
+    high: Number(row?.[3]),
+    low: Number(row?.[4]),
+    volume: Number(row?.[5]),
+    closeTime: openTime + intervalSeconds * 1000 - 1,
+    quoteVolume: Number(row?.[6]),
+    trades: 0,
+    closed: openTime + intervalSeconds * 1000 <= Date.now(),
+  };
 }
 
 async function fetchScannerCandles(symbol, signal) {
