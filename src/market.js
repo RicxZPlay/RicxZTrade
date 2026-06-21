@@ -84,10 +84,15 @@ export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRA
 export const ALT_INTERVAL = "1h";
 export const ALT_HISTORY_LIMIT = 600;
 export const ALT_CHART_INTERVALS = {
-  "1h": { interval: "1h", historyLimit: 1500, fallbackSeconds: 3600 },
-  "4h": { interval: "4h", historyLimit: 900, fallbackSeconds: 14400 },
+  "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
 };
-export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
+export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
+export const ALT_CHART_BB_PERIOD = 8000;
+export const ALT_CHART_BB_MULTIPLIER = 3;
+export const ALT_CHART_SECONDARY_BB_PERIOD = 5000;
+export const ALT_CHART_SECONDARY_BB_MULTIPLIER = 2;
+export const ALT_CHART_MA_PERIOD = 800;
+export const ALT_CHART_VWMA_PERIOD = 7000;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
@@ -468,26 +473,89 @@ export function toChartLrc(candles, period) {
 export function toChartVwma(candles, period = BTC_QUAD_VWMA_PERIOD) {
   if (!Array.isArray(candles) || candles.length < period) return [];
 
-  return candles
-    .map((candle, index) => {
-      if (index < period - 1) return null;
+  const points = [];
+  let priceVolumeSum = 0;
+  let volumeSum = 0;
 
-      const window = candles.slice(index - period + 1, index + 1);
-      const volumeSum = window.reduce((sum, item) => sum + (Number.isFinite(item.volume) ? item.volume : 0), 0);
-      if (!volumeSum) return null;
+  candles.forEach((candle, index) => {
+    const close = Number.isFinite(candle?.close) ? candle.close : 0;
+    const volume = Number.isFinite(candle?.volume) ? candle.volume : 0;
+    priceVolumeSum += close * volume;
+    volumeSum += volume;
 
-      const value = window.reduce((sum, item) => {
-        const close = Number.isFinite(item.close) ? item.close : 0;
-        const volume = Number.isFinite(item.volume) ? item.volume : 0;
-        return sum + close * volume;
-      }, 0) / volumeSum;
+    if (index >= period) {
+      const removed = candles[index - period];
+      const removedClose = Number.isFinite(removed?.close) ? removed.close : 0;
+      const removedVolume = Number.isFinite(removed?.volume) ? removed.volume : 0;
+      priceVolumeSum -= removedClose * removedVolume;
+      volumeSum -= removedVolume;
+    }
 
-      return {
-        time: Math.floor(candle.openTime / 1000),
-        value,
-      };
-    })
-    .filter(Boolean);
+    if (index < period - 1 || !volumeSum) return;
+    points.push({
+      time: Math.floor(candle.openTime / 1000),
+      value: priceVolumeSum / volumeSum,
+    });
+  });
+
+  return points;
+}
+
+export function toChartSma(candles, period) {
+  if (!Array.isArray(candles) || candles.length < period) return [];
+
+  const points = [];
+  let sum = 0;
+
+  candles.forEach((candle, index) => {
+    const close = Number.isFinite(candle?.close) ? candle.close : 0;
+    sum += close;
+
+    if (index >= period) {
+      const removedClose = Number.isFinite(candles[index - period]?.close) ? candles[index - period].close : 0;
+      sum -= removedClose;
+    }
+
+    if (index < period - 1) return;
+    points.push({ time: Math.floor(candle.openTime / 1000), value: sum / period });
+  });
+
+  return points;
+}
+
+export function toChartCandleBollingerBands(candles, period, multiplier) {
+  if (!Array.isArray(candles) || candles.length < period) {
+    return { upper: [], middle: [], lower: [] };
+  }
+
+  const upper = [];
+  const middle = [];
+  const lower = [];
+  let sum = 0;
+  let squaredSum = 0;
+
+  candles.forEach((candle, index) => {
+    const close = Number.isFinite(candle?.close) ? candle.close : 0;
+    sum += close;
+    squaredSum += close * close;
+
+    if (index >= period) {
+      const removedClose = Number.isFinite(candles[index - period]?.close) ? candles[index - period].close : 0;
+      sum -= removedClose;
+      squaredSum -= removedClose * removedClose;
+    }
+
+    if (index < period - 1) return;
+    const basis = sum / period;
+    const variance = Math.max(0, squaredSum / period - basis * basis);
+    const deviation = Math.sqrt(variance) * multiplier;
+    const time = Math.floor(candle.openTime / 1000);
+    upper.push({ time, value: basis + deviation });
+    middle.push({ time, value: basis });
+    lower.push({ time, value: basis - deviation });
+  });
+
+  return { upper, middle, lower };
 }
 
 export function toChartRenko(candles, boxSize = RENKO_BOX_SIZE, projectedColors) {
@@ -827,3 +895,4 @@ function isStableLikeMarket(candles) {
   const closeToOneDollar = last > 0.985 && last < 1.015;
   return closeToOneDollar && rangePercent < 2.5;
 }
+
