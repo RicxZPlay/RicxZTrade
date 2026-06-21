@@ -46,7 +46,7 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
-  const [altTimeframe, setAltTimeframe] = useState(DEFAULT_ALT_CHART_TIMEFRAME);
+  const altTimeframe = DEFAULT_ALT_CHART_TIMEFRAME;
   const [chartCandles, setChartCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -74,18 +74,6 @@ export default function App() {
       setChartOverlayOpen(true);
     }
   }, [isCompactLayout]);
-
-  const showAltChart = useCallback((timeframe = altTimeframe) => {
-    if (!selectedSymbol) return;
-    setAltTimeframe(timeframe);
-    setChartMode(CHART_MODES.alt);
-    setChartSymbol(selectedSymbol);
-    setChartError("");
-    setLiveStatus("loading");
-    if (isCompactLayout) {
-      setChartOverlayOpen(true);
-    }
-  }, [altTimeframe, isCompactLayout, selectedSymbol]);
 
   const toggleFavorite = useCallback((symbol) => {
     const normalizedSymbol = normalizeFavoriteSymbol(symbol);
@@ -385,25 +373,7 @@ export default function App() {
             Fechar
           </button>
 
-          <div className={chartMode === CHART_MODES.alt ? "selected-strip with-timeframe" : "selected-strip btc-dashboard"}>
-            {chartMode === CHART_MODES.alt ? (
-              <div className="chart-timeframe-actions" aria-label="Timeframe do grafico da altcoin">
-                <button
-                  className={altTimeframe === "1h" ? "btc-chart-button active" : "btc-chart-button"}
-                  type="button"
-                  onClick={() => showAltChart("1h")}
-                >
-                  Alt 1H
-                </button>
-                <button
-                  className={altTimeframe === "4h" ? "btc-chart-button active" : "btc-chart-button"}
-                  type="button"
-                  onClick={() => showAltChart("4h")}
-                >
-                  Alt 4H
-                </button>
-              </div>
-            ) : null}
+          <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="LRC 200" value={formatPrice(selected?.lrc200)} />
             <SelectedMetric label="EMA 450" value={formatPrice(selected?.ema450)} />
@@ -728,3 +698,4 @@ function writeLocalStorage(key, value) {
     // Storage can be unavailable on some mobile/private browser sessions.
   }
 }
+
