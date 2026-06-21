@@ -81,8 +81,8 @@ export const BTC_QUAD_CHARTS = [
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
-export const ALT_INTERVAL = "1h";
-export const ALT_HISTORY_LIMIT = 600;
+export const ALT_INTERVAL = "15m";
+export const ALT_HISTORY_LIMIT = 5200;
 export const ALT_CHART_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
 };
@@ -97,7 +97,8 @@ export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
-export const RELATIVE_LOOKBACK = 24;
+export const RELATIVE_LOOKBACK = 96;
+const SCANNER_CANDLE_CACHE = new Map();
 
 function toQuery(params = {}) {
   const query = new URLSearchParams();
@@ -193,7 +194,8 @@ export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, 
 
 export async function scanMarket(filters, signal, onProgress) {
   const universe = (await loadTradableUniverse(filters, signal)).filter((ticker) => ticker.symbol !== "BTCUSDT");
-  const btcCandles = await fetchCandles("BTCUSDT", ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
+  pruneScannerCandleCache(new Set(["BTCUSDT", ...universe.map((ticker) => ticker.symbol)]));
+  const btcCandles = await fetchScannerCandles("BTCUSDT", signal);
   const btcCloses = btcCandles.map((candle) => candle.close);
   const results = [];
   const batchSize = 10;
@@ -221,32 +223,37 @@ export async function scanMarket(filters, signal, onProgress) {
 }
 
 export async function buildSignal(ticker, btcCloses, signal) {
-  const candles = await fetchCandles(ticker.symbol, ALT_HISTORY_LIMIT, signal, ALT_INTERVAL);
+  const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
-  const ema450Series = calculateEMA(closes, ALT_SLOW_EMA);
-  const lrc200 = toChartLrc(candles, ALT_LRC_PERIOD).at(-1)?.value;
-  const vwma190 = calculateLatestVwma(candles, ALT_VWMA_PERIOD);
+  const bb5000 = toChartCandleBollingerBands(
+    candles,
+    ALT_CHART_SECONDARY_BB_PERIOD,
+    ALT_CHART_SECONDARY_BB_MULTIPLIER
+  );
+  const bbLower5000 = bb5000.lower.at(-1)?.value;
+  const ma800 = calculateSMA(closes, ALT_CHART_MA_PERIOD).at(-1);
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
-  const ema450 = ema450Series.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (!Number.isFinite(price) || !Number.isFinite(ema450) || !Number.isFinite(lrc200) || !Number.isFinite(vwma190)) {
+  if (!Number.isFinite(price) || !Number.isFinite(bbLower5000) || !Number.isFinite(ma800)) {
     return null;
   }
 
-  const trendDirection = getTrendDirection(price, lrc200, ema450, vwma190);
-  const priceDistancePercent = ((price - lrc200) / lrc200) * 100;
+  const trendDirection = price < bbLower5000 ? "bearish" : "bullish";
+  const maPosition = price >= ma800 ? "above" : "below";
+  const referencePrice = trendDirection === "bearish" ? bbLower5000 : ma800;
+  const priceDistancePercent = ((price - referencePrice) / referencePrice) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection, price, ema450, vwma190);
+  const trend = getAltTrendLabel(trendDirection, maPosition);
 
   return {
     ...ticker,
     price,
-    ema450,
-    lrc200,
-    vwma190,
+    bbLower5000,
+    ma800,
+    maPosition,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
@@ -793,42 +800,43 @@ function toChartBandLine(bricks, bands, key) {
     .filter(Boolean);
 }
 
-function getTrendDirection(price, lrc200, ema450, vwma190) {
-  if (![price, lrc200, ema450, vwma190].every(Number.isFinite)) return "neutral";
-
-  if (price < lrc200 && price > ema450 && price > vwma190) {
-    return "bearish";
-  }
-
-  if (price > lrc200 && (price < ema450 || price < vwma190)) {
-    return "bullish";
-  }
-
-  return "neutral";
+function getAltTrendLabel(direction, maPosition) {
+  if (direction === "bearish") return "abaixo da BB inferior 5000 / 2";
+  return maPosition === "above"
+    ? "acima da BB inferior e da MA 800"
+    : "acima da BB inferior, abaixo da MA 800";
 }
 
-function getAltTrendLabel(direction, price, ema450, vwma190) {
-  if (direction === "neutral") return "lateral";
-  if (direction === "bearish") return "abaixo LRC, acima EMA e VWMA";
+async function fetchScannerCandles(symbol, signal) {
+  const cached = SCANNER_CANDLE_CACHE.get(symbol);
+  const lastCachedTime = cached?.at(-1)?.openTime;
+  const missingCandles = Number.isFinite(lastCachedTime)
+    ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
+    : ALT_HISTORY_LIMIT;
+  const requestLimit = cached?.length >= ALT_CHART_SECONDARY_BB_PERIOD && missingCandles <= 1000
+    ? Math.max(2, missingCandles)
+    : ALT_HISTORY_LIMIT;
+  const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);
 
-  const belowEma = price < ema450;
-  const belowVwma = price < vwma190;
-  if (belowEma && belowVwma) return "acima LRC, abaixo EMA e VWMA";
-  return belowEma ? "acima LRC, abaixo EMA 450" : "acima LRC, abaixo VWMA 190";
+  if (!cached?.length) {
+    const initial = fetched.slice(-ALT_HISTORY_LIMIT);
+    SCANNER_CANDLE_CACHE.set(symbol, initial);
+    return initial;
+  }
+
+  const byOpenTime = new Map(cached.map((candle) => [candle.openTime, candle]));
+  fetched.forEach((candle) => byOpenTime.set(candle.openTime, candle));
+  const merged = [...byOpenTime.values()]
+    .sort((a, b) => a.openTime - b.openTime)
+    .slice(-ALT_HISTORY_LIMIT);
+  SCANNER_CANDLE_CACHE.set(symbol, merged);
+  return merged;
 }
 
-function calculateLatestVwma(candles, period) {
-  if (!Array.isArray(candles) || candles.length < period) return null;
-
-  const window = candles.slice(-period);
-  const volumeSum = window.reduce((sum, candle) => sum + (Number.isFinite(candle.volume) ? candle.volume : 0), 0);
-  if (!volumeSum) return null;
-
-  return window.reduce((sum, candle) => {
-    const close = Number.isFinite(candle.close) ? candle.close : 0;
-    const volume = Number.isFinite(candle.volume) ? candle.volume : 0;
-    return sum + close * volume;
-  }, 0) / volumeSum;
+function pruneScannerCandleCache(activeSymbols) {
+  SCANNER_CANDLE_CACHE.forEach((_, symbol) => {
+    if (!activeSymbols.has(symbol)) SCANNER_CANDLE_CACHE.delete(symbol);
+  });
 }
 
 function calculateRelativePerformance(closes, btcCloses, lookback) {
