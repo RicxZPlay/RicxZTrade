@@ -5,7 +5,7 @@ import {
   createChart,
   LineSeries,
 } from "lightweight-charts";
-import { ArrowDown, ArrowUp, Clock3, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
 import {
   BTC_QUAD_CHARTS,
   BTC_QUAD_EMA_PERIOD,
@@ -43,7 +43,7 @@ const TOOLS = {
   ruler: "ruler",
 };
 
-export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute, onFullscreen, singleChartId = null, theme }) {
+export default function BtcQuadView({ embedded = false, onClose, onFullscreen, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
@@ -51,8 +51,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute
   const [selectedDrawing, setSelectedDrawing] = useState(null);
   const isCompact = useMediaQuery("(max-width: 820px)");
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => singleChartId ? config.id === singleChartId : BTC_MAIN_CHART_IDS.has(config.id)),
-    [singleChartId]
+    () => BTC_QUAD_CHARTS.filter((config) => BTC_MAIN_CHART_IDS.has(config.id)),
+    []
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -142,7 +142,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute
   }, [visibleCharts]);
 
   return (
-    <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label={singleChartId ? "Grafico BTC 15 minutos" : "Quatro graficos do BTC"}>
+    <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Quatro graficos do BTC">
       <header className="btc-quad-topbar">
         <div>
           <p className="eyebrow">BTC Graf.</p>
@@ -184,12 +184,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute
           </div>
           <div className="btc-quad-quote-actions">
             <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
-            {!singleChartId && onFifteenMinute ? (
-              <button className="btc-fifteen-button" type="button" onClick={onFifteenMinute}>
-                <Clock3 size={15} />
-                Grafico 15 min
-              </button>
-            ) : null}
           </div>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
@@ -204,7 +198,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFifteenMinute
         </div>
       </header>
 
-      <div className={singleChartId ? "btc-quad-grid single-chart" : "btc-quad-grid"}>
+      <div className="btc-quad-grid">
         {visibleCharts.map((config) => (
           <BtcQuadChart
             key={config.id}
@@ -1696,3 +1690,4 @@ function useMediaQuery(query) {
 
   return matches;
 }
+
