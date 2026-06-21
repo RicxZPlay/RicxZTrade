@@ -27,6 +27,7 @@ import {
   formatPrice,
   mergeLiveCandle,
   scanMarket,
+  usesPollingMarketData,
 } from "./market";
 import "./App.css";
 
@@ -138,6 +139,7 @@ export default function App() {
 
     const controller = new AbortController();
     let socket;
+    let pollTimer;
     const requestId = chartRequestRef.current + 1;
     chartRequestRef.current = requestId;
     const altTimeframeConfig = ALT_CHART_INTERVALS[altTimeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
@@ -157,6 +159,20 @@ export default function App() {
         if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
         setChartCandles(nextCandles);
         setChartError("");
+
+        if (usesPollingMarketData(targetSymbol)) {
+          setLiveStatus("online");
+          pollTimer = window.setInterval(async () => {
+            try {
+              const recentCandles = await fetchCandles(targetSymbol, 2, controller.signal, targetInterval);
+              if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+              setChartCandles((current) => mergeFetchedCandles(current, recentCandles, targetLimit));
+            } catch {
+              if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
+            }
+          }, 15_000);
+          return;
+        }
 
         socket = new WebSocket(buildSocketUrl(targetSymbol, targetInterval));
         socket.onopen = () => {
@@ -190,6 +206,7 @@ export default function App() {
     return () => {
       controller.abort();
       socket?.close();
+      if (pollTimer) window.clearInterval(pollTimer);
     };
   }, [altTimeframe, chartMode, chartSymbol]);
 
@@ -615,6 +632,7 @@ function formatUniverseLimit(value) {
 }
 
 function formatUniverseCount(total, limit) {
+  if (limit > 0 && total > limit) return `${total} (top ${limit} + HYPE)`;
   return limit > 0 ? `${total}/${limit}` : `${total}`;
 }
 
@@ -636,6 +654,14 @@ async function fetchCandlesWithRetry(symbol, signal, limit, interval) {
 
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function mergeFetchedCandles(current, incoming, limit) {
+  const byOpenTime = new Map((current || []).map((candle) => [candle.openTime, candle]));
+  incoming.forEach((candle) => byOpenTime.set(candle.openTime, candle));
+  return [...byOpenTime.values()]
+    .sort((a, b) => a.openTime - b.openTime)
+    .slice(-limit);
 }
 
 function useMediaQuery(query) {
