@@ -82,7 +82,7 @@ export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "15m";
-export const ALT_HISTORY_LIMIT = 5200;
+export const ALT_HISTORY_LIMIT = 8200;
 export const ALT_CHART_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
 };
@@ -194,8 +194,8 @@ export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, 
 
 export async function scanMarket(filters, signal, onProgress) {
   const universe = (await loadTradableUniverse(filters, signal)).filter((ticker) => ticker.symbol !== "BTCUSDT");
-  pruneScannerCandleCache(new Set(["BTCUSDT", ...universe.map((ticker) => ticker.symbol)]));
-  const btcCandles = await fetchScannerCandles("BTCUSDT", signal);
+  pruneScannerCandleCache(new Set(universe.map((ticker) => ticker.symbol)));
+  const btcCandles = await fetchCandles("BTCUSDT", RELATIVE_LOOKBACK + 2, signal, ALT_INTERVAL);
   const btcCloses = btcCandles.map((candle) => candle.close);
   const results = [];
   const batchSize = 10;
@@ -230,28 +230,36 @@ export async function buildSignal(ticker, btcCloses, signal) {
     ALT_CHART_SECONDARY_BB_PERIOD,
     ALT_CHART_SECONDARY_BB_MULTIPLIER
   );
-  const bbLower5000 = bb5000.lower.at(-1)?.value;
+  const bb8000 = toChartCandleBollingerBands(
+    candles,
+    ALT_CHART_BB_PERIOD,
+    ALT_CHART_BB_MULTIPLIER
+  );
+  const bbUpper5000 = bb5000.upper.at(-1)?.value;
+  const bbLower8000 = bb8000.lower.at(-1)?.value;
   const ma800 = calculateSMA(closes, ALT_CHART_MA_PERIOD).at(-1);
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (!Number.isFinite(price) || !Number.isFinite(bbLower5000) || !Number.isFinite(ma800)) {
+  if (![price, bbUpper5000, bbLower8000, ma800].every(Number.isFinite)) {
     return null;
   }
 
-  const trendDirection = price < bbLower5000 ? "bearish" : "bullish";
+  let trendDirection = "neutral";
+  if (price < ma800 && price > bbLower8000) trendDirection = "bearish";
+  if (price > ma800 && price < bbUpper5000) trendDirection = "bullish";
   const maPosition = price >= ma800 ? "above" : "below";
-  const referencePrice = trendDirection === "bearish" ? bbLower5000 : ma800;
-  const priceDistancePercent = ((price - referencePrice) / referencePrice) * 100;
+  const priceDistancePercent = ((price - ma800) / ma800) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection, maPosition);
+  const trend = getAltTrendLabel(trendDirection);
 
   return {
     ...ticker,
     price,
-    bbLower5000,
+    bbUpper5000,
+    bbLower8000,
     ma800,
     maPosition,
     priceDistancePercent,
@@ -800,11 +808,10 @@ function toChartBandLine(bricks, bands, key) {
     .filter(Boolean);
 }
 
-function getAltTrendLabel(direction, maPosition) {
-  if (direction === "bearish") return "abaixo da BB inferior 5000 / 2";
-  return maPosition === "above"
-    ? "acima da BB inferior e da MA 800"
-    : "acima da BB inferior, abaixo da MA 800";
+function getAltTrendLabel(direction) {
+  if (direction === "bearish") return "abaixo da MA 800, acima da BB inferior 8000 / 3";
+  if (direction === "bullish") return "acima da MA 800, abaixo da BB superior 5000 / 2";
+  return "fora das zonas";
 }
 
 async function fetchScannerCandles(symbol, signal) {
@@ -813,7 +820,7 @@ async function fetchScannerCandles(symbol, signal) {
   const missingCandles = Number.isFinite(lastCachedTime)
     ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
     : ALT_HISTORY_LIMIT;
-  const requestLimit = cached?.length >= ALT_CHART_SECONDARY_BB_PERIOD && missingCandles <= 1000
+  const requestLimit = cached?.length >= ALT_CHART_BB_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
     : ALT_HISTORY_LIMIT;
   const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);
