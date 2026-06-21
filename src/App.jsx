@@ -30,7 +30,7 @@ import {
 } from "./market";
 import "./App.css";
 
-const REFRESH_INTERVAL_MS = 240_000;
+const REFRESH_INTERVAL_MS = 900_000;
 const FAVORITES_STORAGE_KEY = "ricxz.cryptoFavorites";
 const THEME_STORAGE_KEY = "ricxz.theme";
 const BTC_CHART_SYMBOL = "BTCUSDT";
@@ -493,7 +493,7 @@ function ScannerControls({
             checked={filters.autoRefresh}
             onChange={(event) => setFilters((current) => ({ ...current, autoRefresh: event.target.checked }))}
           />
-          <span>Atualizar a cada 4 minutos</span>
+          <span>Atualizar a cada 15 minutos</span>
         </label>
       </div>
 
