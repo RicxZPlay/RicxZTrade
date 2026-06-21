@@ -68,6 +68,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const [pricePaneHeight, setPricePaneHeight] = useState(null);
   const [, forceOverlayUpdate] = useState(0);
   const chartPalette = useMemo(() => getChartPalette(theme), [theme]);
+  const isCompact = useMediaQuery("(max-width: 820px)");
   const isAltChart = mode === CHART_MODES.alt;
   const timeframeLabel = formatTimeframeLabel(timeframe);
   const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
@@ -172,7 +173,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: isAltChart ? chartPalette.altPrimaryBand : chartPalette.upperBand,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: isAltChart ? !isCompact : true,
       title: isAltChart ? "BB 8000 Sup" : "BB Superior",
     });
 
@@ -188,7 +189,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: isAltChart ? chartPalette.altPrimaryBand : chartPalette.lowerBand,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: isAltChart ? !isCompact : true,
       title: isAltChart ? "BB 8000 Inf" : "BB Inferior",
     });
 
@@ -196,7 +197,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: chartPalette.altSecondaryBand,
       lineWidth: 1,
       priceLineVisible: false,
-      lastValueVisible: isAltChart,
+      lastValueVisible: isAltChart && !isCompact,
       title: "BB 5000 Sup",
     });
 
@@ -204,7 +205,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: chartPalette.altSecondaryBand,
       lineWidth: 1,
       priceLineVisible: false,
-      lastValueVisible: isAltChart,
+      lastValueVisible: isAltChart && !isCompact,
       title: "BB 5000 Inf",
     });
 
@@ -212,7 +213,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: chartPalette.altMa,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: isAltChart,
+      lastValueVisible: isAltChart && !isCompact,
       title: "MA 800",
     });
 
@@ -220,7 +221,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: chartPalette.altVwma,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: isAltChart ? !isCompact : true,
       title: "VWMA 7000",
     });
 
@@ -282,7 +283,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       altMaSeriesRef.current = null;
       altVwmaSeriesRef.current = null;
     };
-  }, [chartPalette, isAltChart, timeframe]);
+  }, [chartPalette, isAltChart, isCompact, timeframe]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -848,6 +849,26 @@ function getChartPalette(theme) {
     altMa: "#f6c85f",
     altVwma: "#f8fafc",
   };
+}
+
+function useMediaQuery(query) {
+  const readMatch = () => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(readMatch);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQuery.matches);
+
+    handleChange();
+    mediaQuery.addEventListener?.("change", handleChange);
+    return () => mediaQuery.removeEventListener?.("change", handleChange);
+  }, [query]);
+
+  return matches;
 }
 
 function readStoredDrawings(symbol) {
