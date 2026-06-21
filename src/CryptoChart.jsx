@@ -173,8 +173,8 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: isAltChart ? chartPalette.altPrimaryBand : chartPalette.upperBand,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: isAltChart ? !isCompact : true,
-      title: isAltChart ? "BB 8000 Sup" : "BB Superior",
+      lastValueVisible: true,
+      title: isAltChart ? (isCompact ? "" : "BB 8000 Sup") : "BB Superior",
     });
 
     const middleBandSeries = chart.addSeries(LineSeries, {
@@ -189,40 +189,40 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       color: isAltChart ? chartPalette.altPrimaryBand : chartPalette.lowerBand,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: isAltChart ? !isCompact : true,
-      title: isAltChart ? "BB 8000 Inf" : "BB Inferior",
+      lastValueVisible: true,
+      title: isAltChart ? (isCompact ? "" : "BB 8000 Inf") : "BB Inferior",
     });
 
     const secondaryUpperBandSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altSecondaryBand,
       lineWidth: 1,
       priceLineVisible: false,
-      lastValueVisible: isAltChart && !isCompact,
-      title: "BB 5000 Sup",
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "BB 5000 Sup",
     });
 
     const secondaryLowerBandSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altSecondaryBand,
       lineWidth: 1,
       priceLineVisible: false,
-      lastValueVisible: isAltChart && !isCompact,
-      title: "BB 5000 Inf",
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "BB 5000 Inf",
     });
 
     const altMaSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altMa,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: isAltChart && !isCompact,
-      title: "MA 800",
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "MA 800",
     });
 
     const altVwmaSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altVwma,
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: isAltChart ? !isCompact : true,
-      title: "VWMA 7000",
+      lastValueVisible: true,
+      title: isAltChart && isCompact ? "" : "VWMA 7000",
     });
 
     chartRef.current = chart;
