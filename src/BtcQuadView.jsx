@@ -263,6 +263,7 @@ function BtcQuadChart({
   const [interactionRevision, setInteractionRevision] = useState(0);
   const [, forceOverlayUpdate] = useState(0);
   const palette = useMemo(() => getPalette(theme), [theme]);
+  const bbColor = getChartBbColor(config);
   const bbMultiplier = getChartBbMultiplier(config);
   const bbPeriod = getChartBbPeriod(config);
   const extraBollingerBands = useMemo(() => getChartExtraBollingerBands(config), [config]);
@@ -380,7 +381,7 @@ function BtcQuadChart({
     });
 
     const fastLine = chart.addSeries(LineSeries, {
-      color: BTC_BAND_COLOR,
+      color: bbColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -388,7 +389,7 @@ function BtcQuadChart({
     });
 
     const slowLine = chart.addSeries(LineSeries, {
-      color: BTC_BAND_COLOR,
+      color: bbColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
@@ -577,7 +578,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -871,6 +872,10 @@ function ToolButton({ active = false, children, label, onClick }) {
 
 function getChartBbMultiplier(config) {
   return Number.isFinite(config?.bbMultiplier) ? config.bbMultiplier : BTC_BB_MULTIPLIER;
+}
+
+function getChartBbColor(config) {
+  return typeof config?.bbColor === "string" ? config.bbColor : BTC_BAND_COLOR;
 }
 
 function getChartBbPeriod(config) {
