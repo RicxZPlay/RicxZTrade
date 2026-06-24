@@ -13,12 +13,10 @@ import {
   ALT_CHART_BB_MULTIPLIER,
   ALT_CHART_BB_PERIOD,
   ALT_CHART_INTERVALS,
-  ALT_CHART_MA_PERIOD,
   ALT_CHART_SECONDARY_BB_MULTIPLIER,
   ALT_CHART_SECONDARY_BB_PERIOD,
   ALT_CHART_TERTIARY_BB_MULTIPLIER,
   ALT_CHART_TERTIARY_BB_PERIOD,
-  ALT_CHART_VWMA_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
@@ -27,8 +25,6 @@ import {
   toChartCandleBollingerBands,
   toChartCandles,
   toChartRenko,
-  toChartSma,
-  toChartVwma,
 } from "./market";
 
 const TOOLS = {
@@ -58,8 +54,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const secondaryLowerBandSeriesRef = useRef(null);
   const tertiaryUpperBandSeriesRef = useRef(null);
   const tertiaryLowerBandSeriesRef = useRef(null);
-  const altMaSeriesRef = useRef(null);
-  const altVwmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -96,9 +90,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     () => isAltChart ? toChartCandleBollingerBands(candles, ALT_CHART_TERTIARY_BB_PERIOD, ALT_CHART_TERTIARY_BB_MULTIPLIER) : null,
     [candles, isAltChart]
   );
-  const altMa = useMemo(() => isAltChart ? toChartSma(candles, ALT_CHART_MA_PERIOD) : [], [candles, isAltChart]);
-  const altVwma = useMemo(() => isAltChart ? toChartVwma(candles, ALT_CHART_VWMA_PERIOD) : [], [candles, isAltChart]);
-
   const stats = useMemo(() => {
     if (!isAltChart) return getLatestBollingerStats(candles, btcBoxSize);
     const last = candles.at(-1);
@@ -111,11 +102,9 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       secondaryLower: altSecondaryBands?.lower.at(-1)?.value,
       tertiaryUpper: altTertiaryBands?.upper.at(-1)?.value,
       tertiaryLower: altTertiaryBands?.lower.at(-1)?.value,
-      ma: altMa.at(-1)?.value,
-      vwma: altVwma.at(-1)?.value,
       change: last && previous ? ((last.close - previous.close) / previous.close) * 100 : null,
     };
-  }, [altMa, altPrimaryBands, altSecondaryBands, altTertiaryBands, altVwma, btcBoxSize, candles, isAltChart]);
+  }, [altPrimaryBands, altSecondaryBands, altTertiaryBands, btcBoxSize, candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -243,22 +232,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       title: isCompact ? "" : "BB 2000 Inf",
     });
 
-    const altMaSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.altMa,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: isAltChart,
-      title: isCompact ? "" : "MA 800",
-    });
-
-    const altVwmaSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.altVwma,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      title: isAltChart && isCompact ? "" : "VWMA 7000",
-    });
-
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
@@ -269,8 +242,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     secondaryLowerBandSeriesRef.current = secondaryLowerBandSeries;
     tertiaryUpperBandSeriesRef.current = tertiaryUpperBandSeries;
     tertiaryLowerBandSeriesRef.current = tertiaryLowerBandSeries;
-    altMaSeriesRef.current = altMaSeries;
-    altVwmaSeriesRef.current = altVwmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -320,8 +291,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       secondaryLowerBandSeriesRef.current = null;
       tertiaryUpperBandSeriesRef.current = null;
       tertiaryLowerBandSeriesRef.current = null;
-      altMaSeriesRef.current = null;
-      altVwmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
 
@@ -351,15 +320,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     secondaryLowerBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.lower : []);
     tertiaryUpperBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.upper : []);
     tertiaryLowerBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.lower : []);
-    altMaSeriesRef.current?.setData(altMa);
-    altVwmaSeriesRef.current?.setData(altVwma);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altMa, altPrimaryBands, altSecondaryBands, altTertiaryBands, altVwma, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altPrimaryBands, altSecondaryBands, altTertiaryBands, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -509,8 +476,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
             <Metric label="BB 5000 Inf" value={formatPrice(stats.secondaryLower)} />
             <Metric label="BB 2000 Sup" value={formatPrice(stats.tertiaryUpper)} />
             <Metric label="BB 2000 Inf" value={formatPrice(stats.tertiaryLower)} />
-            <Metric label="MA 800" value={formatPrice(stats.ma)} />
-            <Metric label="VWMA 7000" value={formatPrice(stats.vwma)} />
             <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
           </>
         ) : (

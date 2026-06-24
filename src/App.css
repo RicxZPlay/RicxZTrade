@@ -631,6 +631,18 @@ input:focus,
   flex-direction: column;
 }
 
+.alt-chart-grid {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.alt-chart-grid .chart-metrics {
+  display: none;
+}
+
 .chart-header {
   flex: 0 0 auto;
   padding: 11px 14px 8px;
@@ -1606,6 +1618,12 @@ input:focus,
 
   .detail-panel.mobile-chart-open .chart-shell {
     min-height: 0;
+  }
+
+  .detail-panel.mobile-chart-open .alt-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .detail-panel.mobile-chart-open .chart-metrics {

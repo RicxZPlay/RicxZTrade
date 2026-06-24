@@ -39,6 +39,7 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
+const ALT_CHART_TIMEFRAMES = ["1m", "15m"];
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -47,8 +48,7 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
-  const altTimeframe = DEFAULT_ALT_CHART_TIMEFRAME;
-  const [chartCandles, setChartCandles] = useState([]);
+  const [chartCandles, setChartCandles] = useState({});
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [theme, setTheme] = useState(readStoredTheme);
@@ -59,8 +59,8 @@ export default function App() {
   const [progress, setProgress] = useState({ checked: 0, total: 0 });
   const [lastScan, setLastScan] = useState(null);
   const [error, setError] = useState("");
-  const [liveStatus, setLiveStatus] = useState("offline");
-  const [chartError, setChartError] = useState("");
+  const [liveStatus, setLiveStatus] = useState({});
+  const [chartError, setChartError] = useState({});
   const scanAbortRef = useRef(null);
   const chartRequestRef = useRef(0);
 
@@ -68,8 +68,8 @@ export default function App() {
     setSelectedSymbol(symbol);
     setChartMode(CHART_MODES.alt);
     setChartSymbol(symbol);
-    setChartError("");
-    setLiveStatus("loading");
+    setChartError({});
+    setLiveStatus({});
     if (isCompactLayout) {
       setChartOverlayOpen(true);
     }
@@ -138,77 +138,100 @@ export default function App() {
     if (!chartSymbol || chartMode === CHART_MODES.btc) return undefined;
 
     const controller = new AbortController();
-    let socket;
-    let pollTimer;
+    const sockets = [];
+    const pollTimers = [];
     const requestId = chartRequestRef.current + 1;
     chartRequestRef.current = requestId;
-    const altTimeframeConfig = ALT_CHART_INTERVALS[altTimeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
     const targetSymbol = chartSymbol;
-    const targetInterval = altTimeframeConfig.interval;
-    const targetLimit = altTimeframeConfig.historyLimit;
 
     queueMicrotask(() => {
       if (!controller.signal.aborted) {
-        setLiveStatus("loading");
-        setChartError("");
+        setChartCandles({});
+        setLiveStatus(Object.fromEntries(ALT_CHART_TIMEFRAMES.map((timeframe) => [timeframe, "loading"])));
+        setChartError({});
       }
     });
 
-    fetchCandlesWithRetry(targetSymbol, controller.signal, targetLimit, targetInterval)
-      .then((nextCandles) => {
-        if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
-        setChartCandles(nextCandles);
-        setChartError("");
+    ALT_CHART_TIMEFRAMES.forEach((timeframe) => {
+      const timeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
+      const targetInterval = timeframeConfig.interval;
+      const targetLimit = timeframeConfig.historyLimit;
 
-        if (usesPollingMarketData(targetSymbol)) {
-          setLiveStatus("online");
-          pollTimer = window.setInterval(async () => {
-            try {
-              const recentCandles = await fetchCandles(targetSymbol, 2, controller.signal, targetInterval);
-              if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
-              setChartCandles((current) => mergeFetchedCandles(current, recentCandles, targetLimit));
-            } catch {
-              if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
+      fetchCandlesWithRetry(targetSymbol, controller.signal, targetLimit, targetInterval)
+        .then((nextCandles) => {
+          if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+          setChartCandles((current) => ({ ...current, [timeframe]: nextCandles }));
+          setChartError((current) => ({ ...current, [timeframe]: "" }));
+
+          if (usesPollingMarketData(targetSymbol)) {
+            setLiveStatus((current) => ({ ...current, [timeframe]: "online" }));
+            const pollTimer = window.setInterval(async () => {
+              try {
+                const recentCandles = await fetchCandles(targetSymbol, 2, controller.signal, targetInterval);
+                if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+                setChartCandles((current) => ({
+                  ...current,
+                  [timeframe]: mergeFetchedCandles(current[timeframe] || [], recentCandles, targetLimit),
+                }));
+              } catch {
+                if (!controller.signal.aborted && chartRequestRef.current === requestId) {
+                  setLiveStatus((current) => ({ ...current, [timeframe]: "offline" }));
+                }
+              }
+            }, 15_000);
+            pollTimers.push(pollTimer);
+            return;
+          }
+
+          const socket = new WebSocket(buildSocketUrl(targetSymbol, targetInterval));
+          sockets.push(socket);
+          socket.onopen = () => {
+            if (!controller.signal.aborted && chartRequestRef.current === requestId) {
+              setLiveStatus((current) => ({ ...current, [timeframe]: "online" }));
             }
-          }, 15_000);
-          return;
-        }
-
-        socket = new WebSocket(buildSocketUrl(targetSymbol, targetInterval));
-        socket.onopen = () => {
+          };
+          socket.onmessage = (event) => {
+            try {
+              const payload = JSON.parse(event.data);
+              if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== targetSymbol) return;
+              setChartCandles((current) => ({
+                ...current,
+                [timeframe]: mergeLiveCandle(current[timeframe] || [], payload, targetLimit),
+              }));
+            } catch {
+              if (!controller.signal.aborted && chartRequestRef.current === requestId) {
+                setLiveStatus((current) => ({ ...current, [timeframe]: "offline" }));
+              }
+            }
+          };
+          socket.onerror = () => {
+            if (!controller.signal.aborted && chartRequestRef.current === requestId) {
+              setLiveStatus((current) => ({ ...current, [timeframe]: "offline" }));
+            }
+          };
+          socket.onclose = () => {
+            if (!controller.signal.aborted && chartRequestRef.current === requestId) {
+              setLiveStatus((current) => ({ ...current, [timeframe]: "offline" }));
+            }
+          };
+        })
+        .catch((loadError) => {
           if (!controller.signal.aborted && chartRequestRef.current === requestId) {
-            setLiveStatus("online");
+            setLiveStatus((current) => ({ ...current, [timeframe]: "offline" }));
+            setChartError((current) => ({
+              ...current,
+              [timeframe]: loadError?.message || "Nao foi possivel carregar este grafico.",
+            }));
           }
-        };
-        socket.onmessage = (event) => {
-          try {
-            const payload = JSON.parse(event.data);
-            if (controller.signal.aborted || chartRequestRef.current !== requestId || payload?.s !== targetSymbol) return;
-            setChartCandles((current) => mergeLiveCandle(current, payload, targetLimit));
-          } catch {
-            if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
-          }
-        };
-        socket.onerror = () => {
-          if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
-        };
-        socket.onclose = () => {
-          if (!controller.signal.aborted && chartRequestRef.current === requestId) setLiveStatus("offline");
-        };
-      })
-      .catch((loadError) => {
-        if (!controller.signal.aborted && chartRequestRef.current === requestId) {
-          setLiveStatus("offline");
-          setChartError(loadError?.message || "Nao foi possivel carregar o grafico desta moeda.");
-        }
-      });
+        });
+    });
 
     return () => {
       controller.abort();
-      socket?.close();
-      if (pollTimer) window.clearInterval(pollTimer);
+      sockets.forEach((socket) => socket.close());
+      pollTimers.forEach((pollTimer) => window.clearInterval(pollTimer));
     };
-  }, [altTimeframe, chartMode, chartSymbol]);
+  }, [chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
@@ -407,16 +430,20 @@ export default function App() {
           ) : null}
 
           {chartMode === CHART_MODES.alt && (!isCompactLayout || chartOverlayOpen) ? (
-              <CryptoChart
-                key={`${chartMode}-${chartSymbol || "empty-chart"}-${altTimeframe}`}
-                symbol={chartSymbol || BTC_CHART_SYMBOL}
-                candles={chartCandles}
-                liveStatus={liveStatus}
-                error={chartError}
-                theme={theme}
-                mode={chartMode}
-                timeframe={altTimeframe}
-              />
+              <div className="alt-chart-grid">
+                {ALT_CHART_TIMEFRAMES.map((timeframe) => (
+                  <CryptoChart
+                    key={`${chartMode}-${chartSymbol || "empty-chart"}-${timeframe}`}
+                    symbol={chartSymbol || BTC_CHART_SYMBOL}
+                    candles={chartCandles[timeframe] || []}
+                    liveStatus={liveStatus[timeframe] || "loading"}
+                    error={chartError[timeframe] || ""}
+                    theme={theme}
+                    mode={chartMode}
+                    timeframe={timeframe}
+                  />
+                ))}
+              </div>
             ) : null}
         </section>
       </section>

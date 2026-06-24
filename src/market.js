@@ -7,7 +7,8 @@ const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
 const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
 const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
-const INTERVAL_SECONDS = { "15m": 15 * 60 };
+const INTERVAL_SECONDS = { "1m": 60, "15m": 15 * 60 };
+const KUCOIN_INTERVAL_TYPES = { "1m": "1min", "15m": "15min" };
 
 const LEVERAGED_PATTERN = /(UP|DOWN|BULL|BEAR|[0-9]+L|[0-9]+S)USDT$/;
 const EXCLUDED_BASE_ASSETS = new Set([
@@ -87,6 +88,7 @@ export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRA
 export const ALT_INTERVAL = "15m";
 export const ALT_HISTORY_LIMIT = 8200;
 export const ALT_CHART_INTERVALS = {
+  "1m": { interval: "1m", historyLimit: 10000, fallbackSeconds: 60 },
   "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
 };
 export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
@@ -883,7 +885,7 @@ async function fetchKucoinCandles(limit, signal, interval) {
     const startAt = endAt - intervalSeconds * (batchLimit + 5);
     const rows = await fetchKucoin(
       "candles",
-      { type: interval === "15m" ? "15min" : interval, symbol: HYPE_KUCOIN_SYMBOL, startAt, endAt },
+      { type: KUCOIN_INTERVAL_TYPES[interval] || interval, symbol: HYPE_KUCOIN_SYMBOL, startAt, endAt },
       signal
     );
     if (!Array.isArray(rows) || rows.length === 0) break;
