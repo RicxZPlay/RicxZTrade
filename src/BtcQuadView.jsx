@@ -237,6 +237,7 @@ function BtcQuadChart({
   const fastLineRef = useRef(null);
   const middleLineRef = useRef(null);
   const extraBandLineRefs = useRef([]);
+  const extraBandMiddleLineRefs = useRef([]);
   const lrcLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
@@ -423,6 +424,16 @@ function BtcQuadChart({
         }),
       ];
     });
+    const extraBandMiddleLines = extraBollingerBands.map((band, index) => {
+      const color = band.middleColor || band.color || BTC_EXTRA_BAND_COLORS[index % BTC_EXTRA_BAND_COLORS.length];
+      return chart.addSeries(LineSeries, {
+        color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: !isCompact && band.showMiddle,
+        title: "",
+      });
+    });
 
     const extraVwmaLine = chart.addSeries(LineSeries, {
       color: extraVwmaColor,
@@ -498,6 +509,7 @@ function BtcQuadChart({
     fastLineRef.current = fastLine;
     middleLineRef.current = middleLine;
     extraBandLineRefs.current = extraBandLines;
+    extraBandMiddleLineRefs.current = extraBandMiddleLines;
     lrcLineRef.current = lrcLine;
     lsmaLineRef.current = lsmaLine;
     maLineRef.current = maLine;
@@ -566,6 +578,7 @@ function BtcQuadChart({
       fastLineRef.current = null;
       middleLineRef.current = null;
       extraBandLineRefs.current = [];
+      extraBandMiddleLineRefs.current = [];
       lrcLineRef.current = null;
       lsmaLineRef.current = null;
       maLineRef.current = null;
@@ -698,6 +711,13 @@ function BtcQuadChart({
           `extraBbLower-${index}`,
           incrementalSync
         );
+        syncSeriesData(
+          extraBandMiddleLineRefs.current[index],
+          extraBollingerBands[index]?.showMiddle ? bandData?.middle || [] : [],
+          seriesSyncRef.current,
+          `extraBbMiddle-${index}`,
+          incrementalSync
+        );
       });
       syncSeriesData(
         lrcLineRef.current,
@@ -756,7 +776,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -888,8 +908,10 @@ function getChartExtraBollingerBands(config) {
     Number.isFinite(band?.period) && Number.isFinite(band?.multiplier)
   )).map((band) => ({
     color: typeof band.color === "string" ? band.color : null,
+    middleColor: typeof band.middleColor === "string" ? band.middleColor : null,
     period: band.period,
     multiplier: band.multiplier,
+    showMiddle: band.showMiddle === true,
   }));
 }
 

@@ -54,6 +54,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
   const secondaryUpperBandSeriesRef = useRef(null);
+  const secondaryMiddleBandSeriesRef = useRef(null);
   const secondaryLowerBandSeriesRef = useRef(null);
   const tertiaryUpperBandSeriesRef = useRef(null);
   const tertiaryLowerBandSeriesRef = useRef(null);
@@ -218,6 +219,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       lastValueVisible: isAltChart,
       title: isCompact ? "" : "BB 5000 Inf",
     });
+    const secondaryMiddleBandSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.altSecondaryBand,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "BB 5000 Media",
+    });
 
     const tertiaryUpperBandSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altTertiaryBand,
@@ -257,6 +265,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
     secondaryUpperBandSeriesRef.current = secondaryUpperBandSeries;
+    secondaryMiddleBandSeriesRef.current = secondaryMiddleBandSeries;
     secondaryLowerBandSeriesRef.current = secondaryLowerBandSeries;
     tertiaryUpperBandSeriesRef.current = tertiaryUpperBandSeries;
     tertiaryLowerBandSeriesRef.current = tertiaryLowerBandSeries;
@@ -307,6 +316,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
       secondaryUpperBandSeriesRef.current = null;
+      secondaryMiddleBandSeriesRef.current = null;
       secondaryLowerBandSeriesRef.current = null;
       tertiaryUpperBandSeriesRef.current = null;
       tertiaryLowerBandSeriesRef.current = null;
@@ -337,6 +347,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(bands.lower);
     secondaryUpperBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.upper : []);
+    secondaryMiddleBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.middle : []);
     secondaryLowerBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.lower : []);
     tertiaryUpperBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.upper : []);
     tertiaryLowerBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.lower : []);
