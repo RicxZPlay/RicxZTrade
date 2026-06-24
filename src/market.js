@@ -251,27 +251,20 @@ export async function buildSignal(ticker, btcCloses, signal) {
     ALT_CHART_SECONDARY_BB_PERIOD,
     ALT_CHART_SECONDARY_BB_MULTIPLIER
   );
-  const bb8000 = toChartCandleBollingerBands(
-    candles,
-    ALT_CHART_BB_PERIOD,
-    ALT_CHART_BB_MULTIPLIER
-  );
-  const bbUpper5000 = bb5000.upper.at(-1)?.value;
-  const bbLower8000 = bb8000.lower.at(-1)?.value;
-  const ma800 = calculateSMA(closes, ALT_CHART_MA_PERIOD).at(-1);
+  const bbMiddle5000 = bb5000.middle.at(-1)?.value;
+  const bbLower5000 = bb5000.lower.at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, bbUpper5000, bbLower8000, ma800].every(Number.isFinite)) {
+  if (![price, bbMiddle5000, bbLower5000].every(Number.isFinite)) {
     return null;
   }
 
   let trendDirection = "neutral";
-  if (price < ma800 && price > bbLower8000) trendDirection = "bearish";
-  if (price > ma800 && price < bbUpper5000) trendDirection = "bullish";
-  const maPosition = price >= ma800 ? "above" : "below";
-  const priceDistancePercent = ((price - ma800) / ma800) * 100;
+  if (price < bbLower5000) trendDirection = "bearish";
+  if (price >= bbLower5000 && price < bbMiddle5000) trendDirection = "bullish";
+  const priceDistancePercent = ((price - bbLower5000) / bbLower5000) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
@@ -279,10 +272,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
   return {
     ...ticker,
     price,
-    bbUpper5000,
-    bbLower8000,
-    ma800,
-    maPosition,
+    bbMiddle5000,
+    bbLower5000,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
@@ -830,8 +821,8 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "abaixo da MA 800, acima da BB inferior 8000 / 3";
-  if (direction === "bullish") return "acima da MA 800, abaixo da BB superior 5000 / 2";
+  if (direction === "bearish") return "abaixo da BB inferior 5000 / 2";
+  if (direction === "bullish") return "entre a BB inferior e a mediana 5000 / 2";
   return "fora das zonas";
 }
 

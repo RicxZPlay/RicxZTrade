@@ -317,8 +317,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo MA / acima BB 8000" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima MA / abaixo BB 5000" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo BB inferior 5000 / 2" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Entre BB inferior e mediana" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -352,8 +352,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da MA 800 e acima da BB inferior 8000 / 3 apareceu."
-                      : "Nenhuma altcoin abaixo da MA 800 e acima da BB inferior 8000 / 3 apareceu."}
+                      ? "Nenhuma favorita abaixo da BB inferior 5000 / 2 apareceu."
+                      : "Nenhuma altcoin abaixo da BB inferior 5000 / 2 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -397,8 +397,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da MA 800 e abaixo da BB superior 5000 / 2 apareceu."
-                      : "Nenhuma altcoin acima da MA 800 e abaixo da BB superior 5000 / 2 apareceu."}
+                      ? "Nenhuma favorita entre a BB inferior e a mediana 5000 / 2 apareceu."
+                      : "Nenhuma altcoin entre a BB inferior e a mediana 5000 / 2 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -414,13 +414,8 @@ export default function App() {
 
           <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="BB 8000 Inf" value={formatPrice(selected?.bbLower8000)} />
-            <SelectedMetric label="BB 5000 Sup" value={formatPrice(selected?.bbUpper5000)} />
-            <SelectedMetric label="MA 800" value={formatPrice(selected?.ma800)} />
-            <SelectedMetric
-              label="Posicao MA 800"
-              value={selected?.maPosition ? (selected.maPosition === "above" ? "Acima" : "Abaixo") : null}
-            />
+            <SelectedMetric label="BB 5000 Inf" value={formatPrice(selected?.bbLower5000)} />
+            <SelectedMetric label="BB 5000 Media" value={formatPrice(selected?.bbMiddle5000)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
