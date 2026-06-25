@@ -17,6 +17,7 @@ import {
   ALT_CHART_SECONDARY_BB_PERIOD,
   ALT_CHART_TERTIARY_BB_MULTIPLIER,
   ALT_CHART_TERTIARY_BB_PERIOD,
+  ALT_ONE_MINUTE_LRC_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
@@ -24,6 +25,7 @@ import {
   toChartBollingerBands,
   toChartCandleBollingerBands,
   toChartCandles,
+  toChartLrc,
   toChartRenko,
 } from "./market";
 
@@ -54,6 +56,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const secondaryLowerBandSeriesRef = useRef(null);
   const tertiaryUpperBandSeriesRef = useRef(null);
   const tertiaryLowerBandSeriesRef = useRef(null);
+  const altLrcSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -89,6 +92,10 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const altTertiaryBands = useMemo(
     () => isAltChart ? toChartCandleBollingerBands(candles, ALT_CHART_TERTIARY_BB_PERIOD, ALT_CHART_TERTIARY_BB_MULTIPLIER) : null,
     [candles, isAltChart]
+  );
+  const altLrc = useMemo(
+    () => isAltChart && timeframe === "1m" ? toChartLrc(candles, ALT_ONE_MINUTE_LRC_PERIOD) : [],
+    [candles, isAltChart, timeframe]
   );
   const stats = useMemo(() => {
     if (!isAltChart) return getLatestBollingerStats(candles, btcBoxSize);
@@ -231,6 +238,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       lastValueVisible: isAltChart,
       title: isCompact ? "" : "BB 2000 Inf",
     });
+    const altLrcSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.altLrc,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: isAltChart && timeframe === "1m",
+      title: isCompact || timeframe !== "1m" ? "" : `LRC ${ALT_ONE_MINUTE_LRC_PERIOD}`,
+    });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
@@ -242,6 +256,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     secondaryLowerBandSeriesRef.current = secondaryLowerBandSeries;
     tertiaryUpperBandSeriesRef.current = tertiaryUpperBandSeries;
     tertiaryLowerBandSeriesRef.current = tertiaryLowerBandSeries;
+    altLrcSeriesRef.current = altLrcSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -291,6 +306,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       secondaryLowerBandSeriesRef.current = null;
       tertiaryUpperBandSeriesRef.current = null;
       tertiaryLowerBandSeriesRef.current = null;
+      altLrcSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
 
@@ -320,13 +336,14 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     secondaryLowerBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.lower : []);
     tertiaryUpperBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.upper : []);
     tertiaryLowerBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.lower : []);
+    altLrcSeriesRef.current?.setData(altLrc);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altPrimaryBands, altSecondaryBands, altTertiaryBands, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altLrc, altPrimaryBands, altSecondaryBands, altTertiaryBands, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -843,6 +860,7 @@ function getChartPalette(theme) {
       altSecondaryBand: "#0284c7",
       altSecondaryMiddle: "#ffffff",
       altTertiaryBand: "#15803d",
+      altLrc: "#d97706",
       altMa: "#b7791f",
       altVwma: "#334155",
     };
@@ -860,6 +878,7 @@ function getChartPalette(theme) {
     altSecondaryBand: "#38bdf8",
     altSecondaryMiddle: "#ffffff",
     altTertiaryBand: "#22c55e",
+    altLrc: "#facc15",
     altMa: "#f6c85f",
     altVwma: "#f8fafc",
   };
