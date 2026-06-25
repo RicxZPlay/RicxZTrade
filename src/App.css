@@ -912,6 +912,10 @@ input:focus,
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 18%, transparent);
 }
 
+.btc-quad-card-primary {
+  grid-row: 1 / span 2;
+}
+
 .btc-quad-chart-area {
   position: relative;
   min-height: 0;

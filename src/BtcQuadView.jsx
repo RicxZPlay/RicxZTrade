@@ -36,7 +36,7 @@ const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const BTC_MAIN_CHART_IDS = new Set(["candles-1m", "candles-15m", "renko-1h", "candles-1h"]);
+const BTC_MAIN_CHART_IDS = new Set(["candles-1m", "candles-15m", "candles-1h"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -142,7 +142,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   }, [visibleCharts]);
 
   return (
-    <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Quatro graficos do BTC">
+    <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Graficos do BTC">
       <header className="btc-quad-topbar">
         <div>
           <p className="eyebrow">BTC Graf.</p>
@@ -827,7 +827,7 @@ function BtcQuadChart({
   ].filter(Boolean);
 
   return (
-    <article className="btc-quad-card">
+    <article className={config.id === "candles-1m" ? "btc-quad-card btc-quad-card-primary" : "btc-quad-card"}>
       <div className="btc-quad-card-header">
         <strong>{config.title}</strong>
         <div className="btc-quad-card-meta">
