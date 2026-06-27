@@ -91,13 +91,11 @@ export const ALT_CHART_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
 };
 export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
-export const ALT_CHART_BB_PERIOD = 8000;
-export const ALT_CHART_BB_MULTIPLIER = 3;
+export const ALT_CHART_BB_PERIOD = 2400;
+export const ALT_CHART_BB_MULTIPLIER = 1;
 export const ALT_CHART_SECONDARY_BB_PERIOD = 5000;
 export const ALT_CHART_SECONDARY_BB_MULTIPLIER = 2;
-export const ALT_CHART_TERTIARY_BB_PERIOD = 2000;
-export const ALT_CHART_TERTIARY_BB_MULTIPLIER = 1;
-export const ALT_CHART_MA_PERIOD = 800;
+export const ALT_CHART_MA_PERIOD = 650;
 export const ALT_CHART_VWMA_PERIOD = 7000;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
@@ -917,7 +915,7 @@ async function fetchScannerCandles(symbol, signal) {
   const missingCandles = Number.isFinite(lastCachedTime)
     ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
     : ALT_HISTORY_LIMIT;
-  const requestLimit = cached?.length >= ALT_CHART_BB_PERIOD && missingCandles <= 1000
+  const requestLimit = cached?.length >= ALT_CHART_SECONDARY_BB_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
     : ALT_HISTORY_LIMIT;
   const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);
