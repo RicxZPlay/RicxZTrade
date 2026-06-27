@@ -7,8 +7,8 @@ const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
 const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
 const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
-const INTERVAL_SECONDS = { "1m": 60, "15m": 15 * 60 };
-const KUCOIN_INTERVAL_TYPES = { "1m": "1min", "15m": "15min" };
+const INTERVAL_SECONDS = { "1h": 60 * 60 };
+const KUCOIN_INTERVAL_TYPES = { "1h": "1hour" };
 
 const LEVERAGED_PATTERN = /(UP|DOWN|BULL|BEAR|[0-9]+L|[0-9]+S)USDT$/;
 const EXCLUDED_BASE_ASSETS = new Set([
@@ -84,13 +84,12 @@ export const BTC_QUAD_CHARTS = [
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
-export const ALT_INTERVAL = "15m";
+export const ALT_INTERVAL = "1h";
 export const ALT_HISTORY_LIMIT = 8200;
 export const ALT_CHART_INTERVALS = {
-  "1m": { interval: "1m", historyLimit: 10000, fallbackSeconds: 60 },
-  "15m": { interval: "15m", historyLimit: 10000, fallbackSeconds: 900 },
+  "1h": { interval: "1h", historyLimit: 10000, fallbackSeconds: 3600 },
 };
-export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
+export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
 export const ALT_CHART_BB_PERIOD = 2400;
 export const ALT_CHART_BB_MULTIPLIER = 1;
 export const ALT_CHART_SECONDARY_BB_PERIOD = 5000;
@@ -101,7 +100,7 @@ export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
-export const RELATIVE_LOOKBACK = 96;
+export const RELATIVE_LOOKBACK = 24;
 const SCANNER_CANDLE_CACHE = new Map();
 
 function toQuery(params = {}) {
@@ -915,7 +914,7 @@ async function fetchScannerCandles(symbol, signal) {
   const cached = SCANNER_CANDLE_CACHE.get(symbol);
   const lastCachedTime = cached?.at(-1)?.openTime;
   const missingCandles = Number.isFinite(lastCachedTime)
-    ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
+    ? Math.ceil((Date.now() - lastCachedTime) / (60 * 60 * 1000)) + 2
     : ALT_HISTORY_LIMIT;
   const requestLimit = cached?.length >= ALT_CHART_SECONDARY_BB_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
