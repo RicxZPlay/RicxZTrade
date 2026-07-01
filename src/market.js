@@ -7,8 +7,8 @@ const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
 const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
 const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
-const INTERVAL_SECONDS = { "1h": 60 * 60 };
-const KUCOIN_INTERVAL_TYPES = { "1h": "1hour" };
+const INTERVAL_SECONDS = { "15m": 15 * 60 };
+const KUCOIN_INTERVAL_TYPES = { "15m": "15min" };
 
 const LEVERAGED_PATTERN = /(UP|DOWN|BULL|BEAR|[0-9]+L|[0-9]+S)USDT$/;
 const EXCLUDED_BASE_ASSETS = new Set([
@@ -84,23 +84,23 @@ export const BTC_QUAD_CHARTS = [
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
-export const ALT_INTERVAL = "1h";
-export const ALT_HISTORY_LIMIT = 8200;
+export const ALT_INTERVAL = "15m";
+export const ALT_HISTORY_LIMIT = 4200;
 export const ALT_CHART_INTERVALS = {
-  "1h": { interval: "1h", historyLimit: 10000, fallbackSeconds: 3600 },
+  "15m": { interval: "15m", historyLimit: 5000, fallbackSeconds: 900 },
 };
-export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
-export const ALT_CHART_BB_PERIOD = 2400;
+export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
+export const ALT_CHART_BB_PERIOD = 2000;
 export const ALT_CHART_BB_MULTIPLIER = 1;
-export const ALT_CHART_SECONDARY_BB_PERIOD = 5000;
+export const ALT_CHART_SECONDARY_BB_PERIOD = 3000;
 export const ALT_CHART_SECONDARY_BB_MULTIPLIER = 2;
-export const ALT_CHART_MA_PERIOD = 650;
-export const ALT_CHART_VWMA_PERIOD = 7000;
+export const ALT_CHART_TERTIARY_BB_PERIOD = 4000;
+export const ALT_CHART_TERTIARY_BB_MULTIPLIER = 3;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
-export const RELATIVE_LOOKBACK = 24;
+export const RELATIVE_LOOKBACK = 96;
 const SCANNER_CANDLE_CACHE = new Map();
 
 function toQuery(params = {}) {
@@ -242,33 +242,49 @@ export async function scanMarket(filters, signal, onProgress) {
 export async function buildSignal(ticker, btcCloses, signal) {
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
-  const bb2400 = toChartCandleBollingerBands(
+  const bb2000 = toChartCandleBollingerBands(
     candles,
     ALT_CHART_BB_PERIOD,
     ALT_CHART_BB_MULTIPLIER
   );
-  const bb5000 = toChartCandleBollingerBands(
+  const bb3000 = toChartCandleBollingerBands(
     candles,
     ALT_CHART_SECONDARY_BB_PERIOD,
     ALT_CHART_SECONDARY_BB_MULTIPLIER
   );
-  const bbUpper2400 = bb2400.upper.at(-1)?.value;
-  const bbMiddle2400 = bb2400.middle.at(-1)?.value;
-  const bbMiddle5000 = bb5000.middle.at(-1)?.value;
-  const ma650 = calculateSMA(closes, ALT_CHART_MA_PERIOD).at(-1);
+  const bb4000 = toChartCandleBollingerBands(
+    candles,
+    ALT_CHART_TERTIARY_BB_PERIOD,
+    ALT_CHART_TERTIARY_BB_MULTIPLIER
+  );
+  const bbUpper2000 = bb2000.upper.at(-1)?.value;
+  const bbLower2000 = bb2000.lower.at(-1)?.value;
+  const bbUpper3000 = bb3000.upper.at(-1)?.value;
+  const bbMiddle3000 = bb3000.middle.at(-1)?.value;
+  const bbLower3000 = bb3000.lower.at(-1)?.value;
+  const bbUpper4000 = bb4000.upper.at(-1)?.value;
+  const bbLower4000 = bb4000.lower.at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, bbUpper2400, bbMiddle2400, bbMiddle5000, ma650].every(Number.isFinite)) {
+  if (![
+    price,
+    bbUpper2000,
+    bbLower2000,
+    bbUpper3000,
+    bbMiddle3000,
+    bbLower3000,
+    bbUpper4000,
+    bbLower4000,
+  ].every(Number.isFinite)) {
     return null;
   }
 
   let trendDirection = "neutral";
-  if (price < bbMiddle2400 && price < bbUpper2400) trendDirection = "bearish";
-  if (price > bbMiddle5000 && price > ma650) trendDirection = "bullish";
-  const distanceReference = trendDirection === "bullish" ? bbMiddle5000 : bbMiddle2400;
-  const priceDistancePercent = ((price - distanceReference) / distanceReference) * 100;
+  if (price > bbLower3000 && price < bbMiddle3000) trendDirection = "bearish";
+  if (price > bbMiddle3000 && price < bbUpper3000) trendDirection = "bullish";
+  const priceDistancePercent = ((price - bbMiddle3000) / bbMiddle3000) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
@@ -276,10 +292,13 @@ export async function buildSignal(ticker, btcCloses, signal) {
   return {
     ...ticker,
     price,
-    bbUpper2400,
-    bbMiddle2400,
-    bbMiddle5000,
-    ma650,
+    bbUpper2000,
+    bbLower2000,
+    bbUpper3000,
+    bbMiddle3000,
+    bbLower3000,
+    bbUpper4000,
+    bbLower4000,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
@@ -827,8 +846,8 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "abaixo da mediana e da BB superior 2400 / 1";
-  if (direction === "bullish") return "acima da mediana 5000 / 2 e da MA 650";
+  if (direction === "bearish") return "entre BB inferior e mediana 3000 / 2";
+  if (direction === "bullish") return "entre mediana e BB superior 3000 / 2";
   return "fora das zonas";
 }
 
@@ -922,9 +941,9 @@ async function fetchScannerCandles(symbol, signal) {
   const cached = SCANNER_CANDLE_CACHE.get(symbol);
   const lastCachedTime = cached?.at(-1)?.openTime;
   const missingCandles = Number.isFinite(lastCachedTime)
-    ? Math.ceil((Date.now() - lastCachedTime) / (60 * 60 * 1000)) + 2
+    ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
     : ALT_HISTORY_LIMIT;
-  const requestLimit = cached?.length >= ALT_CHART_SECONDARY_BB_PERIOD && missingCandles <= 1000
+  const requestLimit = cached?.length >= ALT_CHART_TERTIARY_BB_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
     : ALT_HISTORY_LIMIT;
   const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);

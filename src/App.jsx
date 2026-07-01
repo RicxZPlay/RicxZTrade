@@ -39,7 +39,7 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
-const ALT_CHART_TIMEFRAMES = ["1h"];
+const ALT_CHART_TIMEFRAMES = ["15m"];
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -317,8 +317,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da mediana BB 2400 / 1" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da mediana BB 5000 / 2 e MA 650" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da mediana BB 3000 / 2" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima da mediana BB 3000 / 2" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -352,8 +352,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da mediana e da BB superior 2400 / 1 apareceu."
-                      : "Nenhuma altcoin abaixo da mediana e da BB superior 2400 / 1 apareceu."}
+                      ? "Nenhuma favorita entre a BB inferior e a mediana 3000 / 2 apareceu."
+                      : "Nenhuma altcoin entre a BB inferior e a mediana 3000 / 2 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -397,8 +397,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da mediana 5000 / 2 e da MA 650 apareceu."
-                      : "Nenhuma altcoin acima da mediana 5000 / 2 e da MA 650 apareceu."}
+                      ? "Nenhuma favorita entre a mediana e a BB superior 3000 / 2 apareceu."
+                      : "Nenhuma altcoin entre a mediana e a BB superior 3000 / 2 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -414,10 +414,9 @@ export default function App() {
 
           <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="BB 2400 Sup" value={formatPrice(selected?.bbUpper2400)} />
-            <SelectedMetric label="BB 2400 Media" value={formatPrice(selected?.bbMiddle2400)} />
-            <SelectedMetric label="BB 5000 Media" value={formatPrice(selected?.bbMiddle5000)} />
-            <SelectedMetric label="MA 650" value={formatPrice(selected?.ma650)} />
+            <SelectedMetric label="BB 3000 Sup" value={formatPrice(selected?.bbUpper3000)} />
+            <SelectedMetric label="BB 3000 Media" value={formatPrice(selected?.bbMiddle3000)} />
+            <SelectedMetric label="BB 3000 Inf" value={formatPrice(selected?.bbLower3000)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
