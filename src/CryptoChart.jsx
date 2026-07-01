@@ -13,6 +13,7 @@ import {
   ALT_CHART_BB_MULTIPLIER,
   ALT_CHART_BB_PERIOD,
   ALT_CHART_INTERVALS,
+  ALT_CHART_VISIBLE_CANDLES,
   ALT_CHART_SECONDARY_BB_MULTIPLIER,
   ALT_CHART_SECONDARY_BB_PERIOD,
   ALT_CHART_TERTIARY_BB_MULTIPLIER,
@@ -73,7 +74,12 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const btcTimeframeConfig = BTC_RENKO_INTERVALS[timeframe] || BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME];
   const altTimeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
   const btcBoxSize = btcTimeframeConfig.boxSize;
-  const chartData = useMemo(() => (isAltChart ? toChartCandles(candles) : toChartRenko(candles, btcBoxSize)), [btcBoxSize, candles, isAltChart]);
+  const chartData = useMemo(
+    () => (isAltChart
+      ? toChartCandles(candles.slice(-ALT_CHART_VISIBLE_CANDLES))
+      : toChartRenko(candles, btcBoxSize)),
+    [btcBoxSize, candles, isAltChart]
+  );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds, isAltChart),
     [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
@@ -310,17 +316,19 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   useEffect(() => {
     if (!candleSeriesRef.current || candles.length === 0) return;
 
-    const bands = isAltChart ? altPrimaryBands : toChartBollingerBands(candles, btcBoxSize);
+    const bands = isAltChart ? clipBandsToChartData(altPrimaryBands, chartData) : toChartBollingerBands(candles, btcBoxSize);
+    const secondaryBands = isAltChart ? clipBandsToChartData(altSecondaryBands, chartData) : null;
+    const tertiaryBands = isAltChart ? clipBandsToChartData(altTertiaryBands, chartData) : null;
 
     candleSeriesRef.current.setData(chartData);
     upperBandSeriesRef.current.setData(bands.upper);
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(bands.lower);
-    secondaryUpperBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.upper : []);
-    secondaryMiddleBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.middle : []);
-    secondaryLowerBandSeriesRef.current?.setData(isAltChart ? altSecondaryBands.lower : []);
-    tertiaryUpperBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.upper : []);
-    tertiaryLowerBandSeriesRef.current?.setData(isAltChart ? altTertiaryBands.lower : []);
+    secondaryUpperBandSeriesRef.current?.setData(secondaryBands?.upper || []);
+    secondaryMiddleBandSeriesRef.current?.setData(secondaryBands?.middle || []);
+    secondaryLowerBandSeriesRef.current?.setData(secondaryBands?.lower || []);
+    tertiaryUpperBandSeriesRef.current?.setData(tertiaryBands?.upper || []);
+    tertiaryLowerBandSeriesRef.current?.setData(tertiaryBands?.lower || []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
@@ -817,6 +825,22 @@ function showRecentCandles(chart, visibleCandles, totalDataPoints) {
     from: Math.max(0, right - visibleCandles),
     to: right,
   });
+}
+
+function clipBandsToChartData(bands, chartData) {
+  if (!bands || chartData.length === 0) {
+    return { upper: [], middle: [], lower: [] };
+  }
+
+  const firstTime = chartData[0].time;
+  const lastTime = chartData.at(-1).time;
+  const clipLine = (line = []) => line.filter((point) => point.time >= firstTime && point.time <= lastTime);
+
+  return {
+    upper: clipLine(bands.upper),
+    middle: clipLine(bands.middle),
+    lower: clipLine(bands.lower),
+  };
 }
 
 function getPricePaneHeight(chart) {
