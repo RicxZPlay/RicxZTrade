@@ -3,6 +3,7 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  LineStyle,
   LineSeries,
 } from "lightweight-charts";
 import { ArrowDown, ArrowUp, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
@@ -34,6 +35,9 @@ const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
+const STOCH_RSI_K_COLOR = "#38bdf8";
+const STOCH_RSI_D_COLOR = "#f6c85f";
+const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const BTC_MAIN_CHART_IDS = new Set(["candles-1m", "candles-15m", "candles-1h"]);
@@ -233,6 +237,8 @@ function BtcQuadChart({
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
   const priceSeriesRef = useRef(null);
+  const stochRsiKLineRef = useRef(null);
+  const stochRsiDLineRef = useRef(null);
   const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
   const middleLineRef = useRef(null);
@@ -283,6 +289,8 @@ function BtcQuadChart({
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
+  const stochRsiConfig = useMemo(() => getChartStochRsiConfig(config), [config]);
+  const showStochRsi = stochRsiConfig !== null;
   const vwmaPeriod = getChartVwmaPeriod(config);
   const vwmaColor = getChartVwmaColor(config);
   const showEma = config.showEma !== false;
@@ -292,6 +300,10 @@ function BtcQuadChart({
   const bbMiddleColor = config.bbMiddleColor || BTC_BAND_MIDDLE_COLOR;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
+  const stochRsiData = useMemo(
+    () => showStochRsi ? toChartStochRsi(fullChartData, stochRsiConfig) : { k: [], d: [] },
+    [fullChartData, showStochRsi, stochRsiConfig]
+  );
   const bandFillData = useMemo(
     () => showBollingerBands ? clipBandLines(toChartBandLinesFromBars(fullChartData, bbPeriod, bbMultiplier), chartData) : null,
     [bbMultiplier, bbPeriod, chartData, fullChartData, showBollingerBands]
@@ -489,6 +501,42 @@ function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     });
+    const stochRsiKLine = showStochRsi ? chart.addSeries(LineSeries, {
+      color: STOCH_RSI_K_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+      autoscaleInfoProvider: () => ({
+        priceRange: { minValue: 0, maxValue: 100 },
+      }),
+    }, 1) : null;
+    const stochRsiDLine = showStochRsi ? chart.addSeries(LineSeries, {
+      color: STOCH_RSI_D_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+      autoscaleInfoProvider: () => ({
+        priceRange: { minValue: 0, maxValue: 100 },
+      }),
+    }, 1) : null;
+
+    if (stochRsiKLine && stochRsiDLine) {
+      [20, 80].forEach((price) => {
+        stochRsiKLine.createPriceLine({
+          price,
+          color: STOCH_RSI_LEVEL_COLOR,
+          lineStyle: LineStyle.Dashed,
+          lineWidth: 1,
+          axisLabelVisible: false,
+          title: "",
+        });
+      });
+      const panes = chart.panes();
+      panes[0]?.setStretchFactor(3);
+      panes[1]?.setStretchFactor(1);
+    }
 
     const handleChartClick = (param) => {
       if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
@@ -505,6 +553,8 @@ function BtcQuadChart({
 
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
+    stochRsiKLineRef.current = stochRsiKLine;
+    stochRsiDLineRef.current = stochRsiDLine;
     extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
     middleLineRef.current = middleLine;
@@ -574,6 +624,8 @@ function BtcQuadChart({
       chart.remove();
       chartRef.current = null;
       priceSeriesRef.current = null;
+      stochRsiKLineRef.current = null;
+      stochRsiDLineRef.current = null;
       extraVwmaLineRef.current = null;
       fastLineRef.current = null;
       middleLineRef.current = null;
@@ -591,7 +643,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, showStochRsi, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -675,6 +727,20 @@ function BtcQuadChart({
 
     try {
       syncSeriesData(priceSeriesRef.current, chartData, seriesSyncRef.current, "price", incrementalSync);
+      syncSeriesData(
+        stochRsiKLineRef.current,
+        showStochRsi ? clipLineData(stochRsiData.k, chartData) : [],
+        seriesSyncRef.current,
+        "stochRsiK",
+        incrementalSync
+      );
+      syncSeriesData(
+        stochRsiDLineRef.current,
+        showStochRsi ? clipLineData(stochRsiData.d, chartData) : [],
+        seriesSyncRef.current,
+        "stochRsiD",
+        incrementalSync
+      );
       syncSeriesData(
         extraVwmaLineRef.current,
         showExtraVwma ? clipLineData(toChartLineVwma(fullChartData, extraVwmaPeriod), chartData) : [],
@@ -776,7 +842,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -824,6 +890,7 @@ function BtcQuadChart({
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
+    showStochRsi ? formatStochRsiLegend(stochRsiConfig) : null,
   ].filter(Boolean);
 
   return (
@@ -955,6 +1022,22 @@ function getChartMaOffset(config) {
   return Number.isFinite(config?.maOffset) ? config.maOffset : 0;
 }
 
+function getChartStochRsiConfig(config) {
+  const source = config?.stochRsi;
+  if (!source) return null;
+
+  const values = {
+    rsiPeriod: Number(source.rsiPeriod),
+    stochPeriod: Number(source.stochPeriod),
+    smoothK: Number(source.smoothK),
+    smoothD: Number(source.smoothD),
+  };
+
+  return Object.values(values).every((value) => Number.isInteger(value) && value > 0)
+    ? values
+    : null;
+}
+
 function getChartVwmaPeriod(config) {
   return Number.isFinite(config?.vwmaPeriod) ? config.vwmaPeriod : BTC_QUAD_VWMA_PERIOD;
 }
@@ -980,6 +1063,10 @@ function formatBbLegend(period, multiplier) {
 
 function formatEmaLegend(period, offset = 0) {
   return offset ? `EMA ${period} off ${offset}` : `EMA ${period}`;
+}
+
+function formatStochRsiLegend(config) {
+  return `Stoch RSI ${config.rsiPeriod}/${config.stochPeriod} K${config.smoothK} D${config.smoothD}`;
 }
 
 function toChartData(candles, config) {
@@ -1012,6 +1099,91 @@ function sanitizeChartData(data) {
   });
 
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function toChartStochRsi(data, config) {
+  if (!config || data.length === 0) return { k: [], d: [] };
+
+  const closes = data.map((bar) => bar.close);
+  const rsi = calculateWilderRsi(closes, config.rsiPeriod);
+  const rawStoch = Array(data.length).fill(null);
+
+  for (let index = config.stochPeriod - 1; index < rsi.length; index += 1) {
+    const window = rsi.slice(index - config.stochPeriod + 1, index + 1);
+    if (window.some((value) => !Number.isFinite(value))) continue;
+
+    const lowest = Math.min(...window);
+    const highest = Math.max(...window);
+    rawStoch[index] = highest === lowest
+      ? 50
+      : ((rsi[index] - lowest) / (highest - lowest)) * 100;
+  }
+
+  const smoothK = calculateAlignedSma(rawStoch, config.smoothK);
+  const smoothD = calculateAlignedSma(smoothK, config.smoothD);
+  const toLine = (values) => values.flatMap((value, index) => (
+    Number.isFinite(value) ? [{ time: data[index].time, value }] : []
+  ));
+
+  return {
+    k: toLine(smoothK),
+    d: toLine(smoothD),
+  };
+}
+
+function calculateWilderRsi(values, period) {
+  const result = Array(values.length).fill(null);
+  if (values.length <= period) return result;
+
+  let gainSum = 0;
+  let lossSum = 0;
+  for (let index = 1; index <= period; index += 1) {
+    const change = values[index] - values[index - 1];
+    gainSum += Math.max(change, 0);
+    lossSum += Math.max(-change, 0);
+  }
+
+  let averageGain = gainSum / period;
+  let averageLoss = lossSum / period;
+  result[period] = toRsiValue(averageGain, averageLoss);
+
+  for (let index = period + 1; index < values.length; index += 1) {
+    const change = values[index] - values[index - 1];
+    const gain = Math.max(change, 0);
+    const loss = Math.max(-change, 0);
+    averageGain = ((averageGain * (period - 1)) + gain) / period;
+    averageLoss = ((averageLoss * (period - 1)) + loss) / period;
+    result[index] = toRsiValue(averageGain, averageLoss);
+  }
+
+  return result;
+}
+
+function toRsiValue(averageGain, averageLoss) {
+  if (averageLoss === 0) return averageGain === 0 ? 50 : 100;
+  if (averageGain === 0) return 0;
+  return 100 - (100 / (1 + (averageGain / averageLoss)));
+}
+
+function calculateAlignedSma(values, period) {
+  const result = Array(values.length).fill(null);
+  const window = [];
+  let sum = 0;
+
+  values.forEach((value, index) => {
+    if (!Number.isFinite(value)) {
+      window.length = 0;
+      sum = 0;
+      return;
+    }
+
+    window.push(value);
+    sum += value;
+    if (window.length > period) sum -= window.shift();
+    if (window.length === period) result[index] = sum / period;
+  });
+
+  return result;
 }
 
 function trimRenderableChartData(data, config) {
