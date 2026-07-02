@@ -3,6 +3,7 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   LineSeries,
 } from "lightweight-charts";
 import { ArrowDown, ArrowUp, Maximize2, MousePointer2, Ruler, Slash, Trash2, X } from "lucide-react";
@@ -36,6 +37,7 @@ const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
+const TD_SEQUENTIAL_MARKER_BARS = 1200;
 const BTC_MAIN_CHART_IDS = new Set(["candles-1m", "candles-15m", "candles-1h"]);
 const TOOLS = {
   cursor: "cursor",
@@ -233,6 +235,7 @@ function BtcQuadChart({
   const overlayRef = useRef(null);
   const chartRef = useRef(null);
   const priceSeriesRef = useRef(null);
+  const tdSequentialMarkersRef = useRef(null);
   const extraVwmaLineRef = useRef(null);
   const fastLineRef = useRef(null);
   const middleLineRef = useRef(null);
@@ -287,11 +290,16 @@ function BtcQuadChart({
   const vwmaColor = getChartVwmaColor(config);
   const showEma = config.showEma !== false;
   const showVwma = config.showVwma !== false;
+  const showTdSequential = config.showTdSequential === true;
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
   const showBbMiddle = showBollingerBands && config.showBbMiddle === true;
   const bbMiddleColor = config.bbMiddleColor || BTC_BAND_MIDDLE_COLOR;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
+  const tdSequentialMarkers = useMemo(
+    () => showTdSequential ? toTdSequentialMarkers(fullChartData, TD_SEQUENTIAL_MARKER_BARS) : [],
+    [fullChartData, showTdSequential]
+  );
   const bandFillData = useMemo(
     () => showBollingerBands ? clipBandLines(toChartBandLinesFromBars(fullChartData, bbPeriod, bbMultiplier), chartData) : null,
     [bbMultiplier, bbPeriod, chartData, fullChartData, showBollingerBands]
@@ -374,6 +382,9 @@ function BtcQuadChart({
       },
       lastValueVisible: !isCompact,
     });
+    const tdSequentialMarkersApi = showTdSequential
+      ? createSeriesMarkers(priceSeries, [], { autoScale: false })
+      : null;
     priceSeries.priceScale().applyOptions({
       scaleMargins: {
         top: 0.12,
@@ -505,6 +516,7 @@ function BtcQuadChart({
 
     chartRef.current = chart;
     priceSeriesRef.current = priceSeries;
+    tdSequentialMarkersRef.current = tdSequentialMarkersApi;
     extraVwmaLineRef.current = extraVwmaLine;
     fastLineRef.current = fastLine;
     middleLineRef.current = middleLine;
@@ -574,6 +586,7 @@ function BtcQuadChart({
       chart.remove();
       chartRef.current = null;
       priceSeriesRef.current = null;
+      tdSequentialMarkersRef.current = null;
       extraVwmaLineRef.current = null;
       fastLineRef.current = null;
       middleLineRef.current = null;
@@ -591,7 +604,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, showTdSequential, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -675,6 +688,7 @@ function BtcQuadChart({
 
     try {
       syncSeriesData(priceSeriesRef.current, chartData, seriesSyncRef.current, "price", incrementalSync);
+      tdSequentialMarkersRef.current?.setMarkers(tdSequentialMarkers);
       syncSeriesData(
         extraVwmaLineRef.current,
         showExtraVwma ? clipLineData(toChartLineVwma(fullChartData, extraVwmaPeriod), chartData) : [],
@@ -776,7 +790,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showVwma, tdSequentialMarkers, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -824,6 +838,7 @@ function BtcQuadChart({
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
+    showTdSequential ? "TD Sequential 9-13" : null,
   ].filter(Boolean);
 
   return (
@@ -1012,6 +1027,101 @@ function sanitizeChartData(data) {
   });
 
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function toTdSequentialMarkers(data, markerBars = TD_SEQUENTIAL_MARKER_BARS) {
+  if (!Array.isArray(data) || data.length < 5) return [];
+
+  const markers = [];
+  const markerStartIndex = Math.max(0, data.length - markerBars);
+  let buySetup = 0;
+  let sellSetup = 0;
+  let buyCountdown = null;
+  let sellCountdown = null;
+
+  const addSetupMarker = (bar, index, count, side) => {
+    if (index < markerStartIndex || count < 7) return;
+    const isCompletion = count === 9;
+    markers.push({
+      id: `td-${side}-setup-${bar.time}`,
+      time: bar.time,
+      position: side === "buy" ? "belowBar" : "aboveBar",
+      shape: isCompletion ? (side === "buy" ? "arrowUp" : "arrowDown") : "circle",
+      color: side === "buy" ? "#22c55e" : "#ef4444",
+      text: String(count),
+      size: isCompletion ? 1.15 : 0.55,
+    });
+  };
+
+  const addCountdownMarker = (bar, index, count, side) => {
+    if (index < markerStartIndex || count < 11) return;
+    const isCompletion = count === 13;
+    markers.push({
+      id: `td-${side}-countdown-${bar.time}`,
+      time: bar.time,
+      position: side === "buy" ? "belowBar" : "aboveBar",
+      shape: isCompletion ? (side === "buy" ? "arrowUp" : "arrowDown") : "square",
+      color: side === "buy" ? "#22d3ee" : "#fb923c",
+      text: `C${count}`,
+      size: isCompletion ? 1.2 : 0.55,
+    });
+  };
+
+  for (let index = 4; index < data.length; index += 1) {
+    const bar = data[index];
+    const comparisonClose = data[index - 4].close;
+    const isBuySetupBar = bar.close < comparisonClose;
+    const isSellSetupBar = bar.close > comparisonClose;
+
+    buySetup = isBuySetupBar ? buySetup + 1 : 0;
+    sellSetup = isSellSetupBar ? sellSetup + 1 : 0;
+
+    if (buySetup > 0) addSetupMarker(bar, index, buySetup, "buy");
+    if (sellSetup > 0) addSetupMarker(bar, index, sellSetup, "sell");
+
+    if (buySetup === 9) {
+      buyCountdown = {
+        count: 0,
+        setupEightClose: data[index - 1]?.close ?? bar.close,
+      };
+      sellCountdown = null;
+      buySetup = 0;
+    }
+
+    if (sellSetup === 9) {
+      sellCountdown = {
+        count: 0,
+        setupEightClose: data[index - 1]?.close ?? bar.close,
+      };
+      buyCountdown = null;
+      sellSetup = 0;
+    }
+
+    if (index < 2) continue;
+    const twoBarsEarlier = data[index - 2];
+
+    if (buyCountdown && bar.close <= twoBarsEarlier.low) {
+      const nextCount = buyCountdown.count + 1;
+      const qualifiedCompletion = nextCount < 13 || bar.low <= buyCountdown.setupEightClose;
+      if (qualifiedCompletion) {
+        buyCountdown.count = nextCount;
+        addCountdownMarker(bar, index, nextCount, "buy");
+        if (nextCount === 13) buyCountdown = null;
+      }
+    }
+
+    if (sellCountdown && bar.close >= twoBarsEarlier.high) {
+      const nextCount = sellCountdown.count + 1;
+      const qualifiedCompletion = nextCount < 13 || bar.high >= sellCountdown.setupEightClose;
+      if (qualifiedCompletion) {
+        sellCountdown.count = nextCount;
+        addCountdownMarker(bar, index, nextCount, "sell");
+        if (nextCount === 13) sellCountdown = null;
+      }
+    }
+  }
+
+  return markers;
 }
 
 function trimRenderableChartData(data, config) {
