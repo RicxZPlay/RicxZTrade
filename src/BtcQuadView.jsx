@@ -291,6 +291,7 @@ function BtcQuadChart({
   const showMa = Number.isFinite(maPeriod);
   const stochRsiConfig = useMemo(() => getChartStochRsiConfig(config), [config]);
   const showStochRsi = stochRsiConfig !== null;
+  const showStochRsiD = showStochRsi && stochRsiConfig.showD;
   const vwmaPeriod = getChartVwmaPeriod(config);
   const vwmaColor = getChartVwmaColor(config);
   const showEma = config.showEma !== false;
@@ -511,7 +512,7 @@ function BtcQuadChart({
         priceRange: { minValue: 0, maxValue: 100 },
       }),
     }, 1) : null;
-    const stochRsiDLine = showStochRsi ? chart.addSeries(LineSeries, {
+    const stochRsiDLine = showStochRsiD ? chart.addSeries(LineSeries, {
       color: STOCH_RSI_D_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
@@ -522,7 +523,7 @@ function BtcQuadChart({
       }),
     }, 1) : null;
 
-    if (stochRsiKLine && stochRsiDLine) {
+    if (stochRsiKLine) {
       [20, 80].forEach((price) => {
         stochRsiKLine.createPriceLine({
           price,
@@ -643,7 +644,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, showStochRsi, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, showStochRsi, showStochRsiD, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -736,7 +737,7 @@ function BtcQuadChart({
       );
       syncSeriesData(
         stochRsiDLineRef.current,
-        showStochRsi ? clipLineData(stochRsiData.d, chartData) : [],
+        showStochRsiD ? clipLineData(stochRsiData.d, chartData) : [],
         seriesSyncRef.current,
         "stochRsiD",
         incrementalSync
@@ -842,7 +843,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -1034,7 +1035,7 @@ function getChartStochRsiConfig(config) {
   };
 
   return Object.values(values).every((value) => Number.isInteger(value) && value > 0)
-    ? values
+    ? { ...values, showD: source.showD !== false }
     : null;
 }
 
@@ -1066,7 +1067,8 @@ function formatEmaLegend(period, offset = 0) {
 }
 
 function formatStochRsiLegend(config) {
-  return `Stoch RSI ${config.rsiPeriod}/${config.stochPeriod} K${config.smoothK} D${config.smoothD}`;
+  const dLabel = config.showD ? ` D${config.smoothD}` : "";
+  return `Stoch RSI ${config.rsiPeriod}/${config.stochPeriod} K${config.smoothK}${dLabel}`;
 }
 
 function toChartData(candles, config) {
@@ -1120,7 +1122,7 @@ function toChartStochRsi(data, config) {
   }
 
   const smoothK = calculateAlignedSma(rawStoch, config.smoothK);
-  const smoothD = calculateAlignedSma(smoothK, config.smoothD);
+  const smoothD = config.showD ? calculateAlignedSma(smoothK, config.smoothD) : [];
   const toLine = (values) => values.flatMap((value, index) => (
     Number.isFinite(value) ? [{ time: data[index].time, value }] : []
   ));
