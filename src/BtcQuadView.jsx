@@ -317,6 +317,8 @@ function BtcQuadChart({
   const pivotConfig = useMemo(() => getChartPivotsConfig(config), [config]);
   const showPivots = pivotConfig !== null;
   const pivotLineCount = showPivots ? pivotConfig.periodsBack * WOODIE_PIVOT_LEVELS.length : 0;
+  const fractalsPeriod = getChartFractalsPeriod(config);
+  const showFractals = Number.isFinite(fractalsPeriod);
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
   const stochRsiData = useMemo(
@@ -334,6 +336,10 @@ function BtcQuadChart({
   const pivotLineData = useMemo(
     () => showPivots ? toChartMonthlyWoodiePivots(fullChartData, pivotConfig.periodsBack) : [],
     [fullChartData, pivotConfig, showPivots]
+  );
+  const fractals = useMemo(
+    () => showFractals ? toChartFractals(fullChartData, chartData, fractalsPeriod) : { highs: [], lows: [] },
+    [chartData, fractalsPeriod, fullChartData, showFractals]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -899,7 +905,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showFractals, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -949,6 +955,7 @@ function BtcQuadChart({
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
     showPivots ? `Pivos Woodie mensal` : null,
+    showFractals ? `Fractais ${fractalsPeriod}` : null,
     showStochRsi ? formatStochRsiLegend(stochRsiConfig) : null,
   ].filter(Boolean);
 
@@ -988,6 +995,14 @@ function BtcQuadChart({
               chart={drawingContext.chart}
               chartMeta={chartMeta}
               lines={pivotLineData}
+              series={drawingContext.series}
+            />
+          ) : null}
+          {showFractals ? (
+            <FractalMarkers
+              chart={drawingContext.chart}
+              chartMeta={chartMeta}
+              fractals={fractals}
               series={drawingContext.series}
             />
           ) : null}
@@ -1058,6 +1073,11 @@ function getChartPivotsConfig(config) {
     color: typeof source.color === "string" ? source.color : BTC_PIVOT_COLOR,
     periodsBack,
   };
+}
+
+function getChartFractalsPeriod(config) {
+  const period = Number(config?.fractalsPeriod);
+  return Number.isInteger(period) && period >= 1 ? period : null;
 }
 
 function getChartEmaPeriod(config) {
@@ -1229,6 +1249,30 @@ function toChartMonthlyWoodiePivots(bars, periodsBack) {
       ],
     }));
   });
+}
+
+function toChartFractals(bars, visibleBars, period) {
+  if (!Array.isArray(bars) || bars.length < period * 2 + 1 || !Array.isArray(visibleBars) || visibleBars.length === 0) {
+    return { highs: [], lows: [] };
+  }
+
+  const visibleTimes = new Set(visibleBars.map((bar) => bar.time));
+  const highs = [];
+  const lows = [];
+
+  for (let index = period; index < bars.length - period; index += 1) {
+    const current = bars[index];
+    const window = bars.slice(index - period, index + period + 1);
+    if (!visibleTimes.has(current.time)) continue;
+
+    const upperFractal = window.every((bar, offset) => offset === period || current.high > bar.high);
+    const lowerFractal = window.every((bar, offset) => offset === period || current.low < bar.low);
+
+    if (upperFractal) highs.push({ time: current.time, value: current.high });
+    if (lowerFractal) lows.push({ time: current.time, value: current.low });
+  }
+
+  return { highs, lows };
 }
 
 function toChartStochRsi(data, config) {
@@ -1470,6 +1514,30 @@ function PivotLabels({ chart, chartMeta, lines, series }) {
           </text>
         );
       })}
+    </g>
+  );
+}
+
+function FractalMarkers({ chart, chartMeta, fractals, series }) {
+  if (!chart || !series) return null;
+
+  const paneWidth = getPricePaneWidth(chart);
+  const toMarker = (point, direction) => {
+    const x = pointToCoordinate({ time: point.time }, chart, chartMeta);
+    const y = series.priceToCoordinate(point.value);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 5 || x > paneWidth - 5 || y < 5) return null;
+
+    const color = direction === "down" ? "#ef5b5b" : "#1fbf75";
+    const points = direction === "down"
+      ? `${x - 4},${y - 8} ${x + 4},${y - 8} ${x},${y - 2}`
+      : `${x - 4},${y + 8} ${x + 4},${y + 8} ${x},${y + 2}`;
+    return <polygon key={`${direction}-${point.time}`} points={points} fill={color} opacity="0.92" />;
+  };
+
+  return (
+    <g aria-hidden="true">
+      {(fractals?.highs || []).map((point) => toMarker(point, "down"))}
+      {(fractals?.lows || []).map((point) => toMarker(point, "up"))}
     </g>
   );
 }
