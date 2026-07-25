@@ -1452,12 +1452,13 @@ function PivotLabels({ chart, chartMeta, lines, series }) {
 
         const x = pointToCoordinate({ time: endpoint.time }, chart, chartMeta);
         const y = series.priceToCoordinate(endpoint.value);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 8 || x > paneWidth - 28 || y < 10) return null;
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(paneWidth) || x < -12 || x > paneWidth + 12 || y < 10) return null;
+        const labelX = Math.min(Math.max(x + 5, 8), paneWidth - 26);
 
         return (
           <text
             key={line.key}
-            x={x + 5}
+            x={labelX}
             y={y - 5}
             fill={BTC_PIVOT_COLOR}
             fontSize="11"

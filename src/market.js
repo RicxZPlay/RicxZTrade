@@ -88,7 +88,7 @@ export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "1h";
-export const ALT_HISTORY_LIMIT = 4200;
+export const ALT_HISTORY_LIMIT = 1800;
 export const ALT_CHART_INTERVALS = {
   "1h": { interval: "1h", historyLimit: 4200, fallbackSeconds: 3600 },
 };
