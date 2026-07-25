@@ -32,6 +32,7 @@ const BTC_EMA_COLOR = "#d4af37";
 const BTC_EXTRA_EMA_COLOR = "#22c55e";
 const BTC_LRC_COLOR = "#facc15";
 const BTC_LSMA_COLOR = "#f8fafc";
+const BTC_EXTRA_LSMA_COLOR = "#38bdf8";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_VWMA_COLOR = "#f8fafc";
@@ -40,7 +41,7 @@ const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const BTC_MAIN_CHART_IDS = new Set(["candles-1m", "candles-15m", "candles-1h"]);
+const BTC_MAIN_CHART_IDS = new Set(["renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -60,6 +61,8 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
+      chartCandles["renko-30m"],
+      chartCandles["candles-30m-lsma"],
       chartCandles["candles-1s"],
       chartCandles["candles-1m"],
       chartCandles["candles-5m"],
@@ -246,6 +249,7 @@ function BtcQuadChart({
   const extraBandMiddleLineRefs = useRef([]);
   const lrcLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
+  const extraLsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
   const slowLineRef = useRef(null);
   const extraEmaLineRef = useRef(null);
@@ -286,6 +290,8 @@ function BtcQuadChart({
   const showLrc = Number.isFinite(lrcPeriod);
   const lsmaPeriod = getChartLsmaPeriod(config);
   const showLsma = Number.isFinite(lsmaPeriod);
+  const extraLsmaPeriod = getChartExtraLsmaPeriod(config);
+  const showExtraLsma = Number.isFinite(extraLsmaPeriod);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
@@ -463,6 +469,13 @@ function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     });
+    const extraLsmaLine = chart.addSeries(LineSeries, {
+      color: BTC_EXTRA_LSMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    });
 
     const lrcLine = chart.addSeries(LineSeries, {
       color: BTC_LRC_COLOR,
@@ -563,6 +576,7 @@ function BtcQuadChart({
     extraBandMiddleLineRefs.current = extraBandMiddleLines;
     lrcLineRef.current = lrcLine;
     lsmaLineRef.current = lsmaLine;
+    extraLsmaLineRef.current = extraLsmaLine;
     maLineRef.current = maLine;
     slowLineRef.current = slowLine;
     extraEmaLineRef.current = extraEmaLine;
@@ -634,6 +648,7 @@ function BtcQuadChart({
       extraBandMiddleLineRefs.current = [];
       lrcLineRef.current = null;
       lsmaLineRef.current = null;
+      extraLsmaLineRef.current = null;
       maLineRef.current = null;
       slowLineRef.current = null;
       extraEmaLineRef.current = null;
@@ -801,6 +816,13 @@ function BtcQuadChart({
         incrementalSync
       );
       syncSeriesData(
+        extraLsmaLineRef.current,
+        showExtraLsma ? clipLineData(toChartLineLsma(fullChartData, extraLsmaPeriod), chartData) : [],
+        seriesSyncRef.current,
+        "extraLsma",
+        incrementalSync
+      );
+      syncSeriesData(
         maLineRef.current,
         showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : [],
         seriesSyncRef.current,
@@ -843,7 +865,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -888,6 +910,7 @@ function BtcQuadChart({
     showExtraEma ? formatEmaLegend(extraEmaPeriod, extraEmaOffset) : null,
     showLrc ? `LRC ${lrcPeriod}` : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
+    showExtraLsma ? `LSMA ${extraLsmaPeriod}` : null,
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
@@ -1009,6 +1032,10 @@ function getChartExtraVwmaPeriod(config) {
 
 function getChartLsmaPeriod(config) {
   return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
+}
+
+function getChartExtraLsmaPeriod(config) {
+  return Number.isFinite(config?.extraLsmaPeriod) ? config.extraLsmaPeriod : null;
 }
 
 function getChartLrcPeriod(config) {
