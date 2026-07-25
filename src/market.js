@@ -100,6 +100,8 @@ export const ALT_CHART_SECONDARY_BB_PERIOD = 3000;
 export const ALT_CHART_SECONDARY_BB_MULTIPLIER = 2;
 export const ALT_CHART_TERTIARY_BB_PERIOD = 4000;
 export const ALT_CHART_TERTIARY_BB_MULTIPLIER = 3;
+export const ALT_LSMA_FAST_PERIOD = 1400;
+export const ALT_LSMA_SLOW_PERIOD = 1700;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
@@ -246,49 +248,23 @@ export async function scanMarket(filters, signal, onProgress) {
 export async function buildSignal(ticker, btcCloses, signal) {
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
-  const bb2000 = toChartCandleBollingerBands(
-    candles,
-    ALT_CHART_BB_PERIOD,
-    ALT_CHART_BB_MULTIPLIER
-  );
-  const bb3000 = toChartCandleBollingerBands(
-    candles,
-    ALT_CHART_SECONDARY_BB_PERIOD,
-    ALT_CHART_SECONDARY_BB_MULTIPLIER
-  );
-  const bb4000 = toChartCandleBollingerBands(
-    candles,
-    ALT_CHART_TERTIARY_BB_PERIOD,
-    ALT_CHART_TERTIARY_BB_MULTIPLIER
-  );
-  const bbUpper2000 = bb2000.upper.at(-1)?.value;
-  const bbLower2000 = bb2000.lower.at(-1)?.value;
-  const bbUpper3000 = bb3000.upper.at(-1)?.value;
-  const bbMiddle3000 = bb3000.middle.at(-1)?.value;
-  const bbLower3000 = bb3000.lower.at(-1)?.value;
-  const bbUpper4000 = bb4000.upper.at(-1)?.value;
-  const bbLower4000 = bb4000.lower.at(-1)?.value;
+  const lsma1400 = toChartLsma(candles, ALT_LSMA_FAST_PERIOD).at(-1)?.value;
+  const lsma1700 = toChartLsma(candles, ALT_LSMA_SLOW_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![
-    price,
-    bbUpper2000,
-    bbLower2000,
-    bbUpper3000,
-    bbMiddle3000,
-    bbLower3000,
-    bbUpper4000,
-    bbLower4000,
-  ].every(Number.isFinite)) {
+  if (![price, lsma1400, lsma1700].every(Number.isFinite)) {
     return null;
   }
 
   let trendDirection = "neutral";
-  if (price > bbLower3000 && price < bbMiddle3000) trendDirection = "bearish";
-  if (price > bbMiddle3000 && price < bbUpper3000) trendDirection = "bullish";
-  const priceDistancePercent = ((price - bbMiddle3000) / bbMiddle3000) * 100;
+  const upperLsma = Math.max(lsma1400, lsma1700);
+  const lowerLsma = Math.min(lsma1400, lsma1700);
+  if (price < lowerLsma) trendDirection = "bearish";
+  if (price > upperLsma) trendDirection = "bullish";
+  const nearestLsma = Math.abs(price - lsma1400) <= Math.abs(price - lsma1700) ? lsma1400 : lsma1700;
+  const priceDistancePercent = ((price - nearestLsma) / nearestLsma) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
@@ -296,13 +272,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
   return {
     ...ticker,
     price,
-    bbUpper2000,
-    bbLower2000,
-    bbUpper3000,
-    bbMiddle3000,
-    bbLower3000,
-    bbUpper4000,
-    bbLower4000,
+    lsma1400,
+    lsma1700,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
@@ -524,6 +495,10 @@ export function toChartLrc(candles, period) {
   }
 
   return points.filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+}
+
+export function toChartLsma(candles, period) {
+  return toChartLrc(candles, period);
 }
 
 export function toChartVwma(candles, period = BTC_QUAD_VWMA_PERIOD) {
@@ -850,8 +825,8 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "entre BB inferior e mediana 3000 / 2";
-  if (direction === "bullish") return "entre mediana e BB superior 3000 / 2";
+  if (direction === "bearish") return "abaixo das LSMA 1400 / 1700";
+  if (direction === "bullish") return "acima das LSMA 1400 / 1700";
   return "fora das zonas";
 }
 
@@ -947,7 +922,7 @@ async function fetchScannerCandles(symbol, signal) {
   const missingCandles = Number.isFinite(lastCachedTime)
     ? Math.ceil((Date.now() - lastCachedTime) / (15 * 60 * 1000)) + 2
     : ALT_HISTORY_LIMIT;
-  const requestLimit = cached?.length >= ALT_CHART_TERTIARY_BB_PERIOD && missingCandles <= 1000
+  const requestLimit = cached?.length >= ALT_LSMA_SLOW_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
     : ALT_HISTORY_LIMIT;
   const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);

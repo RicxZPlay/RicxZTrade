@@ -317,8 +317,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da mediana BB 3000 / 2" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da mediana BB 3000 / 2" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo das LSMA" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima das LSMA" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -352,8 +352,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita entre a BB inferior e a mediana 3000 / 2 apareceu."
-                      : "Nenhuma altcoin entre a BB inferior e a mediana 3000 / 2 apareceu."}
+                      ? "Nenhuma favorita abaixo das LSMA apareceu."
+                      : "Nenhuma altcoin abaixo das LSMA apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -397,8 +397,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita entre a mediana e a BB superior 3000 / 2 apareceu."
-                      : "Nenhuma altcoin entre a mediana e a BB superior 3000 / 2 apareceu."}
+                      ? "Nenhuma favorita acima das LSMA apareceu."
+                      : "Nenhuma altcoin acima das LSMA apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -414,9 +414,8 @@ export default function App() {
 
           <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="BB 3000 Sup" value={formatPrice(selected?.bbUpper3000)} />
-            <SelectedMetric label="BB 3000 Media" value={formatPrice(selected?.bbMiddle3000)} />
-            <SelectedMetric label="BB 3000 Inf" value={formatPrice(selected?.bbLower3000)} />
+            <SelectedMetric label="LSMA 1400" value={formatPrice(selected?.lsma1400)} />
+            <SelectedMetric label="LSMA 1700" value={formatPrice(selected?.lsma1700)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
