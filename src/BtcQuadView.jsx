@@ -35,6 +35,14 @@ const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_EXTRA_LSMA_COLOR = "#38bdf8";
 const BTC_MA_COLOR = "#22c55e";
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
+const BTC_PIVOT_COLOR = "#f59e0b";
+const WOODIE_PIVOT_LEVELS = [
+  { key: "p", label: "P" },
+  { key: "r1", label: "R1" },
+  { key: "r2", label: "R2" },
+  { key: "s1", label: "S1" },
+  { key: "s2", label: "S2" },
+];
 const BTC_VWMA_COLOR = "#f8fafc";
 const STOCH_RSI_K_COLOR = "#38bdf8";
 const STOCH_RSI_D_COLOR = "#f6c85f";
@@ -247,6 +255,7 @@ function BtcQuadChart({
   const middleLineRef = useRef(null);
   const extraBandLineRefs = useRef([]);
   const extraBandMiddleLineRefs = useRef([]);
+  const pivotLineRefs = useRef([]);
   const lrcLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
   const extraLsmaLineRef = useRef(null);
@@ -305,6 +314,9 @@ function BtcQuadChart({
   const showBollingerBands = config.showBollingerBands === true || (config.showBollingerBands !== false && !isOneMinuteCandleChart(config));
   const showBbMiddle = showBollingerBands && config.showBbMiddle === true;
   const bbMiddleColor = config.bbMiddleColor || BTC_BAND_MIDDLE_COLOR;
+  const pivotConfig = useMemo(() => getChartPivotsConfig(config), [config]);
+  const showPivots = pivotConfig !== null;
+  const pivotLineCount = showPivots ? pivotConfig.periodsBack * WOODIE_PIVOT_LEVELS.length : 0;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
   const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
   const stochRsiData = useMemo(
@@ -318,6 +330,10 @@ function BtcQuadChart({
   const secondaryBandData = useMemo(
     () => extraBollingerBands.map((band) => clipBandLines(toChartBandLinesFromBars(fullChartData, band.period, band.multiplier), chartData)),
     [chartData, extraBollingerBands, fullChartData]
+  );
+  const pivotLineData = useMemo(
+    () => showPivots ? toChartMonthlyWoodiePivots(fullChartData, pivotConfig.periodsBack) : [],
+    [fullChartData, pivotConfig, showPivots]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -453,6 +469,13 @@ function BtcQuadChart({
         title: "",
       });
     });
+    const pivotLines = Array.from({ length: pivotLineCount }, () => chart.addSeries(LineSeries, {
+      color: pivotConfig?.color || BTC_PIVOT_COLOR,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      title: "",
+    }));
 
     const extraVwmaLine = chart.addSeries(LineSeries, {
       color: extraVwmaColor,
@@ -574,6 +597,7 @@ function BtcQuadChart({
     middleLineRef.current = middleLine;
     extraBandLineRefs.current = extraBandLines;
     extraBandMiddleLineRefs.current = extraBandMiddleLines;
+    pivotLineRefs.current = pivotLines;
     lrcLineRef.current = lrcLine;
     lsmaLineRef.current = lsmaLine;
     extraLsmaLineRef.current = extraLsmaLine;
@@ -646,6 +670,7 @@ function BtcQuadChart({
       middleLineRef.current = null;
       extraBandLineRefs.current = [];
       extraBandMiddleLineRefs.current = [];
+      pivotLineRefs.current = [];
       lrcLineRef.current = null;
       lsmaLineRef.current = null;
       extraLsmaLineRef.current = null;
@@ -659,7 +684,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, setSelectedDrawing, showStochRsi, showStochRsiD, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showStochRsi, showStochRsiD, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -801,6 +826,15 @@ function BtcQuadChart({
           incrementalSync
         );
       });
+      pivotLineRefs.current.forEach((series, index) => {
+        syncSeriesData(
+          series,
+          pivotLineData[index]?.data || [],
+          seriesSyncRef.current,
+          `pivot-${index}`,
+          incrementalSync
+        );
+      });
       syncSeriesData(
         lrcLineRef.current,
         showLrc ? clipLineData(toChartLineLsma(fullChartData, lrcPeriod), chartData) : [],
@@ -865,7 +899,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -914,6 +948,7 @@ function BtcQuadChart({
     showMa ? `MA ${maPeriod} off ${maOffset}` : null,
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
+    showPivots ? `Pivos Woodie mensal` : null,
     showStochRsi ? formatStochRsiLegend(stochRsiConfig) : null,
   ].filter(Boolean);
 
@@ -946,6 +981,14 @@ function BtcQuadChart({
               lower={bandFillData?.lower}
               series={drawingContext.series}
               upper={bandFillData?.upper}
+            />
+          ) : null}
+          {!isCompact && showPivots ? (
+            <PivotLabels
+              chart={drawingContext.chart}
+              chartMeta={chartMeta}
+              lines={pivotLineData}
+              series={drawingContext.series}
             />
           ) : null}
           {[...drawings, draftDrawing].filter(Boolean).map((drawing) => (
@@ -1004,6 +1047,17 @@ function getChartExtraBollingerBands(config) {
     multiplier: band.multiplier,
     showMiddle: band.showMiddle === true,
   }));
+}
+
+function getChartPivotsConfig(config) {
+  const source = config?.pivots;
+  if (source?.type !== "woodie" || source?.timeframe !== "monthly") return null;
+
+  const periodsBack = Math.min(12, Math.max(1, Math.trunc(Number(source.periodsBack) || 0)));
+  return {
+    color: typeof source.color === "string" ? source.color : BTC_PIVOT_COLOR,
+    periodsBack,
+  };
 }
 
 function getChartEmaPeriod(config) {
@@ -1128,6 +1182,53 @@ function sanitizeChartData(data) {
   });
 
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function toChartMonthlyWoodiePivots(bars, periodsBack) {
+  if (!Array.isArray(bars) || bars.length < 2) return [];
+
+  const monthsByKey = new Map();
+  bars.forEach((bar) => {
+    if (![bar?.time, bar?.open, bar?.high, bar?.low, bar?.close].every(Number.isFinite)) return;
+    const date = new Date(bar.time * 1000);
+    const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    const month = monthsByKey.get(key) || { bars: [] };
+    month.bars.push(bar);
+    monthsByKey.set(key, month);
+  });
+
+  const months = [...monthsByKey.values()].filter((month) => month.bars.length > 0);
+  const targets = months
+    .map((month, index) => ({ month, previous: months[index - 1] }))
+    .filter(({ previous }) => previous)
+    .slice(-periodsBack);
+
+  return targets.flatMap(({ month, previous }) => {
+    const previousHigh = Math.max(...previous.bars.map((bar) => bar.high));
+    const previousLow = Math.min(...previous.bars.map((bar) => bar.low));
+    const currentOpen = month.bars[0]?.open;
+    if (![previousHigh, previousLow, currentOpen].every(Number.isFinite)) return [];
+
+    const pivot = (previousHigh + previousLow + 2 * currentOpen) / 4;
+    const levels = {
+      p: pivot,
+      r1: 2 * pivot - previousLow,
+      r2: pivot + previousHigh - previousLow,
+      s1: 2 * pivot - previousHigh,
+      s2: pivot - previousHigh + previousLow,
+    };
+    const startTime = month.bars[0].time;
+    const endTime = month.bars.at(-1).time;
+
+    return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
+      key: `${startTime}-${key}`,
+      label,
+      data: [
+        { time: startTime, value: levels[key] },
+        { time: endTime, value: levels[key] },
+      ],
+    }));
+  });
 }
 
 function toChartStochRsi(data, config) {
@@ -1337,6 +1438,40 @@ function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
   ].join(" ");
 
   return <polygon className="bb-fill-zone" points={polygonPoints} />;
+}
+
+function PivotLabels({ chart, chartMeta, lines, series }) {
+  if (!chart || !series || !Array.isArray(lines) || lines.length === 0) return null;
+
+  const paneWidth = getPricePaneWidth(chart);
+  return (
+    <g aria-hidden="true">
+      {lines.map((line) => {
+        const endpoint = line.data?.at(-1);
+        if (!endpoint) return null;
+
+        const x = pointToCoordinate({ time: endpoint.time }, chart, chartMeta);
+        const y = series.priceToCoordinate(endpoint.value);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 8 || x > paneWidth - 28 || y < 10) return null;
+
+        return (
+          <text
+            key={line.key}
+            x={x + 5}
+            y={y - 5}
+            fill={BTC_PIVOT_COLOR}
+            fontSize="11"
+            fontWeight="700"
+            paintOrder="stroke"
+            stroke="#101319"
+            strokeWidth="3"
+          >
+            {line.label}
+          </text>
+        );
+      })}
+    </g>
+  );
 }
 
 function toChartBandLinesFromBars(bars, period = BTC_BB_PERIOD, multiplier = BTC_BB_MULTIPLIER) {
