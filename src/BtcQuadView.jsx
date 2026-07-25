@@ -983,10 +983,11 @@ function BtcQuadChart({
               upper={bandFillData?.upper}
             />
           ) : null}
-          {!isCompact && showPivots ? (
+          {showPivots ? (
             <PivotLabels
               chart={drawingContext.chart}
               chartMeta={chartMeta}
+              compact={isCompact}
               lines={pivotLineData}
               series={drawingContext.series}
             />
@@ -1440,7 +1441,7 @@ function BollingerBandFill({ chart, chartMeta, lower, series, upper }) {
   return <polygon className="bb-fill-zone" points={polygonPoints} />;
 }
 
-function PivotLabels({ chart, chartMeta, lines, series }) {
+function PivotLabels({ chart, chartMeta, compact = false, lines, series }) {
   if (!chart || !series || !Array.isArray(lines) || lines.length === 0) return null;
 
   const paneWidth = getPricePaneWidth(chart);
@@ -1461,7 +1462,7 @@ function PivotLabels({ chart, chartMeta, lines, series }) {
             x={labelX}
             y={y - 5}
             fill={BTC_PIVOT_COLOR}
-            fontSize="11"
+            fontSize={compact ? "9" : "11"}
             fontWeight="700"
             paintOrder="stroke"
             stroke="#101319"
