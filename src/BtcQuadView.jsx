@@ -50,6 +50,7 @@ const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const MOBILE_RENDER_INTERVAL_MS = 1200;
 const MOBILE_OVERLAY_UPDATE_INTERVAL_MS = 80;
+const MOBILE_RENDERABLE_BARS = 2000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
@@ -323,7 +324,10 @@ function BtcQuadChart({
   const showPivots = pivotConfig !== null;
   const pivotLineCount = showPivots ? pivotConfig.periodsBack * WOODIE_PIVOT_LEVELS.length : 0;
   const fullChartData = useMemo(() => sanitizeChartData(toChartData(renderCandles, config)), [renderCandles, config]);
-  const chartData = useMemo(() => trimRenderableChartData(fullChartData, config), [fullChartData, config]);
+  const chartData = useMemo(
+    () => trimRenderableChartData(fullChartData, config, isCompact),
+    [fullChartData, config, isCompact]
+  );
   const stochRsiData = useMemo(
     () => showStochRsi ? toChartStochRsi(fullChartData, stochRsiConfig) : { k: [], d: [] },
     [fullChartData, showStochRsi, stochRsiConfig]
@@ -1368,7 +1372,12 @@ function calculateAlignedSma(values, period) {
   return result;
 }
 
-function trimRenderableChartData(data, config) {
+function trimRenderableChartData(data, config, isCompact) {
+  if (isCompact) {
+    const compactLimit = Math.max(MOBILE_RENDERABLE_BARS, getChartVisibleBars(config) * 3);
+    return data.length <= compactLimit ? data : data.slice(-compactLimit);
+  }
+
   if (!isHighFrequencyChart(config) || data.length <= HIGH_FREQUENCY_VISIBLE_BARS) return data;
   return data.slice(-HIGH_FREQUENCY_VISIBLE_BARS);
 }
