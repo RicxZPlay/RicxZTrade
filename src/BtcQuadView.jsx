@@ -49,7 +49,7 @@ const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const BTC_MAIN_CHART_IDS = new Set(["renko-30m", "candles-30m-lsma"]);
+const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -70,6 +70,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const btcPrice = useMemo(() => {
     const sourceCandles = [
       chartCandles["renko-30m"],
+      chartCandles["renko-4h"],
       chartCandles["candles-30m-lsma"],
       chartCandles["candles-1s"],
       chartCandles["candles-1m"],
@@ -953,7 +954,7 @@ function BtcQuadChart({
   ].filter(Boolean);
 
   return (
-    <article className={config.id === "candles-1m" ? "btc-quad-card btc-quad-card-primary" : "btc-quad-card"}>
+    <article className={getChartCardClassName(config)}>
       <div className="btc-quad-card-header">
         <strong>{config.title}</strong>
         <div className="btc-quad-card-meta">
@@ -1027,6 +1028,14 @@ function ToolButton({ active = false, children, label, onClick }) {
 
 function getChartBbMultiplier(config) {
   return Number.isFinite(config?.bbMultiplier) ? config.bbMultiplier : BTC_BB_MULTIPLIER;
+}
+
+function getChartCardClassName(config) {
+  const classes = ["btc-quad-card"];
+  if (config?.id === "candles-30m-lsma") classes.push("btc-quad-card-primary");
+  if (config?.id === "renko-4h") classes.push("btc-quad-card-renko-4h");
+  if (config?.id === "renko-30m") classes.push("btc-quad-card-renko-15m");
+  return classes.join(" ");
 }
 
 function getChartBbColor(config) {

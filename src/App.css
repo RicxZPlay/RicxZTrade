@@ -895,7 +895,7 @@ input:focus,
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -913,7 +913,18 @@ input:focus,
 }
 
 .btc-quad-card-primary {
+  grid-column: 2;
   grid-row: 1 / span 2;
+}
+
+.btc-quad-card-renko-4h {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.btc-quad-card-renko-15m {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .btc-quad-chart-area {
@@ -1784,8 +1795,15 @@ input:focus,
     min-height: 0;
     overflow: hidden;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
     gap: 6px;
+  }
+
+  .btc-quad-card-primary,
+  .btc-quad-card-renko-4h,
+  .btc-quad-card-renko-15m {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .btc-quad-card-header {
