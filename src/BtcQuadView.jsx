@@ -48,6 +48,8 @@ const STOCH_RSI_K_COLOR = "#38bdf8";
 const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
+const MOBILE_RENDER_INTERVAL_MS = 1200;
+const MOBILE_OVERLAY_UPDATE_INTERVAL_MS = 80;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
@@ -268,7 +270,9 @@ function BtcQuadChart({
   const centeredOnceRef = useRef(false);
   const dataSyncTimeoutRef = useRef(null);
   const interactionTimeoutRef = useRef(null);
+  const overlayUpdateTimeoutRef = useRef(null);
   const isInteractingRef = useRef(false);
+  const lastOverlayUpdateAtRef = useRef(0);
   const lastHandledClearSignalRef = useRef(0);
   const lastDataSyncAtRef = useRef(0);
   const latestCandlesRef = useRef(candles);
@@ -609,10 +613,37 @@ function BtcQuadChart({
     renkoVwmaLineRef.current = renkoVwmaLine;
     setDrawingContext({ chart, series: priceSeries });
 
+    const scheduleOverlayUpdate = () => {
+      const hasOverlayContent = (
+        showBollingerBands ||
+        showPivots ||
+        drawingsRef.current.length > 0
+      );
+      if (!hasOverlayContent) return;
+
+      const updateOverlay = () => {
+        overlayUpdateTimeoutRef.current = null;
+        lastOverlayUpdateAtRef.current = Date.now();
+        forceOverlayUpdate((value) => value + 1);
+      };
+
+      if (!isCompact) {
+        window.requestAnimationFrame(updateOverlay);
+        return;
+      }
+
+      if (overlayUpdateTimeoutRef.current) return;
+      const elapsed = Date.now() - lastOverlayUpdateAtRef.current;
+      overlayUpdateTimeoutRef.current = window.setTimeout(
+        updateOverlay,
+        Math.max(0, MOBILE_OVERLAY_UPDATE_INTERVAL_MS - elapsed)
+      );
+    };
+
     const syncPaneHeight = () => {
       const height = getPricePaneHeight(chart);
       if (height) setPricePaneHeight(height);
-      forceOverlayUpdate((value) => value + 1);
+      scheduleOverlayUpdate();
     };
 
     const observer = new ResizeObserver(() => {
@@ -620,9 +651,7 @@ function BtcQuadChart({
       window.requestAnimationFrame(syncPaneHeight);
     });
     observer.observe(containerElement);
-    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-      forceOverlayUpdate((value) => value + 1);
-    });
+    chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleOverlayUpdate);
     chart.subscribeClick(handleChartClick);
     window.requestAnimationFrame(syncPaneHeight);
 
@@ -633,8 +662,12 @@ function BtcQuadChart({
       setInteractionRevision((value) => value + 1);
     };
     const markInteraction = () => {
-      if (!isHighFrequencyChart(config)) return;
+      if (!shouldDeferLiveRendering(config, isCompact)) return;
       isInteractingRef.current = true;
+      if (dataSyncTimeoutRef.current) {
+        window.clearTimeout(dataSyncTimeoutRef.current);
+        dataSyncTimeoutRef.current = null;
+      }
       if (interactionTimeoutRef.current) {
         window.clearTimeout(interactionTimeoutRef.current);
       }
@@ -650,6 +683,10 @@ function BtcQuadChart({
       if (dataSyncTimeoutRef.current) {
         window.clearTimeout(dataSyncTimeoutRef.current);
         dataSyncTimeoutRef.current = null;
+      }
+      if (overlayUpdateTimeoutRef.current) {
+        window.clearTimeout(overlayUpdateTimeoutRef.current);
+        overlayUpdateTimeoutRef.current = null;
       }
       if (interactionTimeoutRef.current) {
         window.clearTimeout(interactionTimeoutRef.current);
@@ -685,7 +722,7 @@ function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showStochRsi, showStochRsiD, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBollingerBands, showPivots, showStochRsi, showStochRsiD, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -702,24 +739,29 @@ function BtcQuadChart({
       dataSyncTimeoutRef.current = window.setTimeout(syncCandles, delay);
     };
 
-    if (!isHighFrequencyChart(config)) {
+    if (shouldDeferLiveRendering(config, isCompact) && isInteractingRef.current) {
+      return undefined;
+    }
+
+    const renderInterval = getChartRenderInterval(config, isCompact);
+    if (renderInterval === 0) {
       scheduleCandlesSync(0);
       return undefined;
     }
 
     const now = Date.now();
     const elapsed = now - lastDataSyncAtRef.current;
-    if (!lastDataSyncAtRef.current || elapsed >= HIGH_FREQUENCY_RENDER_INTERVAL_MS) {
+    if (!lastDataSyncAtRef.current || elapsed >= renderInterval) {
       scheduleCandlesSync(0);
       return undefined;
     }
 
     if (!dataSyncTimeoutRef.current) {
-      scheduleCandlesSync(HIGH_FREQUENCY_RENDER_INTERVAL_MS - elapsed);
+      scheduleCandlesSync(renderInterval - elapsed);
     }
 
     return undefined;
-  }, [candles, config]);
+  }, [candles, config, interactionRevision, isCompact]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -763,7 +805,7 @@ function BtcQuadChart({
 
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
-    if (isHighFrequencyChart(config) && isInteractingRef.current) return;
+    if (shouldDeferLiveRendering(config, isCompact) && isInteractingRef.current) return;
 
     const incrementalSync = isHighFrequencyChart(config);
 
@@ -900,7 +942,7 @@ function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, isCompact, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -1367,6 +1409,15 @@ function isOneMinuteCandleChart(config) {
 
 function isHighFrequencyChart(config) {
   return config?.interval === "1s";
+}
+
+function shouldDeferLiveRendering(config, isCompact) {
+  return isCompact || isHighFrequencyChart(config);
+}
+
+function getChartRenderInterval(config, isCompact) {
+  if (isHighFrequencyChart(config)) return HIGH_FREQUENCY_RENDER_INTERVAL_MS;
+  return isCompact ? MOBILE_RENDER_INTERVAL_MS : 0;
 }
 
 function syncSeriesData(series, data, syncMap, key, incremental = false) {
