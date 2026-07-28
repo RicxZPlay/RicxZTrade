@@ -49,8 +49,9 @@ const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
 const MOBILE_RENDER_INTERVAL_MS = 1200;
-const MOBILE_OVERLAY_UPDATE_INTERVAL_MS = 80;
+const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
+const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
@@ -631,16 +632,11 @@ function BtcQuadChart({
         forceOverlayUpdate((value) => value + 1);
       };
 
-      if (!isCompact) {
-        window.requestAnimationFrame(updateOverlay);
-        return;
-      }
-
       if (overlayUpdateTimeoutRef.current) return;
       const elapsed = Date.now() - lastOverlayUpdateAtRef.current;
       overlayUpdateTimeoutRef.current = window.setTimeout(
         updateOverlay,
-        Math.max(0, MOBILE_OVERLAY_UPDATE_INTERVAL_MS - elapsed)
+        Math.max(0, OVERLAY_UPDATE_INTERVAL_MS - elapsed)
       );
     };
 
@@ -1373,13 +1369,15 @@ function calculateAlignedSma(values, period) {
 }
 
 function trimRenderableChartData(data, config, isCompact) {
-  if (isCompact) {
-    const compactLimit = Math.max(MOBILE_RENDERABLE_BARS, getChartVisibleBars(config) * 3);
-    return data.length <= compactLimit ? data : data.slice(-compactLimit);
+  if (isHighFrequencyChart(config)) {
+    return data.length <= HIGH_FREQUENCY_VISIBLE_BARS ? data : data.slice(-HIGH_FREQUENCY_VISIBLE_BARS);
   }
 
-  if (!isHighFrequencyChart(config) || data.length <= HIGH_FREQUENCY_VISIBLE_BARS) return data;
-  return data.slice(-HIGH_FREQUENCY_VISIBLE_BARS);
+  const renderableLimit = isCompact
+    ? Math.max(MOBILE_RENDERABLE_BARS, getChartVisibleBars(config) * 3)
+    : Math.max(DESKTOP_RENDERABLE_BARS, getChartVisibleBars(config) * 4);
+  if (data.length > renderableLimit) return data.slice(-renderableLimit);
+  return data;
 }
 
 function clipBandLines(lines, chartData) {
