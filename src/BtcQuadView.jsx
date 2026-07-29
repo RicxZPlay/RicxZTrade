@@ -54,7 +54,6 @@ const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const INITIAL_RENKO_HISTORY_LIMIT = 2500;
 const INITIAL_CANDLE_HISTORY_LIMIT = 2200;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
@@ -1486,11 +1485,9 @@ function getChartRenderInterval(config, isCompact) {
 
 function getInitialBtcHistoryLimit(config, maxHistoryLimit) {
   if (!Number.isFinite(maxHistoryLimit) || maxHistoryLimit <= 0) return 1000;
+  if (config?.type === "renko") return maxHistoryLimit;
   if (maxHistoryLimit <= INITIAL_CANDLE_HISTORY_LIMIT) return maxHistoryLimit;
-  const initialLimit = config?.type === "renko"
-    ? INITIAL_RENKO_HISTORY_LIMIT
-    : INITIAL_CANDLE_HISTORY_LIMIT;
-  return Math.min(maxHistoryLimit, initialLimit);
+  return Math.min(maxHistoryLimit, INITIAL_CANDLE_HISTORY_LIMIT);
 }
 
 function syncSeriesData(series, data, syncMap, key, incremental = false) {
