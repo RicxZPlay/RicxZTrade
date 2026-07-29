@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -238,7 +238,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
 }
 
-function BtcQuadChart({
+const BtcQuadChart = memo(function BtcQuadChart({
   activeTool,
   candles,
   clearSignal,
@@ -625,6 +625,7 @@ function BtcQuadChart({
         drawingsRef.current.length > 0
       );
       if (!hasOverlayContent) return;
+      if (isInteractingRef.current && drawingsRef.current.length === 0) return;
 
       const updateOverlay = () => {
         overlayUpdateTimeoutRef.current = null;
@@ -659,25 +660,37 @@ function BtcQuadChart({
       interactionTimeoutRef.current = null;
       if (!isInteractingRef.current) return;
       isInteractingRef.current = false;
+      scheduleOverlayUpdate();
       setInteractionRevision((value) => value + 1);
     };
     const markInteraction = () => {
-      if (!shouldDeferLiveRendering(config, isCompact)) return;
       isInteractingRef.current = true;
       if (dataSyncTimeoutRef.current) {
         window.clearTimeout(dataSyncTimeoutRef.current);
         dataSyncTimeoutRef.current = null;
       }
+    };
+    const scheduleInteractionFinish = (delay = 140) => {
       if (interactionTimeoutRef.current) {
         window.clearTimeout(interactionTimeoutRef.current);
       }
-      interactionTimeoutRef.current = window.setTimeout(finishInteraction, 650);
+      interactionTimeoutRef.current = window.setTimeout(finishInteraction, delay);
+    };
+    const handlePointerUp = () => {
+      scheduleInteractionFinish();
+    };
+    const handleWheel = () => {
+      markInteraction();
+      scheduleInteractionFinish(180);
     };
 
     containerElement.addEventListener("pointerdown", markInteraction, { passive: true });
-    containerElement.addEventListener("pointermove", markInteraction, { passive: true });
-    containerElement.addEventListener("wheel", markInteraction, { passive: true });
-    containerElement.addEventListener("touchmove", markInteraction, { passive: true });
+    containerElement.addEventListener("touchstart", markInteraction, { passive: true });
+    containerElement.addEventListener("wheel", handleWheel, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp, { passive: true });
+    window.addEventListener("pointercancel", handlePointerUp, { passive: true });
+    window.addEventListener("touchend", handlePointerUp, { passive: true });
+    window.addEventListener("touchcancel", handlePointerUp, { passive: true });
 
     return () => {
       if (dataSyncTimeoutRef.current) {
@@ -693,9 +706,12 @@ function BtcQuadChart({
         interactionTimeoutRef.current = null;
       }
       containerElement.removeEventListener("pointerdown", markInteraction);
-      containerElement.removeEventListener("pointermove", markInteraction);
-      containerElement.removeEventListener("wheel", markInteraction);
-      containerElement.removeEventListener("touchmove", markInteraction);
+      containerElement.removeEventListener("touchstart", markInteraction);
+      containerElement.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("touchend", handlePointerUp);
+      window.removeEventListener("touchcancel", handlePointerUp);
       observer.disconnect();
       chart.unsubscribeClick(handleChartClick);
       chart.remove();
@@ -739,7 +755,7 @@ function BtcQuadChart({
       dataSyncTimeoutRef.current = window.setTimeout(syncCandles, delay);
     };
 
-    if (shouldDeferLiveRendering(config, isCompact) && isInteractingRef.current) {
+    if (isInteractingRef.current) {
       return undefined;
     }
 
@@ -805,7 +821,7 @@ function BtcQuadChart({
 
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
-    if (shouldDeferLiveRendering(config, isCompact) && isInteractingRef.current) return;
+    if (isInteractingRef.current) return;
 
     const incrementalSync = isHighFrequencyChart(config);
 
@@ -1052,7 +1068,7 @@ function BtcQuadChart({
       {!error && candles.length === 0 ? <div className="btc-quad-loading">Carregando...</div> : null}
     </article>
   );
-}
+});
 
 function ToolButton({ active = false, children, label, onClick }) {
   return (
@@ -1416,10 +1432,6 @@ function isOneMinuteCandleChart(config) {
 
 function isHighFrequencyChart(config) {
   return config?.interval === "1s";
-}
-
-function shouldDeferLiveRendering(config, isCompact) {
-  return isCompact || isHighFrequencyChart(config);
 }
 
 function getChartRenderInterval(config, isCompact) {
