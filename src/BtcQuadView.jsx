@@ -47,9 +47,9 @@ const BTC_VWMA_COLOR = "#f8fafc";
 const STOCH_RSI_K_COLOR = "#38bdf8";
 const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
-const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
-const DESKTOP_RENDER_INTERVAL_MS = 4000;
-const MOBILE_RENDER_INTERVAL_MS = 6000;
+const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 5000;
+const DESKTOP_RENDER_INTERVAL_MS = 60000;
+const MOBILE_RENDER_INTERVAL_MS = 60000;
 const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
@@ -64,6 +64,7 @@ const TOOLS = {
 export default function BtcQuadView({ embedded = false, onClose, onFullscreen, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
   const [errors, setErrors] = useState(() => ({}));
+  const [liveBtcPrice, setLiveBtcPrice] = useState(null);
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
@@ -84,12 +85,13 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
       chartCandles["candles-1h"],
       chartCandles["candles-4h"],
     ].find((candles) => candles?.length > 0);
-    return sourceCandles?.at(-1)?.close ?? null;
-  }, [chartCandles]);
+    return liveBtcPrice ?? sourceCandles?.at(-1)?.close ?? null;
+  }, [chartCandles, liveBtcPrice]);
 
   useEffect(() => {
     const controller = new AbortController();
     const sockets = [];
+    const commitTimers = [];
     const configsByInterval = visibleCharts.reduce((groups, config) => {
       const group = groups.get(config.interval) || [];
       group.push(config);
@@ -100,6 +102,9 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     configsByInterval.forEach((configs, interval) => {
       const maxHistoryLimit = Math.max(...configs.map((config) => config.historyLimit));
       const maxHistoryConfig = configs.find((config) => config.historyLimit === maxHistoryLimit) || configs[0];
+      const commitInterval = getChartRenderInterval(maxHistoryConfig, isCompact);
+      let latestSourceCandles = [];
+      let commitTimer = null;
       const assignCandlesToConfigs = (sourceCandles) => {
         setChartCandles((current) => {
           const next = { ...current };
@@ -108,6 +113,16 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           });
           return next;
         });
+      };
+      const commitCandlesToConfigs = () => {
+        commitTimer = null;
+        if (controller.signal.aborted || latestSourceCandles.length === 0) return;
+        assignCandlesToConfigs(latestSourceCandles);
+      };
+      const scheduleChartCommit = () => {
+        if (commitTimer) return;
+        commitTimer = window.setTimeout(commitCandlesToConfigs, commitInterval);
+        commitTimers.push(commitTimer);
       };
       const assignErrorToConfigs = (message) => {
         setErrors((current) => {
@@ -122,7 +137,9 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
       fetchCandles(BTC_SYMBOL, maxHistoryLimit, controller.signal, interval)
         .then((candles) => {
           if (controller.signal.aborted) return;
+          latestSourceCandles = candles;
           assignCandlesToConfigs(candles);
+          setLiveBtcPrice((current) => candles.at(-1)?.close ?? current);
           assignErrorToConfigs("");
 
           const socket = new WebSocket(buildSocketUrl(BTC_SYMBOL, interval));
@@ -131,14 +148,16 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             try {
               const payload = JSON.parse(event.data);
               if (controller.signal.aborted || payload?.s !== BTC_SYMBOL) return;
-              setChartCandles((current) => {
-                const mergedCandles = mergeLiveCandle(current[maxHistoryConfig.id] || candles, payload, maxHistoryLimit);
-                const next = { ...current };
-                configs.forEach((config) => {
-                  next[config.id] = mergedCandles.slice(-config.historyLimit);
-                });
-                return next;
-              });
+              const liveClose = Number(payload?.k?.c);
+              if (Number.isFinite(liveClose)) {
+                setLiveBtcPrice((current) => (current === liveClose ? current : liveClose));
+              }
+              latestSourceCandles = mergeLiveCandle(
+                latestSourceCandles.length > 0 ? latestSourceCandles : candles,
+                payload,
+                maxHistoryLimit
+              );
+              scheduleChartCommit();
             } catch {
               assignErrorToConfigs("Falha no tempo real.");
             }
@@ -158,9 +177,10 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
 
     return () => {
       controller.abort();
+      commitTimers.forEach((timer) => window.clearTimeout(timer));
       sockets.forEach((socket) => socket.close());
     };
-  }, [visibleCharts]);
+  }, [isCompact, visibleCharts]);
 
   return (
     <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Graficos do BTC">
@@ -427,29 +447,29 @@ const BtcQuadChart = memo(function BtcQuadChart({
       },
     });
 
-    const fastLine = chart.addSeries(LineSeries, {
+    const fastLine = showBollingerBands ? chart.addSeries(LineSeries, {
       color: bbColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const slowLine = chart.addSeries(LineSeries, {
+    const slowLine = showBollingerBands ? chart.addSeries(LineSeries, {
       color: bbColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const middleLine = chart.addSeries(LineSeries, {
+    const middleLine = showBbMiddle ? chart.addSeries(LineSeries, {
       color: bbMiddleColor,
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
     const extraBandLines = extraBollingerBands.flatMap((band, index) => {
       const color = band.color || BTC_EXTRA_BAND_COLORS[index % BTC_EXTRA_BAND_COLORS.length];
@@ -488,67 +508,67 @@ const BtcQuadChart = memo(function BtcQuadChart({
       title: "",
     }));
 
-    const extraVwmaLine = chart.addSeries(LineSeries, {
+    const extraVwmaLine = showExtraVwma ? chart.addSeries(LineSeries, {
       color: extraVwmaColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const lsmaLine = chart.addSeries(LineSeries, {
+    const lsmaLine = showLsma ? chart.addSeries(LineSeries, {
       color: BTC_LSMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
-    const extraLsmaLine = chart.addSeries(LineSeries, {
+    }) : null;
+    const extraLsmaLine = showExtraLsma ? chart.addSeries(LineSeries, {
       color: BTC_EXTRA_LSMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const lrcLine = chart.addSeries(LineSeries, {
+    const lrcLine = showLrc ? chart.addSeries(LineSeries, {
       color: BTC_LRC_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const maLine = chart.addSeries(LineSeries, {
+    const maLine = showMa ? chart.addSeries(LineSeries, {
       color: BTC_MA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const extraEmaLine = chart.addSeries(LineSeries, {
+    const extraEmaLine = showExtraEma ? chart.addSeries(LineSeries, {
       color: BTC_EXTRA_EMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
 
-    const renkoEmaLine = chart.addSeries(LineSeries, {
+    const renkoEmaLine = showEma ? chart.addSeries(LineSeries, {
       color: BTC_EMA_COLOR,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
-    const renkoVwmaLine = chart.addSeries(LineSeries, {
+    }) : null;
+    const renkoVwmaLine = showVwma ? chart.addSeries(LineSeries, {
       color: vwmaColor,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: !isCompact,
       title: "",
-    });
+    }) : null;
     const stochRsiKLine = showStochRsi ? chart.addSeries(LineSeries, {
       color: STOCH_RSI_K_COLOR,
       lineWidth: 2,
@@ -620,13 +640,13 @@ const BtcQuadChart = memo(function BtcQuadChart({
     setDrawingContext({ chart, series: priceSeries });
 
     const scheduleOverlayUpdate = () => {
+      if (isInteractingRef.current) return;
       const hasOverlayContent = (
         showBollingerBands ||
         showPivots ||
         drawingsRef.current.length > 0
       );
       if (!hasOverlayContent) return;
-      if (isInteractingRef.current && drawingsRef.current.length === 0) return;
 
       const updateOverlay = () => {
         overlayUpdateTimeoutRef.current = null;
@@ -739,7 +759,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBollingerBands, showPivots, showStochRsi, showStochRsiD, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -2136,4 +2156,3 @@ function useMediaQuery(query) {
 
   return matches;
 }
-
