@@ -64,6 +64,7 @@ const TOOLS = {
 
 export default function BtcQuadView({ embedded = false, onClose, onFullscreen, theme }) {
   const [chartCandles, setChartCandles] = useState(() => ({}));
+  const [monthlyCandles, setMonthlyCandles] = useState(() => []);
   const [errors, setErrors] = useState(() => ({}));
   const [liveBtcPrice, setLiveBtcPrice] = useState(null);
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
@@ -206,6 +207,19 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     };
   }, [isCompact, visibleCharts]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCandles(BTC_SYMBOL, 8, controller.signal, "1M")
+      .then((candles) => {
+        if (!controller.signal.aborted) setMonthlyCandles(candles);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setMonthlyCandles([]);
+      });
+
+    return () => controller.abort();
+  }, []);
+
   return (
     <section className={embedded ? "btc-quad-panel" : "btc-quad-overlay"} aria-label="Graficos do BTC">
       <header className="btc-quad-topbar">
@@ -273,6 +287,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
             activeTool={activeTool}
             clearSignal={clearSignal}
             isCompact={isCompact}
+            monthlyCandles={monthlyCandles}
             selectedDrawing={selectedDrawing}
             setSelectedDrawing={setSelectedDrawing}
             theme={theme}
@@ -290,6 +305,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
   config,
   error,
   isCompact,
+  monthlyCandles,
   selectedDrawing,
   setSelectedDrawing,
   theme,
@@ -387,8 +403,8 @@ const BtcQuadChart = memo(function BtcQuadChart({
     [chartData, extraBollingerBands, fullChartData]
   );
   const pivotLineData = useMemo(
-    () => showPivots ? toChartMonthlyWoodiePivots(fullChartData, pivotConfig.periodsBack) : [],
-    [fullChartData, pivotConfig, showPivots]
+    () => showPivots ? toChartMonthlyWoodiePivots(fullChartData, pivotConfig.periodsBack, monthlyCandles) : [],
+    [fullChartData, monthlyCandles, pivotConfig, showPivots]
   );
   const chartMeta = useMemo(
     () => buildChartMeta(chartData, config.fallbackSeconds, config.type === "renko" ? "bricks" : "candles"),
@@ -1298,8 +1314,13 @@ function sanitizeChartData(data) {
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-function toChartMonthlyWoodiePivots(bars, periodsBack) {
+function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
   if (!Array.isArray(bars) || bars.length < 2) return [];
+
+  const monthlyBars = sanitizeChartData(toChartCandles(monthlyCandles));
+  if (monthlyBars.length >= 2) {
+    return toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, bars, periodsBack);
+  }
 
   const monthsByKey = new Map();
   bars.forEach((bar) => {
@@ -1336,6 +1357,45 @@ function toChartMonthlyWoodiePivots(bars, periodsBack) {
 
     return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
       key: `${startTime}-${key}`,
+      label,
+      data: [
+        { time: startTime, value: levels[key] },
+        { time: endTime, value: levels[key] },
+      ],
+    }));
+  });
+}
+
+function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBack) {
+  const chartStartTime = chartBars[0]?.time;
+  const chartEndTime = chartBars.at(-1)?.time;
+  if (!Number.isFinite(chartStartTime) || !Number.isFinite(chartEndTime)) return [];
+
+  const targets = monthlyBars
+    .map((month, index) => ({ month, previous: monthlyBars[index - 1], next: monthlyBars[index + 1] }))
+    .filter(({ previous, month }) => previous && month.time <= chartEndTime)
+    .slice(-periodsBack);
+
+  return targets.flatMap(({ month, previous, next }) => {
+    const previousHigh = previous.high;
+    const previousLow = previous.low;
+    const currentOpen = month.open;
+    if (![previousHigh, previousLow, currentOpen].every(Number.isFinite)) return [];
+
+    const pivot = (previousHigh + previousLow + 2 * currentOpen) / 4;
+    const levels = {
+      p: pivot,
+      r1: 2 * pivot - previousLow,
+      r2: pivot + previousHigh - previousLow,
+      s1: 2 * pivot - previousHigh,
+      s2: pivot - previousHigh + previousLow,
+    };
+    const startTime = Math.max(month.time, chartStartTime);
+    const endTime = Math.min(next?.time ?? chartEndTime, chartEndTime);
+    if (endTime <= startTime) return [];
+
+    return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
+      key: `${month.time}-${key}`,
       label,
       data: [
         { time: startTime, value: levels[key] },
