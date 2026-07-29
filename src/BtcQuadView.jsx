@@ -48,7 +48,8 @@ const STOCH_RSI_K_COLOR = "#38bdf8";
 const STOCH_RSI_D_COLOR = "#f6c85f";
 const STOCH_RSI_LEVEL_COLOR = "rgba(168, 179, 199, 0.42)";
 const HIGH_FREQUENCY_RENDER_INTERVAL_MS = 3000;
-const MOBILE_RENDER_INTERVAL_MS = 1200;
+const DESKTOP_RENDER_INTERVAL_MS = 4000;
+const MOBILE_RENDER_INTERVAL_MS = 6000;
 const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
@@ -684,9 +685,9 @@ const BtcQuadChart = memo(function BtcQuadChart({
       scheduleInteractionFinish(180);
     };
 
-    containerElement.addEventListener("pointerdown", markInteraction, { passive: true });
-    containerElement.addEventListener("touchstart", markInteraction, { passive: true });
-    containerElement.addEventListener("wheel", handleWheel, { passive: true });
+    containerElement.addEventListener("pointerdown", markInteraction, { passive: true, capture: true });
+    containerElement.addEventListener("touchstart", markInteraction, { passive: true, capture: true });
+    containerElement.addEventListener("wheel", handleWheel, { passive: true, capture: true });
     window.addEventListener("pointerup", handlePointerUp, { passive: true });
     window.addEventListener("pointercancel", handlePointerUp, { passive: true });
     window.addEventListener("touchend", handlePointerUp, { passive: true });
@@ -705,9 +706,9 @@ const BtcQuadChart = memo(function BtcQuadChart({
         window.clearTimeout(interactionTimeoutRef.current);
         interactionTimeoutRef.current = null;
       }
-      containerElement.removeEventListener("pointerdown", markInteraction);
-      containerElement.removeEventListener("touchstart", markInteraction);
-      containerElement.removeEventListener("wheel", handleWheel);
+      containerElement.removeEventListener("pointerdown", markInteraction, true);
+      containerElement.removeEventListener("touchstart", markInteraction, true);
+      containerElement.removeEventListener("wheel", handleWheel, true);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
       window.removeEventListener("touchend", handlePointerUp);
@@ -1436,7 +1437,7 @@ function isHighFrequencyChart(config) {
 
 function getChartRenderInterval(config, isCompact) {
   if (isHighFrequencyChart(config)) return HIGH_FREQUENCY_RENDER_INTERVAL_MS;
-  return isCompact ? MOBILE_RENDER_INTERVAL_MS : 0;
+  return isCompact ? MOBILE_RENDER_INTERVAL_MS : DESKTOP_RENDER_INTERVAL_MS;
 }
 
 function syncSeriesData(series, data, syncMap, key, incremental = false) {
