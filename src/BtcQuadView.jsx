@@ -54,6 +54,8 @@ const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
+const INITIAL_RENKO_HISTORY_LIMIT = 2500;
+const INITIAL_CANDLE_HISTORY_LIMIT = 2200;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
 const TOOLS = {
   cursor: "cursor",
@@ -102,6 +104,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     configsByInterval.forEach((configs, interval) => {
       const maxHistoryLimit = Math.max(...configs.map((config) => config.historyLimit));
       const maxHistoryConfig = configs.find((config) => config.historyLimit === maxHistoryLimit) || configs[0];
+      const initialHistoryLimit = getInitialBtcHistoryLimit(maxHistoryConfig, maxHistoryLimit);
       const commitInterval = getChartRenderInterval(maxHistoryConfig, isCompact);
       let latestSourceCandles = [];
       let commitTimer = null;
@@ -113,6 +116,14 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           });
           return next;
         });
+      };
+      const mergeSourceCandles = (olderCandles, newerCandles) => {
+        const byOpenTime = new Map();
+        olderCandles.forEach((candle) => byOpenTime.set(candle.openTime, candle));
+        newerCandles.forEach((candle) => byOpenTime.set(candle.openTime, candle));
+        return [...byOpenTime.values()]
+          .sort((a, b) => a.openTime - b.openTime)
+          .slice(-maxHistoryLimit);
       };
       const commitCandlesToConfigs = () => {
         commitTimer = null;
@@ -134,13 +145,26 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
         });
       };
 
-      fetchCandles(BTC_SYMBOL, maxHistoryLimit, controller.signal, interval)
+      fetchCandles(BTC_SYMBOL, initialHistoryLimit, controller.signal, interval)
         .then((candles) => {
           if (controller.signal.aborted) return;
           latestSourceCandles = candles;
           assignCandlesToConfigs(candles);
           setLiveBtcPrice((current) => candles.at(-1)?.close ?? current);
           assignErrorToConfigs("");
+
+          if (initialHistoryLimit < maxHistoryLimit) {
+            fetchCandles(BTC_SYMBOL, maxHistoryLimit, controller.signal, interval)
+              .then((fullCandles) => {
+                if (controller.signal.aborted) return;
+                latestSourceCandles = mergeSourceCandles(fullCandles, latestSourceCandles);
+                assignCandlesToConfigs(latestSourceCandles);
+                setLiveBtcPrice((current) => latestSourceCandles.at(-1)?.close ?? current);
+              })
+              .catch(() => {
+                // The quick chart is already usable; keep it on screen if deep history fails.
+              });
+          }
 
           const socket = new WebSocket(buildSocketUrl(BTC_SYMBOL, interval));
           sockets.push(socket);
@@ -1458,6 +1482,15 @@ function isHighFrequencyChart(config) {
 function getChartRenderInterval(config, isCompact) {
   if (isHighFrequencyChart(config)) return HIGH_FREQUENCY_RENDER_INTERVAL_MS;
   return isCompact ? MOBILE_RENDER_INTERVAL_MS : DESKTOP_RENDER_INTERVAL_MS;
+}
+
+function getInitialBtcHistoryLimit(config, maxHistoryLimit) {
+  if (!Number.isFinite(maxHistoryLimit) || maxHistoryLimit <= 0) return 1000;
+  if (maxHistoryLimit <= INITIAL_CANDLE_HISTORY_LIMIT) return maxHistoryLimit;
+  const initialLimit = config?.type === "renko"
+    ? INITIAL_RENKO_HISTORY_LIMIT
+    : INITIAL_CANDLE_HISTORY_LIMIT;
+  return Math.min(maxHistoryLimit, initialLimit);
 }
 
 function syncSeriesData(series, data, syncMap, key, incremental = false) {
