@@ -55,7 +55,7 @@ const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const INITIAL_CANDLE_HISTORY_LIMIT = 2200;
-const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-30m-lsma"]);
+const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-15m-lsma", "candles-30m-lsma"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -78,6 +78,7 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
     const sourceCandles = [
       chartCandles["renko-30m"],
       chartCandles["renko-4h"],
+      chartCandles["candles-15m-lsma"],
       chartCandles["candles-30m-lsma"],
       chartCandles["candles-1s"],
       chartCandles["candles-1m"],
@@ -1134,7 +1135,8 @@ function getChartBbMultiplier(config) {
 
 function getChartCardClassName(config) {
   const classes = ["btc-quad-card"];
-  if (config?.id === "candles-30m-lsma") classes.push("btc-quad-card-primary");
+  if (config?.id === "candles-15m-lsma") classes.push("btc-quad-card-normal-15m");
+  if (config?.id === "candles-30m-lsma") classes.push("btc-quad-card-normal-1h");
   if (config?.id === "renko-4h") classes.push("btc-quad-card-renko-4h");
   if (config?.id === "renko-30m") classes.push("btc-quad-card-renko-15m");
   return classes.join(" ");
