@@ -34,6 +34,7 @@ const BTC_LRC_COLOR = "#facc15";
 const BTC_LSMA_COLOR = "#f8fafc";
 const BTC_EXTRA_LSMA_COLOR = "#38bdf8";
 const BTC_MA_COLOR = "#22c55e";
+const BTC_EXTRA_MA_COLORS = ["#f472b6", "#a78bfa", "#fb7185"];
 const BTC_EXTRA_VWMA_COLOR = "#38bdf8";
 const BTC_PIVOT_COLOR = "#f59e0b";
 const WOODIE_PIVOT_LEVELS = [
@@ -326,6 +327,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
   const lsmaLineRef = useRef(null);
   const extraLsmaLineRef = useRef(null);
   const maLineRef = useRef(null);
+  const extraMaLineRefs = useRef([]);
   const slowLineRef = useRef(null);
   const extraEmaLineRef = useRef(null);
   const renkoEmaLineRef = useRef(null);
@@ -372,6 +374,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
+  const extraMovingAverages = useMemo(() => getChartExtraMovingAverages(config), [config]);
   const stochRsiConfig = useMemo(() => getChartStochRsiConfig(config), [config]);
   const showStochRsi = stochRsiConfig !== null;
   const showStochRsiD = showStochRsi && stochRsiConfig.showD;
@@ -586,6 +589,13 @@ const BtcQuadChart = memo(function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     }) : null;
+    const extraMaLines = extraMovingAverages.map((ma, index) => chart.addSeries(LineSeries, {
+      color: ma.color || BTC_EXTRA_MA_COLORS[index % BTC_EXTRA_MA_COLORS.length],
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    }));
 
     const extraEmaLine = showExtraEma ? chart.addSeries(LineSeries, {
       color: BTC_EXTRA_EMA_COLOR,
@@ -673,6 +683,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
     lsmaLineRef.current = lsmaLine;
     extraLsmaLineRef.current = extraLsmaLine;
     maLineRef.current = maLine;
+    extraMaLineRefs.current = extraMaLines;
     slowLineRef.current = slowLine;
     extraEmaLineRef.current = extraEmaLine;
     renkoEmaLineRef.current = renkoEmaLine;
@@ -790,6 +801,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       lsmaLineRef.current = null;
       extraLsmaLineRef.current = null;
       maLineRef.current = null;
+      extraMaLineRefs.current = [];
       slowLineRef.current = null;
       extraEmaLineRef.current = null;
       renkoEmaLineRef.current = null;
@@ -799,7 +811,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraMovingAverages, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -983,6 +995,15 @@ const BtcQuadChart = memo(function BtcQuadChart({
         "ma",
         incrementalSync
       );
+      extraMovingAverages.forEach((ma, index) => {
+        syncSeriesData(
+          extraMaLineRefs.current[index],
+          clipLineData(toChartLineMaOffset(fullChartData, ma.period, ma.offset, config.fallbackSeconds), chartData),
+          seriesSyncRef.current,
+          `extraMa-${index}`,
+          incrementalSync
+        );
+      });
       syncSeriesData(
         slowLineRef.current,
         showBollingerBands ? bandFillData?.lower || [] : [],
@@ -1019,7 +1040,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraVwmaPeriod, fullChartData, interactionRevision, isCompact, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraMovingAverages, extraVwmaPeriod, fullChartData, interactionRevision, isCompact, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -1065,7 +1086,8 @@ const BtcQuadChart = memo(function BtcQuadChart({
     showLrc ? `LRC ${lrcPeriod}` : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
     showExtraLsma ? `LSMA ${extraLsmaPeriod}` : null,
-    showMa ? `MA ${maPeriod} off ${maOffset}` : null,
+    showMa ? formatMaLegend(maPeriod, maOffset) : null,
+    ...extraMovingAverages.map((ma) => formatMaLegend(ma.period, ma.offset)),
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
     showPivots ? `Pivos Woodie mensal` : null,
@@ -1234,6 +1256,25 @@ function getChartMaOffset(config) {
   return Number.isFinite(config?.maOffset) ? config.maOffset : 0;
 }
 
+function getChartExtraMovingAverages(config) {
+  if (!Array.isArray(config?.extraMaPeriods)) return [];
+
+  return config.extraMaPeriods
+    .map((ma, index) => {
+      const source = typeof ma === "number" ? { period: ma } : ma;
+      const period = Number(source?.period);
+      const offset = Number(source?.offset ?? 0);
+      if (!Number.isFinite(period) || period <= 0 || !Number.isFinite(offset)) return null;
+
+      return {
+        color: typeof source?.color === "string" ? source.color : BTC_EXTRA_MA_COLORS[index % BTC_EXTRA_MA_COLORS.length],
+        offset,
+        period,
+      };
+    })
+    .filter(Boolean);
+}
+
 function getChartStochRsiConfig(config) {
   const source = config?.stochRsi;
   if (!source) return null;
@@ -1275,6 +1316,10 @@ function formatBbLegend(period, multiplier) {
 
 function formatEmaLegend(period, offset = 0) {
   return offset ? `EMA ${period} off ${offset}` : `EMA ${period}`;
+}
+
+function formatMaLegend(period, offset = 0) {
+  return offset ? `MA ${period} off ${offset}` : `MA ${period}`;
 }
 
 function formatStochRsiLegend(config) {
