@@ -1398,7 +1398,7 @@ function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
       s2: pivot - previousHigh + previousLow,
     };
     const startTime = month.bars[0].time;
-    const endTime = month.bars.at(-1).time;
+    const endTime = getNextUtcMonthStartSeconds(startTime);
 
     return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
       key: `${startTime}-${key}`,
@@ -1436,7 +1436,7 @@ function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBac
       s2: pivot - previousHigh + previousLow,
     };
     const startTime = Math.max(month.time, chartStartTime);
-    const endTime = Math.min(next?.time ?? chartEndTime, chartEndTime);
+    const endTime = next?.time ?? getNextUtcMonthStartSeconds(month.time);
     if (endTime <= startTime) return [];
 
     return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
@@ -1448,6 +1448,13 @@ function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBac
       ],
     }));
   });
+}
+
+function getNextUtcMonthStartSeconds(time) {
+  if (!Number.isFinite(time)) return time;
+
+  const date = new Date(time * 1000);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) / 1000;
 }
 
 function toChartStochRsi(data, config) {
@@ -1690,7 +1697,7 @@ function PivotLabels({ chart, chartMeta, compact = false, lines, series }) {
 
         const x = pointToCoordinate({ time: endpoint.time }, chart, chartMeta);
         const y = series.priceToCoordinate(endpoint.value);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(paneWidth) || x < -12 || x > paneWidth + 12 || y < 10) return null;
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(paneWidth) || x < -12 || y < 10) return null;
         const labelX = Math.min(Math.max(x + 5, 8), paneWidth - 26);
 
         return (
