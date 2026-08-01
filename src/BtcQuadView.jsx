@@ -1692,28 +1692,53 @@ function PivotLabels({ chart, chartMeta, compact = false, lines, series }) {
   return (
     <g aria-hidden="true">
       {lines.map((line) => {
+        const startPoint = line.data?.[0];
         const endpoint = line.data?.at(-1);
-        if (!endpoint) return null;
+        if (!startPoint || !endpoint) return null;
 
+        const startX = pointToCoordinate({ time: startPoint.time }, chart, chartMeta);
         const x = pointToCoordinate({ time: endpoint.time }, chart, chartMeta);
         const y = series.priceToCoordinate(endpoint.value);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(paneWidth) || x < -12 || y < 10) return null;
-        const labelX = Math.min(Math.max(x + 5, 8), paneWidth - 26);
+        if (
+          !Number.isFinite(startX) ||
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(paneWidth) ||
+          x < -12 ||
+          startX > paneWidth + 12 ||
+          y < 10
+        ) {
+          return null;
+        }
+        const lineX1 = Math.max(startX, 0);
+        const lineX2 = Math.min(Math.max(x, lineX1), paneWidth);
+        const labelX = Math.min(Math.max(lineX2 + 5, 8), paneWidth - 26);
 
         return (
-          <text
-            key={line.key}
-            x={labelX}
-            y={y - 5}
-            fill={BTC_PIVOT_COLOR}
-            fontSize={compact ? "9" : "11"}
-            fontWeight="700"
-            paintOrder="stroke"
-            stroke="#101319"
-            strokeWidth="3"
-          >
-            {line.label}
-          </text>
+          <g key={line.key}>
+            {lineX2 > lineX1 ? (
+              <line
+                x1={lineX1}
+                x2={lineX2}
+                y1={y}
+                y2={y}
+                stroke={BTC_PIVOT_COLOR}
+                strokeWidth="1.2"
+              />
+            ) : null}
+            <text
+              x={labelX}
+              y={y - 5}
+              fill={BTC_PIVOT_COLOR}
+              fontSize={compact ? "9" : "11"}
+              fontWeight="700"
+              paintOrder="stroke"
+              stroke="#101319"
+              strokeWidth="3"
+            >
+              {line.label}
+            </text>
+          </g>
         );
       })}
     </g>
@@ -2073,7 +2098,10 @@ function pointToLogical(point, chartMeta) {
 
     const firstTime = chartMeta.dataTimes[0];
     const lastTime = chartMeta.dataTimes.at(-1);
-    if ((point.time < firstTime || point.time > lastTime) && Number.isFinite(logical)) return logical;
+    if (point.time < firstTime || point.time > lastTime) {
+      if (Number.isFinite(logical)) return logical;
+      if (chartMeta.intervalSeconds) return (point.time - chartMeta.firstTime) / chartMeta.intervalSeconds;
+    }
     return timeToNearestLogical(point.time, chartMeta.dataTimes);
   }
 
