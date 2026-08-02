@@ -2,6 +2,8 @@ const REST_ENDPOINTS = [
   "https://api.binance.com/api/v3",
   "https://data-api.binance.vision/api/v3",
 ];
+const COINMARKETCAP_PROXY_ENDPOINT = "/api/coinmarketcap";
+const COINMARKETCAP_DIRECT_ENDPOINT = "https://pro-api.coinmarketcap.com/public-api/v3/cryptocurrency/listings/latest";
 const KUCOIN_PROXY_ENDPOINT = "/api/kucoin";
 const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
@@ -34,7 +36,7 @@ const EXCLUDED_BASE_ASSETS = new Set([
 const FIAT_OR_STABLE_PATTERN = /(USD|EUR|BRL|TRY|GBP|AUD|CAD|CHF|JPY|MXN|ARS|COP)$/;
 
 export const DEFAULT_FILTERS = {
-  universeSize: 120,
+  universeSize: 150,
   minQuoteVolume: 0,
   maxSpreadPercent: Number.POSITIVE_INFINITY,
   autoRefresh: true,
@@ -143,14 +145,35 @@ export async function fetchBinance(path, params = {}, signal) {
   throw lastError || new Error("Nao foi possivel acessar a API publica da Binance.");
 }
 
+export async function fetchCoinMarketCapListings(limit = 150, signal) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 150, 1), 500);
+  const query = toQuery({
+    start: 1,
+    limit: safeLimit,
+    convert: "USD",
+    sort: "market_cap",
+    sort_dir: "desc",
+  });
+  const url = typeof window === "undefined"
+    ? `${COINMARKETCAP_DIRECT_ENDPOINT}?${query}`
+    : `${COINMARKETCAP_PROXY_ENDPOINT}?${query}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+
+  const payload = await response.json();
+  return Array.isArray(payload?.data) ? payload.data : [];
+}
+
 export async function loadTradableUniverse(filters, signal) {
-  const [exchangeInfo, ticker24h, hypeTicker] = await Promise.all([
+  const cmcLimit = filters.universeSize > 0 ? filters.universeSize : 150;
+  const [exchangeInfo, ticker24h, coinMarketCapListings, hypeTicker] = await Promise.all([
     fetchBinance("/exchangeInfo", {}, signal),
     fetchBinance("/ticker/24hr", {}, signal),
+    fetchCoinMarketCapListings(cmcLimit, signal).catch(() => []),
     fetchKucoinTicker(signal).catch(() => null),
   ]);
 
-  const tradable = new Set(
+  const tradableByBaseAsset = new Map(
     (exchangeInfo.symbols || [])
       .filter((item) => {
         return (
@@ -163,26 +186,52 @@ export async function loadTradableUniverse(filters, signal) {
           !FIAT_OR_STABLE_PATTERN.test(item.baseAsset)
         );
       })
-      .map((item) => item.symbol)
+      .map((item) => [item.baseAsset, item.symbol])
   );
 
-  const universe = ticker24h
-    .filter((item) => tradable.has(item.symbol))
-    .map(normalizeTicker)
+  const tickersBySymbol = new Map(ticker24h.map((item) => [item.symbol, item]));
+  const tradableSymbols = new Set(tradableByBaseAsset.values());
+  const rankedSymbols = getRankedTradableSymbols(coinMarketCapListings, tradableByBaseAsset, hypeTicker);
+  const fallbackSymbols = ticker24h
+    .map((item) => item.symbol)
+    .filter((symbol) => tradableSymbols.has(symbol))
+    .sort((a, b) => Number(tickersBySymbol.get(b)?.quoteVolume || 0) - Number(tickersBySymbol.get(a)?.quoteVolume || 0));
+  const sourceSymbols = rankedSymbols.length > 0 ? rankedSymbols : fallbackSymbols;
+
+  const universe = sourceSymbols
+    .map((symbol) => symbol === HYPE_SYMBOL ? hypeTicker : tickersBySymbol.get(symbol))
+    .filter(Boolean)
+    .map((item) => item.symbol === HYPE_SYMBOL ? item : normalizeTicker(item))
     .filter((item) => item.quoteVolume >= filters.minQuoteVolume)
-    .filter((item) => item.spreadPercent <= filters.maxSpreadPercent)
-    .sort((a, b) => b.quoteVolume - a.quoteVolume);
+    .filter((item) => item.spreadPercent <= filters.maxSpreadPercent);
 
-  const limitedUniverse = filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
-  if (
-    hypeTicker &&
-    hypeTicker.quoteVolume >= filters.minQuoteVolume &&
-    hypeTicker.spreadPercent <= filters.maxSpreadPercent
-  ) {
-    limitedUniverse.push(hypeTicker);
-  }
+  return filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
+}
 
-  return limitedUniverse;
+function getRankedTradableSymbols(coinMarketCapListings, tradableByBaseAsset, hypeTicker) {
+  if (!Array.isArray(coinMarketCapListings) || coinMarketCapListings.length === 0) return [];
+
+  const seenSymbols = new Set();
+  const rankedSymbols = [];
+  coinMarketCapListings.forEach((asset) => {
+    const baseAsset = String(asset?.symbol || "").toUpperCase();
+    if (!baseAsset || seenSymbols.has(baseAsset) || EXCLUDED_BASE_ASSETS.has(baseAsset) || FIAT_OR_STABLE_PATTERN.test(baseAsset)) {
+      return;
+    }
+
+    seenSymbols.add(baseAsset);
+    if (baseAsset === "HYPE" && hypeTicker) {
+      rankedSymbols.push(HYPE_SYMBOL);
+      return;
+    }
+
+    const tradableSymbol = tradableByBaseAsset.get(baseAsset);
+    if (tradableSymbol) {
+      rankedSymbols.push(tradableSymbol);
+    }
+  });
+
+  return rankedSymbols;
 }
 
 export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {

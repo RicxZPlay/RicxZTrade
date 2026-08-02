@@ -16,7 +16,14 @@ export default defineConfig({
           return `/api/v1/market/${endpoint}?${url.searchParams.toString()}`
         },
       },
+      '/api/coinmarketcap': {
+        target: 'https://pro-api.coinmarketcap.com',
+        changeOrigin: true,
+        rewrite(path) {
+          const url = new URL(path, 'http://localhost')
+          return `/public-api/v3/cryptocurrency/listings/latest?${url.searchParams.toString()}`
+        },
+      },
     },
   },
 })
-

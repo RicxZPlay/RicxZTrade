@@ -479,12 +479,11 @@ function ScannerControls({
             value={filters.universeSize}
             onChange={(event) => setFilters((current) => ({ ...current, universeSize: Number(event.target.value) }))}
           >
-            <option value={0}>Todas as moedas</option>
-            <option value={30}>Top 30 volume</option>
-            <option value={60}>Top 60 volume</option>
-            <option value={100}>Top 100 volume</option>
-            <option value={120}>Top 120 volume</option>
-            <option value={150}>Top 150 volume</option>
+            <option value={30}>Top 30 CoinMarketCap</option>
+            <option value={60}>Top 60 CoinMarketCap</option>
+            <option value={100}>Top 100 CoinMarketCap</option>
+            <option value={120}>Top 120 CoinMarketCap</option>
+            <option value={150}>Top 150 CoinMarketCap</option>
           </select>
         </label>
 
