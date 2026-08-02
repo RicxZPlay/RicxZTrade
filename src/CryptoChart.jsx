@@ -12,8 +12,8 @@ import {
   formatPrice,
   ALT_CHART_INTERVALS,
   ALT_CHART_VISIBLE_CANDLES,
-  ALT_LSMA_FAST_PERIOD,
   ALT_LSMA_SLOW_PERIOD,
+  ALT_MA_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
@@ -22,6 +22,7 @@ import {
   toChartCandles,
   toChartLsma,
   toChartRenko,
+  toChartSma,
 } from "./market";
 
 const TOOLS = {
@@ -36,6 +37,15 @@ const CHART_MODES = {
 };
 const CHART_TIME_ZONE = "America/Sao_Paulo";
 const CHART_LOCALE = "pt-BR";
+const ALT_PIVOT_COLOR = "#f59e0b";
+const ALT_PIVOT_LEVELS = [
+  { key: "p", label: "P" },
+  { key: "r1", label: "R1" },
+  { key: "r2", label: "R2" },
+  { key: "s1", label: "S1" },
+  { key: "s2", label: "S2" },
+];
+const ALT_PIVOT_PERIODS_BACK = 3;
 
 export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
   const storageSymbol = `${symbol || "default"}:${mode}:${timeframe}`;
@@ -46,7 +56,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const upperBandSeriesRef = useRef(null);
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
-  const altFastLsmaSeriesRef = useRef(null);
+  const altMaSeriesRef = useRef(null);
   const altSlowLsmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
@@ -77,13 +87,17 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds, isAltChart),
     [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
   );
-  const altFastLsma = useMemo(
-    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_FAST_PERIOD), chartData) : [],
+  const altMa = useMemo(
+    () => isAltChart ? clipLineToChartData(toChartSma(candles, ALT_MA_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
   );
   const altSlowLsma = useMemo(
     () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_SLOW_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
+  );
+  const altPivotLines = useMemo(
+    () => isAltChart ? toChartMonthlyWoodiePivots(chartData, ALT_PIVOT_PERIODS_BACK) : [],
+    [chartData, isAltChart]
   );
   const stats = useMemo(() => {
     if (!isAltChart) return getLatestBollingerStats(candles, btcBoxSize);
@@ -91,11 +105,11 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     const previous = candles.at(-2);
     return {
       price: last?.close,
-      lsma1400: altFastLsma.at(-1)?.value,
       lsma1700: altSlowLsma.at(-1)?.value,
+      ma800: altMa.at(-1)?.value,
       change: last && previous ? ((last.close - previous.close) / previous.close) * 100 : null,
     };
-  }, [altFastLsma, altSlowLsma, btcBoxSize, candles, isAltChart]);
+  }, [altMa, altSlowLsma, btcBoxSize, candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -184,12 +198,12 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       title: isAltChart ? (isCompact ? "" : "BB 2000 Inf") : "BB Inferior",
     });
 
-    const altFastLsmaSeries = chart.addSeries(LineSeries, {
+    const altMaSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altSecondaryBand,
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: isAltChart,
-      title: isCompact ? "" : "LSMA 1400",
+      title: isCompact ? "" : "MA 800",
     });
 
     const altSlowLsmaSeries = chart.addSeries(LineSeries, {
@@ -205,7 +219,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
-    altFastLsmaSeriesRef.current = altFastLsmaSeries;
+    altMaSeriesRef.current = altMaSeries;
     altSlowLsmaSeriesRef.current = altSlowLsmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
@@ -251,7 +265,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       upperBandSeriesRef.current = null;
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
-      altFastLsmaSeriesRef.current = null;
+      altMaSeriesRef.current = null;
       altSlowLsmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
@@ -277,7 +291,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     upperBandSeriesRef.current.setData(isAltChart ? [] : bands.upper);
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(isAltChart ? [] : bands.lower);
-    altFastLsmaSeriesRef.current?.setData(isAltChart ? altFastLsma : []);
+    altMaSeriesRef.current?.setData(isAltChart ? altMa : []);
     altSlowLsmaSeriesRef.current?.setData(isAltChart ? altSlowLsma : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
@@ -285,7 +299,7 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altFastLsma, altSlowLsma, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altMa, altSlowLsma, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -429,8 +443,8 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         {isAltChart ? (
           <>
             <Metric label="Preco" value={formatPrice(stats.price)} />
-            <Metric label="LSMA 1400" value={formatPrice(stats.lsma1400)} />
             <Metric label="LSMA 1700" value={formatPrice(stats.lsma1700)} />
+            <Metric label="MA 800" value={formatPrice(stats.ma800)} />
             <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
           </>
         ) : (
@@ -455,6 +469,15 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
           onPointerMove={handleToolPointerMove}
           onPointerCancel={() => setDraftDrawing(null)}
         >
+          {isAltChart ? (
+            <PivotOverlay
+              chart={drawingContext.chart}
+              chartMeta={chartMeta}
+              compact={isCompact}
+              lines={altPivotLines}
+              series={drawingContext.series}
+            />
+          ) : null}
           {renderedDrawings.map((drawing) => (
             <DrawingLayer
               key={drawing.id}
@@ -709,7 +732,10 @@ function pointToLogical(point, chartMeta) {
 
     const firstTime = chartMeta.dataTimes[0];
     const lastTime = chartMeta.dataTimes.at(-1);
-    if ((point.time < firstTime || point.time > lastTime) && Number.isFinite(logical)) return logical;
+    if (point.time < firstTime || point.time > lastTime) {
+      if (Number.isFinite(logical)) return logical;
+      if (chartMeta.intervalSeconds) return (point.time - chartMeta.firstTime) / chartMeta.intervalSeconds;
+    }
     return timeToNearestLogical(point.time, chartMeta.dataTimes);
   }
 
@@ -784,9 +810,132 @@ function clipLineToChartData(line, chartData) {
   return line.filter((point) => point.time >= firstTime && point.time <= lastTime);
 }
 
+function PivotOverlay({ chart, chartMeta, compact = false, lines, series }) {
+  if (!chart || !series || !Array.isArray(lines) || lines.length === 0) return null;
+
+  const paneWidth = getPricePaneWidth(chart);
+  return (
+    <g aria-hidden="true">
+      {lines.map((line) => {
+        const startPoint = line.data?.[0];
+        const endpoint = line.data?.at(-1);
+        if (!startPoint || !endpoint) return null;
+
+        const startX = pointToCoordinate({ time: startPoint.time }, chart, chartMeta);
+        const x = pointToCoordinate({ time: endpoint.time }, chart, chartMeta);
+        const y = series.priceToCoordinate(endpoint.value);
+        if (
+          !Number.isFinite(startX) ||
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(paneWidth) ||
+          x < -12 ||
+          startX > paneWidth + 12 ||
+          y < 10
+        ) {
+          return null;
+        }
+
+        const lineX1 = Math.max(startX, 0);
+        const lineX2 = Math.min(Math.max(x, lineX1), paneWidth);
+        const labelX = Math.min(Math.max(lineX2 + 5, 8), paneWidth - 26);
+
+        return (
+          <g key={line.key}>
+            {lineX2 > lineX1 ? (
+              <line
+                x1={lineX1}
+                x2={lineX2}
+                y1={y}
+                y2={y}
+                stroke={ALT_PIVOT_COLOR}
+                strokeWidth="1.2"
+              />
+            ) : null}
+            <text
+              x={labelX}
+              y={y - 5}
+              fill={ALT_PIVOT_COLOR}
+              fontSize={compact ? "9" : "11"}
+              fontWeight="700"
+              paintOrder="stroke"
+              stroke="#101319"
+              strokeWidth="3"
+            >
+              {line.label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function toChartMonthlyWoodiePivots(bars, periodsBack) {
+  if (!Array.isArray(bars) || bars.length < 2) return [];
+
+  const monthsByKey = new Map();
+  bars.forEach((bar) => {
+    if (![bar?.time, bar?.open, bar?.high, bar?.low, bar?.close].every(Number.isFinite)) return;
+    const date = new Date(bar.time * 1000);
+    const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    const month = monthsByKey.get(key) || { bars: [] };
+    month.bars.push(bar);
+    monthsByKey.set(key, month);
+  });
+
+  const months = [...monthsByKey.values()].filter((month) => month.bars.length > 0);
+  const targets = months
+    .map((month, index) => ({ month, previous: months[index - 1] }))
+    .filter(({ previous }) => previous)
+    .slice(-periodsBack);
+
+  return targets.flatMap(({ month, previous }) => {
+    const previousHigh = Math.max(...previous.bars.map((bar) => bar.high));
+    const previousLow = Math.min(...previous.bars.map((bar) => bar.low));
+    const currentOpen = month.bars[0]?.open;
+    if (![previousHigh, previousLow, currentOpen].every(Number.isFinite)) return [];
+
+    const pivot = (previousHigh + previousLow + 2 * currentOpen) / 4;
+    const levels = {
+      p: pivot,
+      r1: 2 * pivot - previousLow,
+      r2: pivot + previousHigh - previousLow,
+      s1: 2 * pivot - previousHigh,
+      s2: pivot - previousHigh + previousLow,
+    };
+    const startTime = month.bars[0].time;
+    const endTime = getNextUtcMonthStartSeconds(startTime);
+
+    return ALT_PIVOT_LEVELS.map(({ key, label }) => ({
+      key: `${startTime}-${key}`,
+      label,
+      data: [
+        { time: startTime, value: levels[key] },
+        { time: endTime, value: levels[key] },
+      ],
+    }));
+  });
+}
+
+function getNextUtcMonthStartSeconds(time) {
+  if (!Number.isFinite(time)) return time;
+
+  const date = new Date(time * 1000);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) / 1000;
+}
+
 function getPricePaneHeight(chart) {
   try {
     return chart?.paneSize(0)?.height ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getPricePaneWidth(chart) {
+  try {
+    return chart?.paneSize(0)?.width ?? null;
   } catch {
     return null;
   }

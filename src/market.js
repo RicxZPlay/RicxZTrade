@@ -104,6 +104,7 @@ export const ALT_CHART_TERTIARY_BB_PERIOD = 4000;
 export const ALT_CHART_TERTIARY_BB_MULTIPLIER = 3;
 export const ALT_LSMA_FAST_PERIOD = 1400;
 export const ALT_LSMA_SLOW_PERIOD = 1700;
+export const ALT_MA_PERIOD = 800;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
@@ -250,23 +251,23 @@ export async function scanMarket(filters, signal, onProgress) {
 export async function buildSignal(ticker, btcCloses, signal) {
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
-  const lsma1400 = toChartLsma(candles, ALT_LSMA_FAST_PERIOD).at(-1)?.value;
   const lsma1700 = toChartLsma(candles, ALT_LSMA_SLOW_PERIOD).at(-1)?.value;
+  const ma800 = toChartSma(candles, ALT_MA_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, lsma1400, lsma1700].every(Number.isFinite)) {
+  if (![price, lsma1700, ma800].every(Number.isFinite)) {
     return null;
   }
 
   let trendDirection = "neutral";
-  const upperLsma = Math.max(lsma1400, lsma1700);
-  const lowerLsma = Math.min(lsma1400, lsma1700);
-  if (price < lowerLsma) trendDirection = "bearish";
-  if (price > upperLsma) trendDirection = "bullish";
-  const nearestLsma = Math.abs(price - lsma1400) <= Math.abs(price - lsma1700) ? lsma1400 : lsma1700;
-  const priceDistancePercent = ((price - nearestLsma) / nearestLsma) * 100;
+  const upperSignalLine = Math.max(lsma1700, ma800);
+  const lowerSignalLine = Math.min(lsma1700, ma800);
+  if (price < lowerSignalLine) trendDirection = "bearish";
+  if (price > upperSignalLine) trendDirection = "bullish";
+  const nearestSignalLine = Math.abs(price - lsma1700) <= Math.abs(price - ma800) ? lsma1700 : ma800;
+  const priceDistancePercent = ((price - nearestSignalLine) / nearestSignalLine) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
@@ -274,8 +275,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
   return {
     ...ticker,
     price,
-    lsma1400,
     lsma1700,
+    ma800,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
@@ -831,8 +832,8 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "abaixo das LSMA 1400 / 1700";
-  if (direction === "bullish") return "acima das LSMA 1400 / 1700";
+  if (direction === "bearish") return "abaixo da LSMA 1700 e MA 800";
+  if (direction === "bullish") return "acima da LSMA 1700 e MA 800";
   return "fora das zonas";
 }
 
