@@ -12,33 +12,10 @@ const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
 const INTERVAL_SECONDS = { "15m": 15 * 60, "1h": 60 * 60 };
 const KUCOIN_INTERVAL_TYPES = { "15m": "15min", "1h": "1hour" };
 
-const LEVERAGED_PATTERN = /(UP|DOWN|BULL|BEAR|[0-9]+L|[0-9]+S)USDT$/;
-const EXCLUDED_BASE_ASSETS = new Set([
-  "U",
-  "USDC",
-  "FDUSD",
-  "RLUSD",
-  "PYUSD",
-  "USD1",
-  "USDE",
-  "USDS",
-  "TUSD",
-  "USDP",
-  "DAI",
-  "EUR",
-  "EURI",
-  "AEUR",
-  "BUSD",
-  "WBTC",
-  "WBETH",
-  "USTC",
-]);
-const FIAT_OR_STABLE_PATTERN = /(USD|EUR|BRL|TRY|GBP|AUD|CAD|CHF|JPY|MXN|ARS|COP)$/;
+const ALT_QUOTE_PRIORITY = ["USDT", "USDC"];
 
 export const DEFAULT_FILTERS = {
   universeSize: 150,
-  minQuoteVolume: 0,
-  maxSpreadPercent: Number.POSITIVE_INFINITY,
   autoRefresh: true,
 };
 
@@ -165,7 +142,8 @@ export async function fetchCoinMarketCapListings(limit = 150, signal) {
 }
 
 export async function loadTradableUniverse(filters, signal) {
-  const cmcLimit = filters.universeSize > 0 ? filters.universeSize : 150;
+  const universeSize = filters.universeSize > 0 ? filters.universeSize : 150;
+  const cmcLimit = universeSize + 1;
   const [exchangeInfo, ticker24h, coinMarketCapListings, hypeTicker] = await Promise.all([
     fetchBinance("/exchangeInfo", {}, signal),
     fetchBinance("/ticker/24hr", {}, signal),
@@ -173,65 +151,80 @@ export async function loadTradableUniverse(filters, signal) {
     fetchKucoinTicker(signal).catch(() => null),
   ]);
 
-  const tradableByBaseAsset = new Map(
-    (exchangeInfo.symbols || [])
-      .filter((item) => {
-        return (
-          item.status === "TRADING" &&
-          item.quoteAsset === "USDT" &&
-          item.isSpotTradingAllowed !== false &&
-          !LEVERAGED_PATTERN.test(item.symbol) &&
-          !item.symbol.includes("_") &&
-          !EXCLUDED_BASE_ASSETS.has(item.baseAsset) &&
-          !FIAT_OR_STABLE_PATTERN.test(item.baseAsset)
-        );
-      })
-      .map((item) => [item.baseAsset, item.symbol])
-  );
+  const tradableByBaseAsset = new Map();
+  (exchangeInfo.symbols || [])
+    .filter((item) => {
+      return (
+        item.status === "TRADING" &&
+        ALT_QUOTE_PRIORITY.includes(item.quoteAsset) &&
+        item.isSpotTradingAllowed !== false &&
+        !item.symbol.includes("_")
+      );
+    })
+    .forEach((item) => {
+      const currentSymbol = tradableByBaseAsset.get(item.baseAsset);
+      if (!currentSymbol || getQuotePriority(item.symbol) < getQuotePriority(currentSymbol)) {
+        tradableByBaseAsset.set(item.baseAsset, item.symbol);
+      }
+    });
 
   const tickersBySymbol = new Map(ticker24h.map((item) => [item.symbol, item]));
   const tradableSymbols = new Set(tradableByBaseAsset.values());
-  const rankedSymbols = getRankedTradableSymbols(coinMarketCapListings, tradableByBaseAsset, hypeTicker);
+  const rankedUniverse = getCoinMarketCapUniverse(coinMarketCapListings, tradableByBaseAsset, tickersBySymbol, hypeTicker);
   const fallbackSymbols = ticker24h
     .map((item) => item.symbol)
     .filter((symbol) => tradableSymbols.has(symbol))
     .sort((a, b) => Number(tickersBySymbol.get(b)?.quoteVolume || 0) - Number(tickersBySymbol.get(a)?.quoteVolume || 0));
-  const sourceSymbols = rankedSymbols.length > 0 ? rankedSymbols : fallbackSymbols;
+  const fallbackUniverse = fallbackSymbols.map((symbol) => normalizeTicker(tickersBySymbol.get(symbol)));
 
-  const universe = sourceSymbols
-    .map((symbol) => symbol === HYPE_SYMBOL ? hypeTicker : tickersBySymbol.get(symbol))
-    .filter(Boolean)
-    .map((item) => item.symbol === HYPE_SYMBOL ? item : normalizeTicker(item))
-    .filter((item) => item.quoteVolume >= filters.minQuoteVolume)
-    .filter((item) => item.spreadPercent <= filters.maxSpreadPercent);
+  const universe = rankedUniverse.length > 0 ? rankedUniverse : fallbackUniverse;
 
-  return filters.universeSize > 0 ? universe.slice(0, filters.universeSize) : universe;
+  return universe.slice(0, universeSize);
 }
 
-function getRankedTradableSymbols(coinMarketCapListings, tradableByBaseAsset, hypeTicker) {
+function getCoinMarketCapUniverse(coinMarketCapListings, tradableByBaseAsset, tickersBySymbol, hypeTicker) {
   if (!Array.isArray(coinMarketCapListings) || coinMarketCapListings.length === 0) return [];
 
   const seenSymbols = new Set();
-  const rankedSymbols = [];
+  const universe = [];
   coinMarketCapListings.forEach((asset) => {
     const baseAsset = String(asset?.symbol || "").toUpperCase();
-    if (!baseAsset || seenSymbols.has(baseAsset) || EXCLUDED_BASE_ASSETS.has(baseAsset) || FIAT_OR_STABLE_PATTERN.test(baseAsset)) {
+    if (!baseAsset || baseAsset === "BTC" || seenSymbols.has(baseAsset)) {
       return;
     }
 
     seenSymbols.add(baseAsset);
+    const cmcRank = Number(asset?.cmc_rank ?? asset?.rank ?? universe.length + 1);
     if (baseAsset === "HYPE" && hypeTicker) {
-      rankedSymbols.push(HYPE_SYMBOL);
+      universe.push({ ...hypeTicker, baseAsset, cmcRank });
       return;
     }
 
     const tradableSymbol = tradableByBaseAsset.get(baseAsset);
-    if (tradableSymbol) {
-      rankedSymbols.push(tradableSymbol);
+    const ticker = tradableSymbol ? tickersBySymbol.get(tradableSymbol) : null;
+    if (ticker) {
+      universe.push({ ...normalizeTicker(ticker), baseAsset, cmcRank });
+      return;
     }
+
+    universe.push({
+      symbol: `${baseAsset}USDT`,
+      baseAsset,
+      cmcRank,
+      quoteVolume: 0,
+      lastPrice: 0,
+      priceChangePercent: 0,
+      spreadPercent: 0,
+      unsupported: true,
+    });
   });
 
-  return rankedSymbols;
+  return universe;
+}
+
+function getQuotePriority(symbol) {
+  const quoteIndex = ALT_QUOTE_PRIORITY.findIndex((quoteAsset) => symbol.endsWith(quoteAsset));
+  return quoteIndex === -1 ? ALT_QUOTE_PRIORITY.length : quoteIndex;
 }
 
 export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {
@@ -298,6 +291,10 @@ export async function scanMarket(filters, signal, onProgress) {
 }
 
 export async function buildSignal(ticker, btcCloses, signal) {
+  if (ticker?.unsupported) {
+    return null;
+  }
+
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
   const lsma1700 = toChartLsma(candles, ALT_LSMA_SLOW_PERIOD).at(-1)?.value;

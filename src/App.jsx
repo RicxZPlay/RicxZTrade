@@ -487,33 +487,6 @@ function ScannerControls({
           </select>
         </label>
 
-        <label>
-          <span>Volume 24h minimo</span>
-          <select
-            value={filters.minQuoteVolume}
-            onChange={(event) => setFilters((current) => ({ ...current, minQuoteVolume: Number(event.target.value) }))}
-          >
-            <option value={0}>Sem minimo</option>
-            <option value={5_000_000}>US$ 5M</option>
-            <option value={20_000_000}>US$ 20M</option>
-            <option value={50_000_000}>US$ 50M</option>
-            <option value={100_000_000}>US$ 100M</option>
-          </select>
-        </label>
-
-        <label>
-          <span>Spread maximo</span>
-          <select
-            value={filters.maxSpreadPercent}
-            onChange={(event) => setFilters((current) => ({ ...current, maxSpreadPercent: Number(event.target.value) }))}
-          >
-            <option value={Number.POSITIVE_INFINITY}>Sem limite</option>
-            <option value={0.2}>0,20%</option>
-            <option value={0.45}>0,45%</option>
-            <option value={0.8}>0,80%</option>
-          </select>
-        </label>
-
         <button
           className={showFavoritesOnly ? "favorite-filter active" : "favorite-filter"}
           type="button"
@@ -542,7 +515,7 @@ function ScannerControls({
 
       {progress.total ? (
         <div className="filter-note">
-          Universo ativo: {formatUniverseCount(progress.total, filters.universeSize)} moedas validas
+          Universo CMC: {formatUniverseCount(progress.total, filters.universeSize)} moedas analisadas
         </div>
       ) : null}
 
@@ -649,12 +622,11 @@ function formatNumber(value, digits = 1) {
 }
 
 function formatUniverseLimit(value) {
-  return value > 0 ? value : "todas";
+  return value > 0 ? value : 150;
 }
 
 function formatUniverseCount(total, limit) {
-  if (limit > 0 && total > limit) return `${total} (top ${limit} + HYPE)`;
-  return limit > 0 ? `${total}/${limit}` : `${total}`;
+  return `${total}/${formatUniverseLimit(limit)}`;
 }
 
 async function fetchCandlesWithRetry(symbol, signal, limit, interval) {
