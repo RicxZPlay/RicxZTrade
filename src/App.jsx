@@ -590,6 +590,7 @@ function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite })
         <span className={item.priceDistancePercent >= 0 ? "success" : "danger"}>{formatPercent(item.priceDistancePercent)}</span>
       </div>
       <div className="coin-tags">
+        {item.buyZoneAlert ? <span className="tag-buy-zone">{item.buyZoneAlert}</span> : null}
         <span>{item.trend}</span>
         <span className={item.relativeToBtcPercent >= 0 ? "tag-positive" : "tag-negative"}>{item.relativeLabel}</span>
         <span>ADX {formatNumber(item.adx)}</span>

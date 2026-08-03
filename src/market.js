@@ -89,6 +89,7 @@ export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
 export const RELATIVE_LOOKBACK = 96;
+const ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT = 1;
 const SCANNER_CANDLE_CACHE = new Map();
 
 function toQuery(params = {}) {
@@ -317,6 +318,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
+  const monthlyPivot = calculateLatestMonthlyWoodiePivot(candles);
+  const buyZoneAlert = getAltBuyZoneAlert(price, lsma1700, ma800, monthlyPivot);
 
   return {
     ...ticker,
@@ -329,6 +332,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
     relativeLabel: relativeToBtcPercent >= 0 ? "mais forte que BTC" : "mais fraca que BTC",
     trendDirection,
     trend,
+    buyZoneAlert,
+    monthlyPivot,
     isFlatMarket,
     candlesLoaded: candles.length,
     lastCandleTime: candles.at(-1)?.openTime,
@@ -881,6 +886,52 @@ function getAltTrendLabel(direction) {
   if (direction === "bearish") return "abaixo da LSMA 1700 e MA 800";
   if (direction === "bullish") return "acima da LSMA 1700 e MA 800";
   return "fora das zonas";
+}
+
+function getAltBuyZoneAlert(price, lsma1700, ma800, monthlyPivot) {
+  if (!Number.isFinite(price) || !monthlyPivot) return null;
+
+  const belowAnySignalLine = price < lsma1700 || price < ma800;
+  const belowPivotPWithWeakness = Number.isFinite(monthlyPivot.p) && price < monthlyPivot.p && belowAnySignalLine;
+  const nearOrBelowSupport = [monthlyPivot.s1, monthlyPivot.s2].some((level) => {
+    if (!Number.isFinite(level) || level <= 0) return false;
+    return price <= level || ((price - level) / level) * 100 <= ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT;
+  });
+
+  return belowPivotPWithWeakness || nearOrBelowSupport ? "possivel zona de compra" : null;
+}
+
+function calculateLatestMonthlyWoodiePivot(candles) {
+  if (!Array.isArray(candles) || candles.length < 2) return null;
+
+  const monthsByKey = new Map();
+  candles.forEach((candle) => {
+    if (![candle?.openTime, candle?.open, candle?.high, candle?.low].every(Number.isFinite)) return;
+    const date = new Date(candle.openTime);
+    const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
+    const month = monthsByKey.get(key) || { candles: [] };
+    month.candles.push(candle);
+    monthsByKey.set(key, month);
+  });
+
+  const months = [...monthsByKey.values()].filter((month) => month.candles.length > 0);
+  if (months.length < 2) return null;
+
+  const current = months.at(-1);
+  const previous = months.at(-2);
+  const previousHigh = Math.max(...previous.candles.map((candle) => candle.high));
+  const previousLow = Math.min(...previous.candles.map((candle) => candle.low));
+  const currentOpen = current.candles[0]?.open;
+  if (![previousHigh, previousLow, currentOpen].every(Number.isFinite)) return null;
+
+  const pivot = (previousHigh + previousLow + 2 * currentOpen) / 4;
+  return {
+    p: pivot,
+    r1: 2 * pivot - previousLow,
+    r2: pivot + previousHigh - previousLow,
+    s1: 2 * pivot - previousHigh,
+    s2: pivot - previousHigh + previousLow,
+  };
 }
 
 export function usesPollingMarketData(symbol) {

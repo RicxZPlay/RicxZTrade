@@ -449,6 +449,12 @@ input:focus,
   font-weight: 750;
 }
 
+.coin-tags .tag-buy-zone {
+  background: color-mix(in srgb, #f6c85f 22%, transparent);
+  color: #f6c85f;
+  border: 1px solid color-mix(in srgb, #f6c85f 34%, transparent);
+}
+
 .coin-price {
   align-items: end;
   text-align: right;
