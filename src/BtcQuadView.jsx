@@ -85,7 +85,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
       chartCandles["candles-1m"],
       chartCandles["candles-5m"],
       chartCandles["candles-15m"],
-      chartCandles["candles-1h"],
       chartCandles["candles-4h"],
     ].find((candles) => candles?.length > 0);
     return liveBtcPrice ?? sourceCandles?.at(-1)?.close ?? null;
@@ -1173,7 +1172,6 @@ function getChartBbMultiplier(config) {
 function getChartCardClassName(config) {
   const classes = ["btc-quad-card"];
   if (config?.id === "candles-15m-lsma") classes.push("btc-quad-card-normal-15m");
-  if (config?.id === "candles-30m-lsma") classes.push("btc-quad-card-normal-1h");
   if (config?.id === "renko-4h") classes.push("btc-quad-card-renko-4h");
   if (config?.id === "renko-30m") classes.push("btc-quad-card-renko-15m");
   return classes.join(" ");
