@@ -13,6 +13,7 @@ const INTERVAL_SECONDS = { "15m": 15 * 60, "1h": 60 * 60 };
 const KUCOIN_INTERVAL_TYPES = { "15m": "15min", "1h": "1hour" };
 
 const ALT_QUOTE_PRIORITY = ["USDT", "USDC"];
+const CMC_EXCLUDED_BASE_ASSETS = new Set(["U", "USD1", "USDE", "USDC", "USDT", "RLUSD", "TUSD"]);
 
 export const DEFAULT_FILTERS = {
   universeSize: 150,
@@ -144,7 +145,7 @@ export async function fetchCoinMarketCapListings(limit = 150, signal) {
 
 export async function loadTradableUniverse(filters, signal) {
   const universeSize = filters.universeSize > 0 ? filters.universeSize : 150;
-  const cmcLimit = universeSize + 1;
+  const cmcLimit = Math.min(universeSize + 50, 500);
   const [exchangeInfo, ticker24h, coinMarketCapListings, hypeTicker] = await Promise.all([
     fetchBinance("/exchangeInfo", {}, signal),
     fetchBinance("/ticker/24hr", {}, signal),
@@ -174,7 +175,7 @@ export async function loadTradableUniverse(filters, signal) {
   const rankedUniverse = getCoinMarketCapUniverse(coinMarketCapListings, tradableByBaseAsset, tickersBySymbol, hypeTicker);
   const fallbackSymbols = ticker24h
     .map((item) => item.symbol)
-    .filter((symbol) => tradableSymbols.has(symbol))
+    .filter((symbol) => tradableSymbols.has(symbol) && !CMC_EXCLUDED_BASE_ASSETS.has(getBaseAssetFromSymbol(symbol)))
     .sort((a, b) => Number(tickersBySymbol.get(b)?.quoteVolume || 0) - Number(tickersBySymbol.get(a)?.quoteVolume || 0));
   const fallbackUniverse = fallbackSymbols.map((symbol) => normalizeTicker(tickersBySymbol.get(symbol)));
 
@@ -190,7 +191,7 @@ function getCoinMarketCapUniverse(coinMarketCapListings, tradableByBaseAsset, ti
   const universe = [];
   coinMarketCapListings.forEach((asset) => {
     const baseAsset = String(asset?.symbol || "").toUpperCase();
-    if (!baseAsset || baseAsset === "BTC" || seenSymbols.has(baseAsset)) {
+    if (!baseAsset || baseAsset === "BTC" || seenSymbols.has(baseAsset) || CMC_EXCLUDED_BASE_ASSETS.has(baseAsset)) {
       return;
     }
 
@@ -226,6 +227,11 @@ function getCoinMarketCapUniverse(coinMarketCapListings, tradableByBaseAsset, ti
 function getQuotePriority(symbol) {
   const quoteIndex = ALT_QUOTE_PRIORITY.findIndex((quoteAsset) => symbol.endsWith(quoteAsset));
   return quoteIndex === -1 ? ALT_QUOTE_PRIORITY.length : quoteIndex;
+}
+
+function getBaseAssetFromSymbol(symbol) {
+  const quoteAsset = ALT_QUOTE_PRIORITY.find((quote) => symbol.endsWith(quote));
+  return quoteAsset ? symbol.slice(0, -quoteAsset.length) : symbol;
 }
 
 export async function fetchCandles(symbol, limit = RENKO_HISTORY_LIMIT, signal, interval = RENKO_INTERVAL) {
