@@ -899,12 +899,28 @@ function getAltBuyZoneAlert(price, lsma1700, ma800, monthlyPivot) {
 
   const belowAnySignalLine = price < lsma1700 || price < ma800;
   const belowPivotPWithWeakness = Number.isFinite(monthlyPivot.p) && price < monthlyPivot.p && belowAnySignalLine;
-  const nearOrBelowSupport = [monthlyPivot.s1, monthlyPivot.s2].some((level) => {
-    if (!Number.isFinite(level) || level <= 0) return false;
-    return price <= level || ((price - level) / level) * 100 <= ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT;
-  });
+  const supportReference = getNearOrBelowPivotSupport(price, monthlyPivot);
 
-  return belowPivotPWithWeakness || nearOrBelowSupport ? "possivel zona de compra" : null;
+  if (supportReference) return `possivel zona de compra ${supportReference}`;
+  if (belowPivotPWithWeakness) return "possivel zona de compra P";
+  return null;
+}
+
+function getNearOrBelowPivotSupport(price, monthlyPivot) {
+  const activeSupports = [
+    { label: "S1", level: monthlyPivot.s1 },
+    { label: "S2", level: monthlyPivot.s2 },
+  ]
+    .map((support) => {
+      if (!Number.isFinite(support.level) || support.level <= 0) return null;
+      const distancePercent = ((price - support.level) / support.level) * 100;
+      if (price > support.level && distancePercent > ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT) return null;
+      return { ...support, distance: Math.abs(distancePercent) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance);
+
+  return activeSupports[0]?.label || null;
 }
 
 function calculateLatestMonthlyWoodiePivot(candles) {
