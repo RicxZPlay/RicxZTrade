@@ -920,7 +920,7 @@ input:focus,
 
 .btc-quad-card-normal-15m {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 1 / 3;
 }
 
 .btc-quad-card-normal-1h {
@@ -1816,6 +1816,10 @@ input:focus,
   .btc-quad-card-renko-15m {
     grid-column: auto;
     grid-row: auto;
+  }
+
+  .btc-quad-card-normal-15m {
+    grid-row: span 2;
   }
 
   .btc-quad-card-header {
