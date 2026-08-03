@@ -88,8 +88,9 @@ export const ALT_VWMA_PERIOD = 190;
 export const ALT_LRC_PERIOD = 200;
 export const ADX_PERIOD = 14;
 export const RELATIVE_LOOKBACK = 96;
-const ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT = 1;
+const ALT_PIVOT_PROXIMITY_PERCENT = 1;
 const SCANNER_CANDLE_CACHE = new Map();
+const SCANNER_MONTHLY_CANDLE_CACHE = new Map();
 
 function toQuery(params = {}) {
   const query = new URLSearchParams();
@@ -318,8 +319,8 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
-  const monthlyPivot = calculateLatestMonthlyWoodiePivot(candles);
-  const buyZoneAlert = getAltBuyZoneAlert(price, ma800, monthlyPivot);
+  const monthlyPivot = await fetchLatestMonthlyWoodiePivot(ticker.symbol, signal).catch(() => calculateLatestMonthlyWoodiePivot(candles));
+  const pivotAlert = getAltPivotAlert(price, monthlyPivot);
 
   return {
     ...ticker,
@@ -331,7 +332,7 @@ export async function buildSignal(ticker, btcCloses, signal) {
     relativeLabel: relativeToBtcPercent >= 0 ? "mais forte que BTC" : "mais fraca que BTC",
     trendDirection,
     trend,
-    buyZoneAlert,
+    pivotAlert,
     monthlyPivot,
     isFlatMarket,
     candlesLoaded: candles.length,
@@ -887,33 +888,33 @@ function getAltTrendLabel(direction) {
   return "fora das zonas";
 }
 
-function getAltBuyZoneAlert(price, ma800, monthlyPivot) {
+function getAltPivotAlert(price, monthlyPivot) {
   if (!Number.isFinite(price) || !monthlyPivot) return null;
 
-  const belowMa = price < ma800;
-  const belowPivotPWithWeakness = Number.isFinite(monthlyPivot.p) && price < monthlyPivot.p && belowMa;
-  const supportReference = getNearOrBelowPivotSupport(price, monthlyPivot);
-
-  if (supportReference) return `possivel zona de compra ${supportReference}`;
-  if (belowPivotPWithWeakness) return "possivel zona de compra P";
-  return null;
-}
-
-function getNearOrBelowPivotSupport(price, monthlyPivot) {
-  const activeSupports = [
+  const levels = [
+    { label: "P", level: monthlyPivot.p },
     { label: "S1", level: monthlyPivot.s1 },
     { label: "S2", level: monthlyPivot.s2 },
-  ]
+    { label: "R1", level: monthlyPivot.r1 },
+    { label: "R2", level: monthlyPivot.r2 },
+  ].filter((item) => Number.isFinite(item.level) && item.level > 0);
+
+  const nearest = levels
     .map((support) => {
-      if (!Number.isFinite(support.level) || support.level <= 0) return null;
       const distancePercent = ((price - support.level) / support.level) * 100;
-      if (price > support.level && distancePercent > ALT_PIVOT_BUY_ZONE_DISTANCE_PERCENT) return null;
       return { ...support, distance: Math.abs(distancePercent) };
     })
-    .filter(Boolean)
     .sort((a, b) => a.distance - b.distance);
 
-  return activeSupports[0]?.label || null;
+  if (nearest[0]?.distance <= ALT_PIVOT_PROXIMITY_PERCENT) {
+    return nearest[0].label === "P" ? "proximo P" : `proximo a ${nearest[0].label}`;
+  }
+
+  if (Number.isFinite(monthlyPivot.s2) && price < monthlyPivot.s2) return "abaixo de S2";
+  if (Number.isFinite(monthlyPivot.s1) && price < monthlyPivot.s1) return "abaixo de S1";
+  if (Number.isFinite(monthlyPivot.r1) && price < monthlyPivot.r1) return "abaixo de R1";
+  if (Number.isFinite(monthlyPivot.r2) && price < monthlyPivot.r2) return "abaixo de R2";
+  return null;
 }
 
 function calculateLatestMonthlyWoodiePivot(candles) {
@@ -1065,6 +1066,31 @@ function pruneScannerCandleCache(activeSymbols) {
   SCANNER_CANDLE_CACHE.forEach((_, symbol) => {
     if (!activeSymbols.has(symbol)) SCANNER_CANDLE_CACHE.delete(symbol);
   });
+  SCANNER_MONTHLY_CANDLE_CACHE.forEach((_, symbol) => {
+    if (!activeSymbols.has(symbol)) SCANNER_MONTHLY_CANDLE_CACHE.delete(symbol);
+  });
+}
+
+async function fetchLatestMonthlyWoodiePivot(symbol, signal) {
+  const candles = await fetchScannerMonthlyCandles(symbol, signal);
+  return calculateLatestMonthlyWoodiePivot(candles);
+}
+
+async function fetchScannerMonthlyCandles(symbol, signal) {
+  const currentMonthKey = getCurrentUtcMonthKey();
+  const cached = SCANNER_MONTHLY_CANDLE_CACHE.get(symbol);
+  if (cached?.monthKey === currentMonthKey && Array.isArray(cached.candles) && cached.candles.length >= 2) {
+    return cached.candles;
+  }
+
+  const candles = await fetchCandles(symbol, 8, signal, "1M");
+  SCANNER_MONTHLY_CANDLE_CACHE.set(symbol, { monthKey: currentMonthKey, candles });
+  return candles;
+}
+
+function getCurrentUtcMonthKey() {
+  const date = new Date();
+  return `${date.getUTCFullYear()}-${date.getUTCMonth()}`;
 }
 
 function calculateRelativePerformance(closes, btcCloses, lookback) {
