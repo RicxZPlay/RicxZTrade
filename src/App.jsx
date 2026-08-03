@@ -39,7 +39,7 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
-const ALT_CHART_TIMEFRAMES = ["1h"];
+const ALT_CHART_TIMEFRAMES = ["15m"];
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -317,8 +317,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo das medias" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima das medias" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da MA 800" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima da MA 800" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -352,8 +352,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo das medias apareceu."
-                      : "Nenhuma altcoin abaixo das medias apareceu."}
+                      ? "Nenhuma favorita abaixo da MA 800 apareceu."
+                      : "Nenhuma altcoin abaixo da MA 800 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -397,8 +397,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima das medias apareceu."
-                      : "Nenhuma altcoin acima das medias apareceu."}
+                      ? "Nenhuma favorita acima da MA 800 apareceu."
+                      : "Nenhuma altcoin acima da MA 800 apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -414,7 +414,6 @@ export default function App() {
 
           <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="LSMA 1700" value={formatPrice(selected?.lsma1700)} />
             <SelectedMetric label="MA 800" value={formatPrice(selected?.ma800)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />

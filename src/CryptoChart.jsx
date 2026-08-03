@@ -12,7 +12,6 @@ import {
   formatPrice,
   ALT_CHART_INTERVALS,
   ALT_CHART_VISIBLE_CANDLES,
-  ALT_LSMA_SLOW_PERIOD,
   ALT_MA_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
@@ -20,7 +19,6 @@ import {
   getLatestBollingerStats,
   toChartBollingerBands,
   toChartCandles,
-  toChartLsma,
   toChartRenko,
   toChartSma,
 } from "./market";
@@ -57,7 +55,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
   const altMaSeriesRef = useRef(null);
-  const altSlowLsmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -91,10 +88,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     () => isAltChart ? clipLineToChartData(toChartSma(candles, ALT_MA_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
   );
-  const altSlowLsma = useMemo(
-    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_SLOW_PERIOD), chartData) : [],
-    [candles, chartData, isAltChart]
-  );
   const altPivotLines = useMemo(
     () => isAltChart ? toChartMonthlyWoodiePivots(chartData, ALT_PIVOT_PERIODS_BACK) : [],
     [chartData, isAltChart]
@@ -105,11 +98,10 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     const previous = candles.at(-2);
     return {
       price: last?.close,
-      lsma1700: altSlowLsma.at(-1)?.value,
       ma800: altMa.at(-1)?.value,
       change: last && previous ? ((last.close - previous.close) / previous.close) * 100 : null,
     };
-  }, [altMa, altSlowLsma, btcBoxSize, candles, isAltChart]);
+  }, [altMa, btcBoxSize, candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -206,21 +198,12 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       title: isCompact ? "" : "MA 800",
     });
 
-    const altSlowLsmaSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.altTertiaryBand,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: isAltChart,
-      title: isCompact ? "" : "LSMA 1700",
-    });
-
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
     altMaSeriesRef.current = altMaSeries;
-    altSlowLsmaSeriesRef.current = altSlowLsmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -266,7 +249,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
       altMaSeriesRef.current = null;
-      altSlowLsmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
 
@@ -292,14 +274,13 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(isAltChart ? [] : bands.lower);
     altMaSeriesRef.current?.setData(isAltChart ? altMa : []);
-    altSlowLsmaSeriesRef.current?.setData(isAltChart ? altSlowLsma : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altMa, altSlowLsma, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -443,7 +424,6 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
         {isAltChart ? (
           <>
             <Metric label="Preco" value={formatPrice(stats.price)} />
-            <Metric label="LSMA 1700" value={formatPrice(stats.lsma1700)} />
             <Metric label="MA 800" value={formatPrice(stats.ma800)} />
             <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
           </>

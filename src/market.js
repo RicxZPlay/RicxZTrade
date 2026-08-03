@@ -69,21 +69,19 @@ export const BTC_QUAD_CHARTS = [
 export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
-export const ALT_INTERVAL = "1h";
-export const ALT_HISTORY_LIMIT = 1800;
+export const ALT_INTERVAL = "15m";
+export const ALT_HISTORY_LIMIT = 3500;
 export const ALT_CHART_INTERVALS = {
-  "1h": { interval: "1h", historyLimit: 4200, fallbackSeconds: 3600 },
+  "15m": { interval: "15m", historyLimit: 3500, fallbackSeconds: 900 },
 };
-export const ALT_CHART_VISIBLE_CANDLES = 4000;
-export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
+export const ALT_CHART_VISIBLE_CANDLES = 3500;
+export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
 export const ALT_CHART_BB_PERIOD = 2000;
 export const ALT_CHART_BB_MULTIPLIER = 1;
 export const ALT_CHART_SECONDARY_BB_PERIOD = 3000;
 export const ALT_CHART_SECONDARY_BB_MULTIPLIER = 2;
 export const ALT_CHART_TERTIARY_BB_PERIOD = 4000;
 export const ALT_CHART_TERTIARY_BB_MULTIPLIER = 3;
-export const ALT_LSMA_FAST_PERIOD = 1400;
-export const ALT_LSMA_SLOW_PERIOD = 1700;
 export const ALT_MA_PERIOD = 800;
 export const ALT_SLOW_EMA = 450;
 export const ALT_VWMA_PERIOD = 190;
@@ -304,33 +302,28 @@ export async function buildSignal(ticker, btcCloses, signal) {
 
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
-  const lsma1700 = toChartLsma(candles, ALT_LSMA_SLOW_PERIOD).at(-1)?.value;
   const ma800 = toChartSma(candles, ALT_MA_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, lsma1700, ma800].every(Number.isFinite)) {
+  if (![price, ma800].every(Number.isFinite)) {
     return null;
   }
 
   let trendDirection = "neutral";
-  const upperSignalLine = Math.max(lsma1700, ma800);
-  const lowerSignalLine = Math.min(lsma1700, ma800);
-  if (price < lowerSignalLine) trendDirection = "bearish";
-  if (price > upperSignalLine) trendDirection = "bullish";
-  const nearestSignalLine = Math.abs(price - lsma1700) <= Math.abs(price - ma800) ? lsma1700 : ma800;
-  const priceDistancePercent = ((price - nearestSignalLine) / nearestSignalLine) * 100;
+  if (price < ma800) trendDirection = "bearish";
+  if (price > ma800) trendDirection = "bullish";
+  const priceDistancePercent = ((price - ma800) / ma800) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
   const trend = getAltTrendLabel(trendDirection);
   const monthlyPivot = calculateLatestMonthlyWoodiePivot(candles);
-  const buyZoneAlert = getAltBuyZoneAlert(price, lsma1700, ma800, monthlyPivot);
+  const buyZoneAlert = getAltBuyZoneAlert(price, ma800, monthlyPivot);
 
   return {
     ...ticker,
     price,
-    lsma1700,
     ma800,
     priceDistancePercent,
     adx,
@@ -889,16 +882,16 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "abaixo da LSMA 1700 e MA 800";
-  if (direction === "bullish") return "acima da LSMA 1700 e MA 800";
+  if (direction === "bearish") return "abaixo da MA 800";
+  if (direction === "bullish") return "acima da MA 800";
   return "fora das zonas";
 }
 
-function getAltBuyZoneAlert(price, lsma1700, ma800, monthlyPivot) {
+function getAltBuyZoneAlert(price, ma800, monthlyPivot) {
   if (!Number.isFinite(price) || !monthlyPivot) return null;
 
-  const belowAnySignalLine = price < lsma1700 || price < ma800;
-  const belowPivotPWithWeakness = Number.isFinite(monthlyPivot.p) && price < monthlyPivot.p && belowAnySignalLine;
+  const belowMa = price < ma800;
+  const belowPivotPWithWeakness = Number.isFinite(monthlyPivot.p) && price < monthlyPivot.p && belowMa;
   const supportReference = getNearOrBelowPivotSupport(price, monthlyPivot);
 
   if (supportReference) return `possivel zona de compra ${supportReference}`;
@@ -1048,7 +1041,7 @@ async function fetchScannerCandles(symbol, signal) {
   const missingCandles = Number.isFinite(lastCachedTime)
     ? Math.ceil((Date.now() - lastCachedTime) / (INTERVAL_SECONDS[ALT_INTERVAL] * 1000)) + 2
     : ALT_HISTORY_LIMIT;
-  const requestLimit = cached?.length >= ALT_LSMA_SLOW_PERIOD && missingCandles <= 1000
+  const requestLimit = cached?.length >= ALT_MA_PERIOD && missingCandles <= 1000
     ? Math.max(2, missingCandles)
     : ALT_HISTORY_LIMIT;
   const fetched = await fetchCandles(symbol, requestLimit, signal, ALT_INTERVAL);
