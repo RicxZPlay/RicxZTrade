@@ -19,7 +19,7 @@ export default async function handler(request, response) {
     const type = readQueryValue(request.query.type);
     const startAt = readTimestamp(request.query.startAt);
     const endAt = readTimestamp(request.query.endAt);
-    if (!["15min", "1hour"].includes(type) || startAt == null || endAt == null) {
+    if (!["15min", "1hour", "1month"].includes(type) || startAt == null || endAt == null) {
       return response.status(400).json({ code: "400000", msg: "Invalid candle request" });
     }
     params.set("type", type);

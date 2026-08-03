@@ -9,8 +9,8 @@ const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
 const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
 const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
-const INTERVAL_SECONDS = { "15m": 15 * 60, "1h": 60 * 60 };
-const KUCOIN_INTERVAL_TYPES = { "15m": "15min", "1h": "1hour" };
+const INTERVAL_SECONDS = { "15m": 15 * 60, "1h": 60 * 60, "1M": 30 * 24 * 60 * 60 };
+const KUCOIN_INTERVAL_TYPES = { "15m": "15min", "1h": "1hour", "1M": "1month" };
 
 const ALT_QUOTE_PRIORITY = ["USDT", "USDC"];
 const CMC_EXCLUDED_BASE_ASSETS = new Set(["U", "USD1", "USDE", "USDC", "USDT", "RLUSD", "TUSD"]);

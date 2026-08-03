@@ -45,7 +45,7 @@ const ALT_PIVOT_LEVELS = [
 ];
 const ALT_PIVOT_PERIODS_BACK = 3;
 
-export default function CryptoChart({ symbol, candles, liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
+export default function CryptoChart({ symbol, candles, monthlyCandles = [], liveStatus, error, theme, mode = CHART_MODES.btc, timeframe = DEFAULT_BTC_RENKO_TIMEFRAME }) {
   const storageSymbol = `${symbol || "default"}:${mode}:${timeframe}`;
   const containerRef = useRef(null);
   const overlayRef = useRef(null);
@@ -89,8 +89,8 @@ export default function CryptoChart({ symbol, candles, liveStatus, error, theme,
     [candles, chartData, isAltChart]
   );
   const altPivotLines = useMemo(
-    () => isAltChart ? toChartMonthlyWoodiePivots(chartData, ALT_PIVOT_PERIODS_BACK) : [],
-    [chartData, isAltChart]
+    () => isAltChart ? toChartMonthlyWoodiePivots(chartData, ALT_PIVOT_PERIODS_BACK, monthlyCandles) : [],
+    [chartData, isAltChart, monthlyCandles]
   );
   const stats = useMemo(() => {
     if (!isAltChart) return getLatestBollingerStats(candles, btcBoxSize);
@@ -851,8 +851,13 @@ function PivotOverlay({ chart, chartMeta, compact = false, lines, series }) {
   );
 }
 
-function toChartMonthlyWoodiePivots(bars, periodsBack) {
+function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
   if (!Array.isArray(bars) || bars.length < 2) return [];
+
+  const monthlyBars = sanitizeChartData(toChartCandles(monthlyCandles));
+  if (monthlyBars.length >= 2) {
+    return toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, bars, periodsBack);
+  }
 
   const monthsByKey = new Map();
   bars.forEach((bar) => {
@@ -889,6 +894,66 @@ function toChartMonthlyWoodiePivots(bars, periodsBack) {
 
     return ALT_PIVOT_LEVELS.map(({ key, label }) => ({
       key: `${startTime}-${key}`,
+      label,
+      data: [
+        { time: startTime, value: levels[key] },
+        { time: endTime, value: levels[key] },
+      ],
+    }));
+  });
+}
+
+function sanitizeChartData(data) {
+  if (!Array.isArray(data) || data.length === 0) return [];
+
+  const byTime = new Map();
+  data.forEach((item) => {
+    if (
+      !Number.isFinite(item?.time) ||
+      !Number.isFinite(item.open) ||
+      !Number.isFinite(item.high) ||
+      !Number.isFinite(item.low) ||
+      !Number.isFinite(item.close)
+    ) {
+      return;
+    }
+
+    byTime.set(item.time, item);
+  });
+
+  return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBack) {
+  const chartStartTime = chartBars[0]?.time;
+  const chartEndTime = chartBars.at(-1)?.time;
+  if (!Number.isFinite(chartStartTime) || !Number.isFinite(chartEndTime)) return [];
+
+  const targets = monthlyBars
+    .map((month, index) => ({ month, previous: monthlyBars[index - 1], next: monthlyBars[index + 1] }))
+    .filter(({ previous, month }) => previous && month.time <= chartEndTime)
+    .slice(-periodsBack);
+
+  return targets.flatMap(({ month, previous, next }) => {
+    const previousHigh = previous.high;
+    const previousLow = previous.low;
+    const currentOpen = month.open;
+    if (![previousHigh, previousLow, currentOpen].every(Number.isFinite)) return [];
+
+    const pivot = (previousHigh + previousLow + 2 * currentOpen) / 4;
+    const levels = {
+      p: pivot,
+      r1: 2 * pivot - previousLow,
+      r2: pivot + previousHigh - previousLow,
+      s1: 2 * pivot - previousHigh,
+      s2: pivot - previousHigh + previousLow,
+    };
+    const startTime = Math.max(month.time, chartStartTime);
+    const endTime = next?.time ?? getNextUtcMonthStartSeconds(month.time);
+    if (endTime <= startTime) return [];
+
+    return ALT_PIVOT_LEVELS.map(({ key, label }) => ({
+      key: `${month.time}-${key}`,
       label,
       data: [
         { time: startTime, value: levels[key] },

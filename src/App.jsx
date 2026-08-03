@@ -49,6 +49,7 @@ export default function App() {
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
   const [chartCandles, setChartCandles] = useState({});
+  const [altMonthlyCandles, setAltMonthlyCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [theme, setTheme] = useState(readStoredTheme);
@@ -68,6 +69,7 @@ export default function App() {
     setSelectedSymbol(symbol);
     setChartMode(CHART_MODES.alt);
     setChartSymbol(symbol);
+    setAltMonthlyCandles([]);
     setChartError({});
     setLiveStatus({});
     if (isCompactLayout) {
@@ -147,10 +149,21 @@ export default function App() {
     queueMicrotask(() => {
       if (!controller.signal.aborted) {
         setChartCandles({});
+        setAltMonthlyCandles([]);
         setLiveStatus(Object.fromEntries(ALT_CHART_TIMEFRAMES.map((timeframe) => [timeframe, "loading"])));
         setChartError({});
       }
     });
+
+    fetchCandlesWithRetry(targetSymbol, controller.signal, 8, "1M")
+      .then((monthlyCandles) => {
+        if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+        setAltMonthlyCandles(monthlyCandles);
+      })
+      .catch(() => {
+        if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+        setAltMonthlyCandles([]);
+      });
 
     ALT_CHART_TIMEFRAMES.forEach((timeframe) => {
       const timeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
@@ -435,6 +448,7 @@ export default function App() {
                     theme={theme}
                     mode={chartMode}
                     timeframe={timeframe}
+                    monthlyCandles={altMonthlyCandles}
                   />
                 ))}
               </div>
