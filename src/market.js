@@ -914,6 +914,9 @@ function getAltPivotAlert(price, monthlyPivot) {
   if (Number.isFinite(monthlyPivot.s1) && price < monthlyPivot.s1) return "abaixo de S1";
   if (Number.isFinite(monthlyPivot.r2) && price > monthlyPivot.r2) return "acima de R2";
   if (Number.isFinite(monthlyPivot.r1) && price > monthlyPivot.r1) return "acima de R1";
+  if (nearest[0]) {
+    return nearest[0].label === "P" ? "proximo P" : `proximo a ${nearest[0].label}`;
+  }
   return null;
 }
 
