@@ -207,10 +207,39 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
+    let overlayFrame = null;
+    let interactionFrame = null;
+    let isInteracting = false;
+
     const syncPaneHeight = () => {
       const height = getPricePaneHeight(chart);
       if (height) setPricePaneHeight(height);
       forceOverlayUpdate((value) => value + 1);
+    };
+
+    const scheduleOverlaySync = () => {
+      if (overlayFrame != null) return;
+      overlayFrame = window.requestAnimationFrame(() => {
+        overlayFrame = null;
+        syncPaneHeight();
+      });
+    };
+
+    const trackInteraction = () => {
+      if (!isInteracting) return;
+      scheduleOverlaySync();
+      interactionFrame = window.requestAnimationFrame(trackInteraction);
+    };
+
+    const startInteraction = () => {
+      if (isInteracting) return;
+      isInteracting = true;
+      trackInteraction();
+    };
+
+    const stopInteraction = () => {
+      isInteracting = false;
+      scheduleOverlaySync();
     };
 
     const observer = new ResizeObserver(() => {
@@ -220,8 +249,20 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     observer.observe(containerRef.current);
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-      forceOverlayUpdate((value) => value + 1);
+      scheduleOverlaySync();
     });
+
+    const interactionTargets = [containerRef.current, overlayRef.current].filter(Boolean);
+    interactionTargets.forEach((target) => {
+      target.addEventListener("pointerdown", startInteraction, { passive: true });
+      target.addEventListener("pointermove", scheduleOverlaySync, { passive: true });
+      target.addEventListener("wheel", scheduleOverlaySync, { passive: true });
+      target.addEventListener("touchmove", scheduleOverlaySync, { passive: true });
+      target.addEventListener("dblclick", scheduleOverlaySync, { passive: true });
+    });
+    window.addEventListener("pointerup", stopInteraction, { passive: true });
+    window.addEventListener("pointercancel", stopInteraction, { passive: true });
+    window.addEventListener("blur", stopInteraction);
 
     const handleChartClick = (param) => {
       if (activeToolRef.current !== TOOLS.cursor || !param?.point) return;
@@ -240,6 +281,19 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     window.requestAnimationFrame(syncPaneHeight);
 
     return () => {
+      isInteracting = false;
+      if (overlayFrame != null) window.cancelAnimationFrame(overlayFrame);
+      if (interactionFrame != null) window.cancelAnimationFrame(interactionFrame);
+      interactionTargets.forEach((target) => {
+        target.removeEventListener("pointerdown", startInteraction);
+        target.removeEventListener("pointermove", scheduleOverlaySync);
+        target.removeEventListener("wheel", scheduleOverlaySync);
+        target.removeEventListener("touchmove", scheduleOverlaySync);
+        target.removeEventListener("dblclick", scheduleOverlaySync);
+      });
+      window.removeEventListener("pointerup", stopInteraction);
+      window.removeEventListener("pointercancel", stopInteraction);
+      window.removeEventListener("blur", stopInteraction);
       observer.disconnect();
       chart.unsubscribeClick(handleChartClick);
       chart.remove();
