@@ -12,6 +12,7 @@ import {
   formatPrice,
   ALT_CHART_INTERVALS,
   ALT_CHART_VISIBLE_CANDLES,
+  ALT_LSMA_PERIOD,
   ALT_MA_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
@@ -20,6 +21,7 @@ import {
   toChartBollingerBands,
   toChartCandles,
   toChartRenko,
+  toChartLsma,
   toChartSma,
 } from "./market";
 
@@ -55,6 +57,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
   const altMaSeriesRef = useRef(null);
+  const altLsmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -86,6 +89,10 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
   );
   const altMa = useMemo(
     () => isAltChart ? clipLineToChartData(toChartSma(candles, ALT_MA_PERIOD), chartData) : [],
+    [candles, chartData, isAltChart]
+  );
+  const altLsma = useMemo(
+    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
   );
   const altPivotLines = useMemo(
@@ -198,12 +205,21 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       title: isCompact ? "" : "MA 800",
     });
 
+    const altLsmaSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.altTertiaryBand,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "LSMA 3800",
+    });
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
     altMaSeriesRef.current = altMaSeries;
+    altLsmaSeriesRef.current = altLsmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -303,6 +319,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
       altMaSeriesRef.current = null;
+      altLsmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
 
@@ -328,13 +345,14 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(isAltChart ? [] : bands.lower);
     altMaSeriesRef.current?.setData(isAltChart ? altMa : []);
+    altLsmaSeriesRef.current?.setData(isAltChart ? altLsma : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
