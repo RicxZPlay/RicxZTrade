@@ -55,7 +55,7 @@ const OVERLAY_UPDATE_INTERVAL_MS = 80;
 const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
-const INITIAL_CANDLE_HISTORY_LIMIT = 2200;
+const INITIAL_CANDLE_HISTORY_LIMIT = 4200;
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-15m-lsma"]);
 const TOOLS = {
   cursor: "cursor",

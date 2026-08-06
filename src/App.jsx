@@ -18,6 +18,7 @@ import CryptoChart from "./CryptoChart";
 import BtcQuadView from "./BtcQuadView";
 import {
   buildSocketUrl,
+  ALT_CHART_INITIAL_HISTORY_LIMIT,
   ALT_CHART_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_FILTERS,
@@ -169,12 +170,27 @@ export default function App() {
       const timeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
       const targetInterval = timeframeConfig.interval;
       const targetLimit = timeframeConfig.historyLimit;
+      const initialLimit = Math.min(targetLimit, ALT_CHART_INITIAL_HISTORY_LIMIT);
 
-      fetchCandlesWithRetry(targetSymbol, controller.signal, targetLimit, targetInterval)
+      fetchCandlesWithRetry(targetSymbol, controller.signal, initialLimit, targetInterval)
         .then((nextCandles) => {
           if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
           setChartCandles((current) => ({ ...current, [timeframe]: nextCandles }));
           setChartError((current) => ({ ...current, [timeframe]: "" }));
+
+          if (initialLimit < targetLimit) {
+            fetchCandlesWithRetry(targetSymbol, controller.signal, targetLimit, targetInterval)
+              .then((fullCandles) => {
+                if (controller.signal.aborted || chartRequestRef.current !== requestId) return;
+                setChartCandles((current) => ({
+                  ...current,
+                  [timeframe]: mergeFetchedCandles(current[timeframe] || [], fullCandles, targetLimit),
+                }));
+              })
+              .catch(() => {
+                // The initial chart is already usable; keep it on screen if deep history fails.
+              });
+          }
 
           if (usesPollingMarketData(targetSymbol)) {
             setLiveStatus((current) => ({ ...current, [timeframe]: "online" }));

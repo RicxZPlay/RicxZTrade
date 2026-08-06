@@ -57,7 +57,7 @@ export const BTC_RENKO_INTERVALS = {
 export const BTC_QUAD_CHARTS = [
   { id: "renko-4h", title: "BTC Renko 4H", interval: "4h", historyLimit: 3000, fallbackSeconds: 14400, type: "renko", boxSize: BTC_RENKO_THIRTY_MINUTE_BOX_SIZE, extraBollingerBands: [{ color: "#38bdf8", middleColor: "#ffffff", period: 8000, multiplier: 2, showMiddle: true }], projectedDownColor: "#f59e0b", projectedUpColor: "#38bdf8", showBollingerBands: false, showEma: false, showVwma: false, visibleBars: 700 },
   { id: "renko-30m", title: "BTC Renko 15m", interval: "15m", historyLimit: 3000, fallbackSeconds: 900, type: "renko", boxSize: BTC_RENKO_THIRTY_MINUTE_BOX_SIZE, extraBollingerBands: [{ color: "#38bdf8", middleColor: "#ffffff", period: 8000, multiplier: 2, showMiddle: true }], projectedDownColor: "#f59e0b", projectedUpColor: "#38bdf8", showBollingerBands: false, showEma: false, showVwma: false, visibleBars: 700 },
-  { id: "candles-15m-lsma", title: "BTC 15m", interval: "15m", historyLimit: 7600, fallbackSeconds: 900, type: "candles", maPeriod: 800, extraLsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, pivots: { type: "woodie", timeframe: "monthly", periodsBack: 3, color: "#f59e0b" }, showBollingerBands: false, showEma: false, showVwma: false, visibleBars: 450 },
+  { id: "candles-15m-lsma", title: "BTC 15m", interval: "15m", historyLimit: 12000, fallbackSeconds: 900, type: "candles", maPeriod: 800, extraLsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, pivots: { type: "woodie", timeframe: "monthly", periodsBack: 3, color: "#f59e0b" }, showBollingerBands: false, showEma: false, showVwma: false, visibleBars: 450 },
   { id: "candles-1s", title: "BTC 1s", interval: "1s", historyLimit: 11500, fallbackSeconds: 1, type: "candles", bbMultiplier: BTC_ONE_SECOND_BB_MULTIPLIER, bbPeriod: BTC_ONE_SECOND_BB_PERIOD, extraBollingerBands: [{ color: "#38bdf8", period: BTC_ONE_SECOND_SECONDARY_BB_PERIOD, multiplier: BTC_ONE_SECOND_SECONDARY_BB_MULTIPLIER }, { period: BTC_ONE_SECOND_BB_PERIOD, multiplier: BTC_ONE_SECOND_THIRD_BB_MULTIPLIER }], showBollingerBands: true, showEma: false, showVwma: false },
   { id: "candles-1m", title: "BTC 1m", interval: "1m", historyLimit: 10000, fallbackSeconds: 60, type: "candles", bbMultiplier: BTC_ONE_MINUTE_BB_MULTIPLIER, bbPeriod: BTC_ONE_MINUTE_BB_PERIOD, extraBollingerBands: [{ color: "#38bdf8", middleColor: "#ffffff", period: 3000, multiplier: 2, showMiddle: true }, { color: "#7c3aed", period: 4000, multiplier: 3 }], showBollingerBands: true, showEma: false, showVwma: false, stochRsi: { rsiPeriod: 100, stochPeriod: 300, smoothK: 50, smoothD: 15, showD: false } },
   { id: "candles-5m", title: "BTC 5m", interval: "5m", historyLimit: 1500, fallbackSeconds: 300, type: "candles", emaPeriod: BTC_FAST_EMA_PERIOD, vwmaPeriod: BTC_FAST_VWMA_PERIOD },
@@ -69,10 +69,11 @@ export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].i
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "15m";
 export const ALT_HISTORY_LIMIT = 3500;
+export const ALT_CHART_INITIAL_HISTORY_LIMIT = 4200;
 export const ALT_CHART_INTERVALS = {
-  "15m": { interval: "15m", historyLimit: 7600, fallbackSeconds: 900 },
+  "15m": { interval: "15m", historyLimit: 12000, fallbackSeconds: 900 },
 };
-export const ALT_CHART_VISIBLE_CANDLES = 7600;
+export const ALT_CHART_VISIBLE_CANDLES = 12000;
 export const DEFAULT_ALT_CHART_TIMEFRAME = "15m";
 export const ALT_CHART_BB_PERIOD = 2000;
 export const ALT_CHART_BB_MULTIPLIER = 1;
