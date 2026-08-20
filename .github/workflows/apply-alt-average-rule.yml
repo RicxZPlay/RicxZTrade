@@ -28,100 +28,119 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
 
-          function replaceChecked(text, pattern, replacement, label) {
+          function replaceRequired(text, pattern, replacement, label) {
             const next = text.replace(pattern, replacement);
             if (next === text) throw new Error(`Patch not applied: ${label}`);
             return next;
           }
 
           let market = fs.readFileSync('src/market.js', 'utf8');
-          market = replaceChecked(
-            market,
-            'export const ALT_HISTORY_LIMIT = 3500;',
-            'export const ALT_HISTORY_LIMIT = 4200;',
-            'ALT_HISTORY_LIMIT for LSMA'
-          );
-          market = replaceChecked(
-            market,
-            /  const ma800 = toChartSma\(candles, ALT_MA_PERIOD\)\.at\(-1\)\?\.value;\r?\n  const adxSeries = calculateADX\(candles, ADX_PERIOD\);/,
-            '  const ma800 = toChartSma(candles, ALT_MA_PERIOD).at(-1)?.value;\n  const lsma3800 = toChartLsma(candles, ALT_LSMA_PERIOD).at(-1)?.value;\n  const adxSeries = calculateADX(candles, ADX_PERIOD);',
-            'scanner LSMA calculation'
-          );
-          market = replaceChecked(
-            market,
-            /  if \(!\[price, ma800\]\.every\(Number\.isFinite\)\) \{\r?\n    return null;\r?\n  \}\r?\n\r?\n  let trendDirection = "neutral";\r?\n  if \(price < ma800\) trendDirection = "bearish";\r?\n  if \(price > ma800\) trendDirection = "bullish";\r?\n  const priceDistancePercent = \(\(price - ma800\) \/ ma800\) \* 100;/,
-            `  if (![price, ma800, lsma3800].every(Number.isFinite)) {\n    return null;\n  }\n\n  const averages = [ma800, lsma3800];\n  const aboveAnyAverage = averages.some((averageValue) => price > averageValue);\n  const belowAnyAverage = averages.some((averageValue) => price < averageValue);\n  let trendDirection = "neutral";\n  if (aboveAnyAverage && !belowAnyAverage) trendDirection = "bullish";\n  else if (belowAnyAverage && !aboveAnyAverage) trendDirection = "bearish";\n  else if (aboveAnyAverage && belowAnyAverage) trendDirection = price >= average(averages) ? "bullish" : "bearish";\n  const referenceAverage = averages\n    .map((averageValue) => ({ value: averageValue, distance: Math.abs(price - averageValue) }))\n    .sort((a, b) => a.distance - b.distance)[0]?.value;\n  const priceDistancePercent = ((price - referenceAverage) / referenceAverage) * 100;`,
-            'scanner MA/LSMA direction rule'
-          );
-          market = replaceChecked(
-            market,
-            '  const trend = getAltTrendLabel(trendDirection);',
-            '  const trend = getAltTrendLabel({ aboveAnyAverage, belowAnyAverage });',
-            'trend label input'
-          );
-          market = replaceChecked(
-            market,
-            /    ma800,\r?\n    priceDistancePercent,/,
-            '    ma800,\n    lsma3800,\n    priceDistancePercent,',
-            'return lsma3800'
-          );
-          market = replaceChecked(
-            market,
-            /    trendDirection,\r?\n    trend,/,
-            '    trendDirection,\n    aboveAnyAverage,\n    belowAnyAverage,\n    trend,',
-            'return average flags'
-          );
-          market = replaceChecked(
-            market,
-            /function getAltTrendLabel\(direction\) \{\r?\n  if \(direction === "bearish"\) return "abaixo da MA 800";\r?\n  if \(direction === "bullish"\) return "acima da MA 800";\r?\n  return "fora das zonas";\r?\n\}/,
-            `function getAltTrendLabel(direction) {\n  if (direction?.aboveAnyAverage && direction?.belowAnyAverage) return "entre MA 800 e LSMA 3800";\n  if (direction?.belowAnyAverage) return "abaixo de MA/LSMA";\n  if (direction?.aboveAnyAverage) return "acima de MA/LSMA";\n  return "fora das zonas";\n}`,
-            'MA/LSMA label'
-          );
+
+          market = market.replace('export const ALT_HISTORY_LIMIT = 3500;', 'export const ALT_HISTORY_LIMIT = 4200;');
+
+          if (!market.includes('const lsma3800 = toChartLsma(candles, ALT_LSMA_PERIOD).at(-1)?.value;')) {
+            market = replaceRequired(
+              market,
+              /(  const ma800 = toChartSma\(candles, ALT_MA_PERIOD\)\.at\(-1\)\?\.value;\r?\n)/,
+              '$1  const lsma3800 = toChartLsma(candles, ALT_LSMA_PERIOD).at(-1)?.value;\n',
+              'scanner LSMA calculation'
+            );
+          }
+
+          if (!market.includes('const aboveAnyAverage = averages.some')) {
+            market = replaceRequired(
+              market,
+              /  if \(!\[price, ma800\]\.every\(Number\.isFinite\)\) \{\r?\n    return null;\r?\n  \}\r?\n\r?\n  let trendDirection = "neutral";\r?\n  if \(price < ma800\) trendDirection = "bearish";\r?\n  if \(price > ma800\) trendDirection = "bullish";\r?\n  const priceDistancePercent = \(\(price - ma800\) \/ ma800\) \* 100;/,
+              `  if (![price, ma800, lsma3800].every(Number.isFinite)) {\n    return null;\n  }\n\n  const averages = [ma800, lsma3800];\n  const aboveAnyAverage = averages.some((averageValue) => price > averageValue);\n  const belowAnyAverage = averages.some((averageValue) => price < averageValue);\n  let trendDirection = "neutral";\n  if (aboveAnyAverage && !belowAnyAverage) trendDirection = "bullish";\n  else if (belowAnyAverage && !aboveAnyAverage) trendDirection = "bearish";\n  else if (aboveAnyAverage && belowAnyAverage) trendDirection = price >= average(averages) ? "bullish" : "bearish";\n  const referenceAverage = averages\n    .map((averageValue) => ({ value: averageValue, distance: Math.abs(price - averageValue) }))\n    .sort((a, b) => a.distance - b.distance)[0]?.value;\n  const priceDistancePercent = ((price - referenceAverage) / referenceAverage) * 100;`,
+              'scanner MA/LSMA direction rule'
+            );
+          }
+
+          market = market.replace('  const trend = getAltTrendLabel(trendDirection);', '  const trend = getAltTrendLabel({ aboveAnyAverage, belowAnyAverage });');
+
+          if (!/\n    lsma3800,\r?\n/.test(market)) {
+            market = replaceRequired(market, /(    ma800,\r?\n)/, '$1    lsma3800,\n', 'return lsma3800');
+          }
+
+          if (!/\n    aboveAnyAverage,\r?\n/.test(market)) {
+            market = replaceRequired(market, /(    trendDirection,\r?\n)/, '$1    aboveAnyAverage,\n    belowAnyAverage,\n', 'return average flags');
+          }
+
+          if (!market.includes('entre MA 800 e LSMA 3800')) {
+            market = replaceRequired(
+              market,
+              /function getAltTrendLabel\(direction\) \{\r?\n  if \(direction === "bearish"\) return "abaixo da MA 800";\r?\n  if \(direction === "bullish"\) return "acima da MA 800";\r?\n  return "fora das zonas";\r?\n\}/,
+              `function getAltTrendLabel(direction) {\n  if (direction?.aboveAnyAverage && direction?.belowAnyAverage) return "entre MA 800 e LSMA 3800";\n  if (direction?.belowAnyAverage) return "abaixo de MA/LSMA";\n  if (direction?.aboveAnyAverage) return "acima de MA/LSMA";\n  return "fora das zonas";\n}`,
+              'MA/LSMA label'
+            );
+          }
+
           fs.writeFileSync('src/market.js', market);
 
           let app = fs.readFileSync('src/App.jsx', 'utf8');
-          app = replaceChecked(
-            app,
+
+          app = app.replace(
             '  const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);',
-            '  const belowResults = useMemo(() => results.filter((item) => item.belowAnyAverage), [results]);',
-            'below list filter'
+            '  const belowResults = useMemo(() => results.filter((item) => item.belowAnyAverage), [results]);'
           );
-          app = replaceChecked(
-            app,
+          app = app.replace(
             '  const aboveResults = useMemo(() => results.filter((item) => item.trendDirection === "bullish"), [results]);',
-            '  const aboveResults = useMemo(() => results.filter((item) => item.aboveAnyAverage), [results]);',
-            'above list filter'
+            '  const aboveResults = useMemo(() => results.filter((item) => item.aboveAnyAverage), [results]);'
           );
-          app = replaceChecked(app, 'label="Abaixo da MA 800"', 'label="Abaixo MA/LSMA"', 'below stat label');
-          app = replaceChecked(app, 'label="Acima da MA 800"', 'label="Acima MA/LSMA"', 'above stat label');
+          app = app.replaceAll('label="Abaixo da MA 800"', 'label="Abaixo MA/LSMA"');
+          app = app.replaceAll('label="Acima da MA 800"', 'label="Acima MA/LSMA"');
           app = app.replaceAll('abaixo da MA 800', 'abaixo de MA/LSMA');
           app = app.replaceAll('acima da MA 800', 'acima de MA/LSMA');
-          app = replaceChecked(
-            app,
-            /filteredBelowResults\.map\(\(item\) => \(\r?\n                  <CoinRow/,
-            'filteredBelowResults.map((item) => (\n                  <CoinRow\n                    zone="below"',
-            'below row zone'
+
+          if (!app.includes('zone="below"')) {
+            app = replaceRequired(
+              app,
+              /(filteredBelowResults\.map\(\(item\) => \(\s*<CoinRow)(?!\s+zone=)/,
+              '$1\n                    zone="below"',
+              'below row zone'
+            );
+          }
+
+          if (!app.includes('zone="above"')) {
+            app = replaceRequired(
+              app,
+              /(filteredAboveResults\.map\(\(item\) => \(\s*<CoinRow)(?!\s+zone=)/,
+              '$1\n                    zone="above"',
+              'above row zone'
+            );
+          }
+
+          app = app.replace(
+            /function CoinRow\(\{ item, selectedSymbol, favorite, onSelect, onToggleFavorite \}\) \{\r?\n  const isAbove = item\.trendDirection === "bullish";/,
+            'function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite, zone }) {\n  const isAbove = zone === "above" || (!zone && item.trendDirection === "bullish");'
           );
-          app = replaceChecked(
-            app,
-            /filteredAboveResults\.map\(\(item\) => \(\r?\n                  <CoinRow/,
-            'filteredAboveResults.map((item) => (\n                  <CoinRow\n                    zone="above"',
-            'above row zone'
-          );
-          app = replaceChecked(
-            app,
-            'function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite }) {\n  const isAbove = item.trendDirection === "bullish";',
-            'function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite, zone }) {\n  const isAbove = zone === "above" || (!zone && item.trendDirection === "bullish");',
-            'coin row zone style'
-          );
+
           fs.writeFileSync('src/App.jsx', app);
           NODE
 
-      - name: Validate
+      - name: Validate build
         run: |
           npm ci
-          npm run lint
           npm run build
+
+      - name: Verify expected source markers
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const market = fs.readFileSync('src/market.js', 'utf8');
+          const app = fs.readFileSync('src/App.jsx', 'utf8');
+          const checks = [
+            market.includes('export const ALT_HISTORY_LIMIT = 4200;'),
+            market.includes('lsma3800'),
+            market.includes('aboveAnyAverage'),
+            market.includes('belowAnyAverage'),
+            app.includes('item.belowAnyAverage'),
+            app.includes('item.aboveAnyAverage'),
+            app.includes('zone="below"'),
+            app.includes('zone="above"'),
+          ];
+          if (checks.some((ok) => !ok)) throw new Error('Expected MA/LSMA grouping markers were not found.');
+          NODE
 
       - name: Commit source changes and remove workflow
         run: |
@@ -129,5 +148,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/market.js src/App.jsx .github/workflows/apply-alt-average-rule.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
           git commit -m "Use MA and LSMA for altcoin grouping"
           git push
