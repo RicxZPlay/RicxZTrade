@@ -263,8 +263,8 @@ export default function App() {
   }, [chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
-  const belowResults = useMemo(() => results.filter((item) => item.trendDirection === "bearish"), [results]);
-  const aboveResults = useMemo(() => results.filter((item) => item.trendDirection === "bullish"), [results]);
+  const belowResults = useMemo(() => results.filter((item) => item.belowAnyAverage), [results]);
+  const aboveResults = useMemo(() => results.filter((item) => item.aboveAnyAverage), [results]);
 
   const filteredBelowResults = useMemo(() => {
     const term = query.trim().toUpperCase();
@@ -346,8 +346,8 @@ export default function App() {
         </header>
 
         <section className="stats-grid">
-          <StatCard icon={<TrendingDown size={20} />} label="Abaixo da MA 800" value={summary.below} />
-          <StatCard icon={<TrendingUp size={20} />} label="Acima da MA 800" value={summary.above} />
+          <StatCard icon={<TrendingDown size={20} />} label="Abaixo MA/LSMA" value={summary.below} />
+          <StatCard icon={<TrendingUp size={20} />} label="Acima MA/LSMA" value={summary.above} />
           <StatCard icon={<Activity size={20} />} label="ADX forte" value={summary.strongTrend} />
           <StatCard icon={<Clock3 size={20} />} label="Mais fortes que BTC" value={summary.strongerThanBtc} />
         </section>
@@ -369,6 +369,7 @@ export default function App() {
               <div className="coin-list">
                 {filteredBelowResults.map((item) => (
                   <CoinRow
+                    zone="below"
                     key={item.symbol}
                     item={item}
                     selectedSymbol={selectedSymbol}
@@ -381,8 +382,8 @@ export default function App() {
                 {scanState !== "loading" && filteredBelowResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita abaixo da MA 800 apareceu."
-                      : "Nenhuma altcoin abaixo da MA 800 apareceu."}
+                      ? "Nenhuma favorita abaixo de MA/LSMA apareceu."
+                      : "Nenhuma altcoin abaixo de MA/LSMA apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -414,6 +415,7 @@ export default function App() {
               <div className="coin-list secondary-list">
                 {filteredAboveResults.map((item) => (
                   <CoinRow
+                    zone="above"
                     key={item.symbol}
                     item={item}
                     selectedSymbol={selectedSymbol}
@@ -426,8 +428,8 @@ export default function App() {
                 {scanState !== "loading" && filteredAboveResults.length === 0 ? (
                   <div className="empty-state">
                     {showFavoritesOnly
-                      ? "Nenhuma favorita acima da MA 800 apareceu."
-                      : "Nenhuma altcoin acima da MA 800 apareceu."}
+                      ? "Nenhuma favorita acima de MA/LSMA apareceu."
+                      : "Nenhuma altcoin acima de MA/LSMA apareceu."}
                   </div>
                 ) : null}
               </div>
@@ -577,8 +579,8 @@ function StatCard({ icon, label, value }) {
   );
 }
 
-function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite }) {
-  const isAbove = item.trendDirection === "bullish";
+function CoinRow({ item, selectedSymbol, favorite, onSelect, onToggleFavorite, zone }) {
+  const isAbove = zone === "above" || (!zone && item.trendDirection === "bullish");
   const selectCurrent = () => onSelect(item.symbol);
   const selectByKeyboard = (event) => {
     if (event.key === "Enter" || event.key === " ") {

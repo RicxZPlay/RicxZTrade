@@ -68,7 +68,7 @@ export const DEFAULT_BTC_RENKO_TIMEFRAME = "15m";
 export const RENKO_INTERVAL = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].interval;
 export const RENKO_HISTORY_LIMIT = BTC_RENKO_INTERVALS[DEFAULT_BTC_RENKO_TIMEFRAME].historyLimit;
 export const ALT_INTERVAL = "15m";
-export const ALT_HISTORY_LIMIT = 3500;
+export const ALT_HISTORY_LIMIT = 4200;
 export const ALT_CHART_INITIAL_HISTORY_LIMIT = 4200;
 export const ALT_CHART_INTERVALS = {
   "15m": { interval: "15m", historyLimit: 12000, fallbackSeconds: 900 },
@@ -304,21 +304,29 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const candles = await fetchScannerCandles(ticker.symbol, signal);
   const closes = candles.map((candle) => candle.close);
   const ma800 = toChartSma(candles, ALT_MA_PERIOD).at(-1)?.value;
+  const lsma3800 = toChartLsma(candles, ALT_LSMA_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, ma800].every(Number.isFinite)) {
+  if (![price, ma800, lsma3800].every(Number.isFinite)) {
     return null;
   }
 
+  const averages = [ma800, lsma3800];
+  const aboveAnyAverage = averages.some((averageValue) => price > averageValue);
+  const belowAnyAverage = averages.some((averageValue) => price < averageValue);
   let trendDirection = "neutral";
-  if (price < ma800) trendDirection = "bearish";
-  if (price > ma800) trendDirection = "bullish";
-  const priceDistancePercent = ((price - ma800) / ma800) * 100;
+  if (aboveAnyAverage && !belowAnyAverage) trendDirection = "bullish";
+  else if (belowAnyAverage && !aboveAnyAverage) trendDirection = "bearish";
+  else if (aboveAnyAverage && belowAnyAverage) trendDirection = price >= average(averages) ? "bullish" : "bearish";
+  const referenceAverage = averages
+    .map((averageValue) => ({ value: averageValue, distance: Math.abs(price - averageValue) }))
+    .sort((a, b) => a.distance - b.distance)[0]?.value;
+  const priceDistancePercent = ((price - referenceAverage) / referenceAverage) * 100;
   const relativeToBtcPercent = calculateRelativePerformance(closes, btcCloses, RELATIVE_LOOKBACK);
   const isFlatMarket = isStableLikeMarket(candles);
-  const trend = getAltTrendLabel(trendDirection);
+  const trend = getAltTrendLabel({ aboveAnyAverage, belowAnyAverage });
   const monthlyPivot = await fetchLatestMonthlyWoodiePivot(ticker.symbol, signal).catch(() => calculateLatestMonthlyWoodiePivot(candles));
   const pivotAlert = getAltPivotAlert(price, monthlyPivot);
 
@@ -326,11 +334,14 @@ export async function buildSignal(ticker, btcCloses, signal) {
     ...ticker,
     price,
     ma800,
+    lsma3800,
     priceDistancePercent,
     adx,
     relativeToBtcPercent,
     relativeLabel: relativeToBtcPercent >= 0 ? "mais forte que BTC" : "mais fraca que BTC",
     trendDirection,
+    aboveAnyAverage,
+    belowAnyAverage,
     trend,
     pivotAlert,
     monthlyPivot,
@@ -883,8 +894,9 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction === "bearish") return "abaixo da MA 800";
-  if (direction === "bullish") return "acima da MA 800";
+  if (direction?.aboveAnyAverage && direction?.belowAnyAverage) return "entre MA 800 e LSMA 3800";
+  if (direction?.belowAnyAverage) return "abaixo de MA/LSMA";
+  if (direction?.aboveAnyAverage) return "acima de MA/LSMA";
   return "fora das zonas";
 }
 
