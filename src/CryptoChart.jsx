@@ -12,6 +12,7 @@ import {
   formatPrice,
   ALT_CHART_INTERVALS,
   ALT_CHART_VISIBLE_CANDLES,
+  ALT_FAST_LSMA_PERIOD,
   ALT_LSMA_PERIOD,
   ALT_MA_PERIOD,
   BTC_RENKO_INTERVALS,
@@ -60,6 +61,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
   const lowerBandSeriesRef = useRef(null);
   const altMaSeriesRef = useRef(null);
   const altLsmaSeriesRef = useRef(null);
+  const altFastLsmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
   const migratedStoredDrawingsRef = useRef(false);
   const activeToolRef = useRef(TOOLS.cursor);
@@ -95,6 +97,10 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
   );
   const altLsma = useMemo(
     () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_PERIOD), chartData) : [],
+    [candles, chartData, isAltChart]
+  );
+  const altFastLsma = useMemo(
+    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_FAST_LSMA_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
   );
   const altPivotLines = useMemo(
@@ -215,6 +221,14 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       title: isCompact ? "" : "LSMA 3800",
     });
 
+    const altFastLsmaSeries = chart.addSeries(LineSeries, {
+      color: chartPalette.altFastLsma,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: isAltChart,
+      title: isCompact ? "" : "LSMA 1700",
+    });
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     upperBandSeriesRef.current = upperBandSeries;
@@ -222,6 +236,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     lowerBandSeriesRef.current = lowerBandSeries;
     altMaSeriesRef.current = altMaSeries;
     altLsmaSeriesRef.current = altLsmaSeries;
+    altFastLsmaSeriesRef.current = altFastLsmaSeries;
     setDrawingContext({ chart, series: candleSeries });
     lastCenteredSymbolRef.current = "";
 
@@ -322,6 +337,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       lowerBandSeriesRef.current = null;
       altMaSeriesRef.current = null;
       altLsmaSeriesRef.current = null;
+      altFastLsmaSeriesRef.current = null;
     };
   }, [chartPalette, isAltChart, isCompact, timeframe]);
 
@@ -348,13 +364,14 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     lowerBandSeriesRef.current.setData(isAltChart ? [] : bands.lower);
     altMaSeriesRef.current?.setData(isAltChart ? altMa : []);
     altLsmaSeriesRef.current?.setData(isAltChart ? altLsma : []);
+    altFastLsmaSeriesRef.current?.setData(isAltChart ? altFastLsma : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
 
     if (lastCenteredSymbolRef.current !== symbol) {
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altFastLsma, altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -1078,6 +1095,7 @@ function getChartPalette(theme) {
       altSecondaryBand: "#0284c7",
       altSecondaryMiddle: "#ffffff",
       altTertiaryBand: "#6d28d9",
+      altFastLsma: "#38bdf8",
     };
   }
 
@@ -1093,6 +1111,7 @@ function getChartPalette(theme) {
     altSecondaryBand: "#38bdf8",
     altSecondaryMiddle: "#ffffff",
     altTertiaryBand: "#7c3aed",
+    altFastLsma: "#38bdf8",
   };
 }
 

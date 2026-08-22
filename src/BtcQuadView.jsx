@@ -326,6 +326,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
   const lrcLineRef = useRef(null);
   const lsmaLineRef = useRef(null);
   const extraLsmaLineRef = useRef(null);
+  const extraLsmaLineRefs = useRef([]);
   const maLineRef = useRef(null);
   const extraMaLineRefs = useRef([]);
   const slowLineRef = useRef(null);
@@ -371,6 +372,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
   const showLsma = Number.isFinite(lsmaPeriod);
   const extraLsmaPeriod = getChartExtraLsmaPeriod(config);
   const showExtraLsma = Number.isFinite(extraLsmaPeriod);
+  const extraLsmas = useMemo(() => getChartExtraLsmas(config), [config]);
   const maOffset = getChartMaOffset(config);
   const maPeriod = getChartMaPeriod(config);
   const showMa = Number.isFinite(maPeriod);
@@ -573,6 +575,13 @@ const BtcQuadChart = memo(function BtcQuadChart({
       lastValueVisible: !isCompact,
       title: "",
     }) : null;
+    const extraLsmaLines = extraLsmas.map((lineConfig) => chart.addSeries(LineSeries, {
+      color: lineConfig.color || BTC_EXTRA_LSMA_COLOR,
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: !isCompact,
+      title: "",
+    }));
 
     const lrcLine = showLrc ? chart.addSeries(LineSeries, {
       color: BTC_LRC_COLOR,
@@ -682,6 +691,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
     lrcLineRef.current = lrcLine;
     lsmaLineRef.current = lsmaLine;
     extraLsmaLineRef.current = extraLsmaLine;
+    extraLsmaLineRefs.current = extraLsmaLines;
     maLineRef.current = maLine;
     extraMaLineRefs.current = extraMaLines;
     slowLineRef.current = slowLine;
@@ -800,6 +810,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       lrcLineRef.current = null;
       lsmaLineRef.current = null;
       extraLsmaLineRef.current = null;
+      extraLsmaLineRefs.current = [];
       maLineRef.current = null;
       extraMaLineRefs.current = [];
       slowLineRef.current = null;
@@ -988,6 +999,16 @@ const BtcQuadChart = memo(function BtcQuadChart({
         "extraLsma",
         incrementalSync
       );
+      extraLsmaLineRefs.current.forEach((line, index) => {
+        const lineConfig = extraLsmas[index];
+        syncSeriesData(
+          line,
+          lineConfig ? clipLineData(toChartLineLsma(fullChartData, lineConfig.period), chartData) : [],
+          seriesSyncRef.current,
+          `extraLsma-${index}`,
+          incrementalSync
+        );
+      });
       syncSeriesData(
         maLineRef.current,
         showMa ? clipLineData(toChartLineMaOffset(fullChartData, maPeriod, maOffset, config.fallbackSeconds), chartData) : [],
@@ -1040,7 +1061,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       showRecentBars(chartRef.current, getChartVisibleBars(config), chartData.length, getChartRightOffset(config));
       centeredOnceRef.current = true;
     }
-  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraMovingAverages, extraVwmaPeriod, fullChartData, interactionRevision, isCompact, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
+  }, [bandFillData, chartData, config, emaOffset, emaPeriod, extraBollingerBands, extraEmaOffset, extraEmaPeriod, extraLsmaPeriod, extraLsmas, extraMovingAverages, extraVwmaPeriod, fullChartData, interactionRevision, isCompact, lrcPeriod, lsmaPeriod, maOffset, maPeriod, pivotLineData, secondaryBandData, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showStochRsi, showStochRsiD, showVwma, stochRsiData, vwmaPeriod]);
 
   const handleToolClick = (event) => {
     if (activeTool === TOOLS.cursor) return;
@@ -1237,6 +1258,12 @@ function getChartExtraVwmaPeriod(config) {
 
 function getChartLsmaPeriod(config) {
   return Number.isFinite(config?.lsmaPeriod) ? config.lsmaPeriod : null;
+}
+
+function getChartExtraLsmas(config) {
+  return Array.isArray(config.extraLsmaPeriods)
+    ? config.extraLsmaPeriods.filter((item) => Number.isFinite(item?.period))
+    : [];
 }
 
 function getChartExtraLsmaPeriod(config) {
