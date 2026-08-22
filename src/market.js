@@ -306,15 +306,16 @@ export async function buildSignal(ticker, btcCloses, signal) {
   const closes = candles.map((candle) => candle.close);
   const ma800 = toChartSma(candles, ALT_MA_PERIOD).at(-1)?.value;
   const lsma3800 = toChartLsma(candles, ALT_LSMA_PERIOD).at(-1)?.value;
+  const lsma1700 = toChartLsma(candles, ALT_FAST_LSMA_PERIOD).at(-1)?.value;
   const adxSeries = calculateADX(candles, ADX_PERIOD);
   const price = closes.at(-1);
   const adx = adxSeries.at(-1);
 
-  if (![price, ma800, lsma3800].every(Number.isFinite)) {
+  if (![price, ma800, lsma1700, lsma3800].every(Number.isFinite)) {
     return null;
   }
 
-  const averages = [ma800, lsma3800];
+  const averages = [ma800, lsma1700, lsma3800];
   const aboveAnyAverage = averages.some((averageValue) => price > averageValue);
   const belowAnyAverage = averages.some((averageValue) => price < averageValue);
   let trendDirection = "neutral";
@@ -335,6 +336,7 @@ export async function buildSignal(ticker, btcCloses, signal) {
     ...ticker,
     price,
     ma800,
+    lsma1700,
     lsma3800,
     priceDistancePercent,
     adx,
@@ -895,7 +897,7 @@ function toChartBandLine(bricks, bands, key) {
 }
 
 function getAltTrendLabel(direction) {
-  if (direction?.aboveAnyAverage && direction?.belowAnyAverage) return "entre MA 800 e LSMA 3800";
+  if (direction?.aboveAnyAverage && direction?.belowAnyAverage) return "entre MA 800, LSMA 1700 e LSMA 3800";
   if (direction?.belowAnyAverage) return "abaixo de MA/LSMA";
   if (direction?.aboveAnyAverage) return "acima de MA/LSMA";
   return "fora das zonas";
