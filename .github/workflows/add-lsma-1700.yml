@@ -1,0 +1,217 @@
+name: Add LSMA 1700 lines
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/add-lsma-1700.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Add LSMA 1700 to altcoins and BTC candle chart
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceRequired(text, search, replacement, label) {
+            if (!text.includes(search)) throw new Error(`Missing marker: ${label}`);
+            return text.replace(search, replacement);
+          }
+
+          let market = fs.readFileSync('src/market.js', 'utf8');
+          if (!market.includes('export const ALT_FAST_LSMA_PERIOD = 1700;')) {
+            market = replaceRequired(
+              market,
+              'export const ALT_LSMA_PERIOD = 3800;\n',
+              'export const ALT_LSMA_PERIOD = 3800;\nexport const ALT_FAST_LSMA_PERIOD = 1700;\n',
+              'ALT_LSMA_PERIOD export'
+            );
+          }
+
+          if (!market.includes('extraLsmaPeriod: 1700')) {
+            market = replaceRequired(
+              market,
+              'extraLsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, pivots:',
+              'extraLsmaPeriod: BTC_SLOW_SETUP_LSMA_PERIOD, extraLsmaPeriods: [{ period: 1700, color: "#38bdf8" }], pivots:',
+              'BTC candle 15m config'
+            );
+          }
+          fs.writeFileSync('src/market.js', market);
+
+          let crypto = fs.readFileSync('src/CryptoChart.jsx', 'utf8');
+          if (!crypto.includes('ALT_FAST_LSMA_PERIOD,')) {
+            crypto = replaceRequired(
+              crypto,
+              '  ALT_CHART_VISIBLE_CANDLES,\n  ALT_LSMA_PERIOD,',
+              '  ALT_CHART_VISIBLE_CANDLES,\n  ALT_FAST_LSMA_PERIOD,\n  ALT_LSMA_PERIOD,',
+              'CryptoChart import ALT_FAST_LSMA_PERIOD'
+            );
+          }
+          if (!crypto.includes('const altFastLsmaSeriesRef = useRef(null);')) {
+            crypto = replaceRequired(
+              crypto,
+              '  const altLsmaSeriesRef = useRef(null);\n',
+              '  const altLsmaSeriesRef = useRef(null);\n  const altFastLsmaSeriesRef = useRef(null);\n',
+              'altFastLsma ref'
+            );
+          }
+          if (!crypto.includes('const altFastLsma = useMemo(')) {
+            crypto = replaceRequired(
+              crypto,
+              '  const altLsma = useMemo(\n    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_PERIOD), chartData) : [],\n    [candles, chartData, isAltChart]\n  );\n',
+              '  const altLsma = useMemo(\n    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_LSMA_PERIOD), chartData) : [],\n    [candles, chartData, isAltChart]\n  );\n  const altFastLsma = useMemo(\n    () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_FAST_LSMA_PERIOD), chartData) : [],\n    [candles, chartData, isAltChart]\n  );\n',
+              'altFastLsma memo'
+            );
+          }
+          if (!crypto.includes('const altFastLsmaSeries = chart.addSeries(LineSeries,')) {
+            crypto = replaceRequired(
+              crypto,
+              '    const altLsmaSeries = chart.addSeries(LineSeries, {\n      color: chartPalette.altTertiaryBand,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: isAltChart,\n      title: isCompact ? "" : "LSMA 3800",\n    });\n\n    chartRef.current = chart;',
+              '    const altLsmaSeries = chart.addSeries(LineSeries, {\n      color: chartPalette.altTertiaryBand,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: isAltChart,\n      title: isCompact ? "" : "LSMA 3800",\n    });\n\n    const altFastLsmaSeries = chart.addSeries(LineSeries, {\n      color: chartPalette.altFastLsma,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: isAltChart,\n      title: isCompact ? "" : "LSMA 1700",\n    });\n\n    chartRef.current = chart;',
+              'altFastLsma series'
+            );
+          }
+          if (!crypto.includes('altFastLsmaSeriesRef.current = altFastLsmaSeries;')) {
+            crypto = replaceRequired(
+              crypto,
+              '    altLsmaSeriesRef.current = altLsmaSeries;\n',
+              '    altLsmaSeriesRef.current = altLsmaSeries;\n    altFastLsmaSeriesRef.current = altFastLsmaSeries;\n',
+              'assign altFastLsma ref'
+            );
+          }
+          if (!crypto.includes('altFastLsmaSeriesRef.current = null;')) {
+            crypto = replaceRequired(
+              crypto,
+              '      altLsmaSeriesRef.current = null;\n',
+              '      altLsmaSeriesRef.current = null;\n      altFastLsmaSeriesRef.current = null;\n',
+              'cleanup altFastLsma ref'
+            );
+          }
+          if (!crypto.includes('altFastLsmaSeriesRef.current?.setData')) {
+            crypto = replaceRequired(
+              crypto,
+              '    altLsmaSeriesRef.current?.setData(isAltChart ? altLsma : []);\n',
+              '    altLsmaSeriesRef.current?.setData(isAltChart ? altLsma : []);\n    altFastLsmaSeriesRef.current?.setData(isAltChart ? altFastLsma : []);\n',
+              'setData altFastLsma'
+            );
+          }
+          crypto = crypto.replace('[altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]', '[altFastLsma, altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]');
+          if (!crypto.includes('altFastLsma:')) {
+            crypto = replaceRequired(
+              crypto,
+              '      altTertiaryBand: "#6d28d9",\n',
+              '      altTertiaryBand: "#6d28d9",\n      altFastLsma: "#38bdf8",\n',
+              'light palette fast lsma'
+            );
+            crypto = replaceRequired(
+              crypto,
+              '    altTertiaryBand: "#7c3aed",\n',
+              '    altTertiaryBand: "#7c3aed",\n    altFastLsma: "#38bdf8",\n',
+              'dark palette fast lsma'
+            );
+          }
+          fs.writeFileSync('src/CryptoChart.jsx', crypto);
+
+          let btc = fs.readFileSync('src/BtcQuadView.jsx', 'utf8');
+          if (!btc.includes('extraLsmaLineRefs')) {
+            btc = replaceRequired(
+              btc,
+              '  const extraLsmaLineRef = useRef(null);\n',
+              '  const extraLsmaLineRef = useRef(null);\n  const extraLsmaLineRefs = useRef([]);\n',
+              'extra lsma line refs'
+            );
+          }
+          if (!btc.includes('const extraLsmas = useMemo(')) {
+            btc = replaceRequired(
+              btc,
+              '  const extraLsmaPeriod = getChartExtraLsmaPeriod(config);\n  const showExtraLsma = Number.isFinite(extraLsmaPeriod);',
+              '  const extraLsmaPeriod = getChartExtraLsmaPeriod(config);\n  const showExtraLsma = Number.isFinite(extraLsmaPeriod);\n  const extraLsmas = useMemo(() => getChartExtraLsmas(config), [config]);',
+              'extraLsmas memo'
+            );
+          }
+          if (!btc.includes('const extraLsmaLines = extraLsmas.map')) {
+            btc = replaceRequired(
+              btc,
+              '    const extraLsmaLine = showExtraLsma ? chart.addSeries(LineSeries, {\n      color: BTC_EXTRA_LSMA_COLOR,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: !isCompact,\n      title: "",\n    }) : null;\n\n    const lrcLine = showLrc ? chart.addSeries(LineSeries, {',
+              '    const extraLsmaLine = showExtraLsma ? chart.addSeries(LineSeries, {\n      color: BTC_EXTRA_LSMA_COLOR,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: !isCompact,\n      title: "",\n    }) : null;\n    const extraLsmaLines = extraLsmas.map((lineConfig) => chart.addSeries(LineSeries, {\n      color: lineConfig.color || BTC_EXTRA_LSMA_COLOR,\n      lineWidth: 2,\n      priceLineVisible: false,\n      lastValueVisible: !isCompact,\n      title: "",\n    }));\n\n    const lrcLine = showLrc ? chart.addSeries(LineSeries, {',
+              'extraLsmaLines series'
+            );
+          }
+          if (!btc.includes('extraLsmaLineRefs.current = extraLsmaLines;')) {
+            btc = replaceRequired(
+              btc,
+              '    extraLsmaLineRef.current = extraLsmaLine;\n',
+              '    extraLsmaLineRef.current = extraLsmaLine;\n    extraLsmaLineRefs.current = extraLsmaLines;\n',
+              'assign extraLsmaLines ref'
+            );
+          }
+          if (!btc.includes('extraLsmaLineRefs.current = [];')) {
+            btc = replaceRequired(
+              btc,
+              '      extraLsmaLineRef.current = null;\n',
+              '      extraLsmaLineRef.current = null;\n      extraLsmaLineRefs.current = [];\n',
+              'cleanup extraLsmaLines ref'
+            );
+          }
+          if (!btc.includes('extraLsmaLineRefs.current.forEach')) {
+            btc = replaceRequired(
+              btc,
+              '    updateSeriesData(extraLsmaLineRef.current, showExtraLsma ? toChartLineLsma(chartData, extraLsmaPeriod) : [], seriesSyncRef.current, "extra-lsma");\n',
+              '    updateSeriesData(extraLsmaLineRef.current, showExtraLsma ? toChartLineLsma(chartData, extraLsmaPeriod) : [], seriesSyncRef.current, "extra-lsma");\n    extraLsmaLineRefs.current.forEach((line, index) => {\n      const lineConfig = extraLsmas[index];\n      updateSeriesData(line, lineConfig ? toChartLineLsma(chartData, lineConfig.period) : [], seriesSyncRef.current, `extra-lsma-${index}`);\n    });\n',
+              'setData extraLsmaLines'
+            );
+          }
+          btc = btc.replace('[bandFillData, chartData, extraBandLines, extraBandMiddleLines, extraEmaPeriod, extraEmaOffset, extraLsmaPeriod, extraMovingAverages, extraVwmaPeriod, fullChartData, maOffset, maPeriod, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, stochRsiData, stochRsiConfig, vwmaPeriod]', '[bandFillData, chartData, extraBandLines, extraBandMiddleLines, extraEmaPeriod, extraEmaOffset, extraLsmaPeriod, extraLsmas, extraMovingAverages, extraVwmaPeriod, fullChartData, maOffset, maPeriod, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, stochRsiData, stochRsiConfig, vwmaPeriod]');
+          if (!btc.includes('function getChartExtraLsmas')) {
+            const marker = 'function getChartExtraLsmaPeriod(config) {';
+            const helper = 'function getChartExtraLsmas(config) {\n  return Array.isArray(config.extraLsmaPeriods)\n    ? config.extraLsmaPeriods.filter((item) => Number.isFinite(item?.period))\n    : [];\n}\n\n';
+            if (!btc.includes(marker)) throw new Error('Missing getChartExtraLsmaPeriod helper marker');
+            btc = btc.replace(marker, helper + marker);
+          }
+          fs.writeFileSync('src/BtcQuadView.jsx', btc);
+
+          const checks = [
+            ['src/market.js', ['ALT_FAST_LSMA_PERIOD = 1700', 'extraLsmaPeriods: [{ period: 1700']],
+            ['src/CryptoChart.jsx', ['ALT_FAST_LSMA_PERIOD', 'LSMA 1700', 'altFastLsmaSeriesRef']],
+            ['src/BtcQuadView.jsx', ['getChartExtraLsmas', 'extraLsmaLineRefs', 'extraLsmaPeriods']],
+          ];
+          for (const [file, markers] of checks) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const marker of markers) {
+              if (!text.includes(marker)) throw new Error(`${file} missing ${marker}`);
+            }
+          }
+          NODE
+
+      - name: Validate build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit source changes and remove workflow
+        run: |
+          rm .github/workflows/add-lsma-1700.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/market.js src/CryptoChart.jsx src/BtcQuadView.jsx .github/workflows/add-lsma-1700.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Add LSMA 1700 to alt and BTC charts"
+          git push
