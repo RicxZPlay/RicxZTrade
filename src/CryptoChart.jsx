@@ -1095,7 +1095,7 @@ function getChartPalette(theme) {
       altSecondaryBand: "#0284c7",
       altSecondaryMiddle: "#ffffff",
       altTertiaryBand: "#6d28d9",
-      altFastLsma: "#38bdf8",
+      altFastLsma: "#a78bfa",
     };
   }
 
@@ -1111,7 +1111,7 @@ function getChartPalette(theme) {
     altSecondaryBand: "#38bdf8",
     altSecondaryMiddle: "#ffffff",
     altTertiaryBand: "#7c3aed",
-    altFastLsma: "#38bdf8",
+    altFastLsma: "#a78bfa",
   };
 }
 
