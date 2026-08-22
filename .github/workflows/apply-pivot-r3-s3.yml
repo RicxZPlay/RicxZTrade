@@ -1,0 +1,141 @@
+name: Apply pivot R3 S3 levels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-pivot-r3-s3.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Add R3 and S3 to pivot levels
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceRequired(text, pattern, replacement, label) {
+            const next = text.replace(pattern, replacement);
+            if (next === text) throw new Error(`Patch not applied: ${label}`);
+            return next;
+          }
+
+          function addPivotLevelsToChartFile(file, constantName) {
+            let text = fs.readFileSync(file, 'utf8');
+
+            if (!text.includes('{ key: "r3", label: "R3" }')) {
+              const levelListPattern = new RegExp(
+                `const ${constantName} = \\[\\n` +
+                  `  \\{ key: "p", label: "P" \\},\\n` +
+                  `  \\{ key: "r1", label: "R1" \\},\\n` +
+                  `  \\{ key: "r2", label: "R2" \\},\\n` +
+                  `  \\{ key: "s1", label: "S1" \\},\\n` +
+                  `  \\{ key: "s2", label: "S2" \\},\\n` +
+                `\\];`
+              );
+
+              text = replaceRequired(
+                text,
+                levelListPattern,
+                `const ${constantName} = [\n` +
+                  `  { key: "p", label: "P" },\n` +
+                  `  { key: "r1", label: "R1" },\n` +
+                  `  { key: "r2", label: "R2" },\n` +
+                  `  { key: "r3", label: "R3" },\n` +
+                  `  { key: "s1", label: "S1" },\n` +
+                  `  { key: "s2", label: "S2" },\n` +
+                  `  { key: "s3", label: "S3" },\n` +
+                `];`,
+                `${file} pivot level list`
+              );
+            }
+
+            text = text.replaceAll(
+              `      r2: pivot + previousHigh - previousLow,\n      s1: 2 * pivot - previousHigh,\n      s2: pivot - previousHigh + previousLow,`,
+              `      r2: pivot + previousHigh - previousLow,\n      r3: previousHigh + 2 * (pivot - previousLow),\n      s1: 2 * pivot - previousHigh,\n      s2: pivot - previousHigh + previousLow,\n      s3: previousLow - 2 * (previousHigh - pivot),`
+            );
+
+            const required = ['{ key: "r3", label: "R3" }', '{ key: "s3", label: "S3" }', 'r3: previousHigh + 2 * (pivot - previousLow)', 's3: previousLow - 2 * (previousHigh - pivot)'];
+            required.forEach((marker) => {
+              if (!text.includes(marker)) throw new Error(`${file} missing marker: ${marker}`);
+            });
+
+            fs.writeFileSync(file, text);
+          }
+
+          addPivotLevelsToChartFile('src/CryptoChart.jsx', 'ALT_PIVOT_LEVELS');
+          addPivotLevelsToChartFile('src/BtcQuadView.jsx', 'WOODIE_PIVOT_LEVELS');
+
+          let market = fs.readFileSync('src/market.js', 'utf8');
+          market = market.replace(
+            `    { label: "S2", level: monthlyPivot.s2 },\n    { label: "R1", level: monthlyPivot.r1 },\n    { label: "R2", level: monthlyPivot.r2 },`,
+            `    { label: "S2", level: monthlyPivot.s2 },\n    { label: "S3", level: monthlyPivot.s3 },\n    { label: "R1", level: monthlyPivot.r1 },\n    { label: "R2", level: monthlyPivot.r2 },\n    { label: "R3", level: monthlyPivot.r3 },`
+          );
+          market = market.replace(
+            `  if (Number.isFinite(monthlyPivot.s2) && price < monthlyPivot.s2) return "abaixo de S2";\n  if (Number.isFinite(monthlyPivot.s1) && price < monthlyPivot.s1) return "abaixo de S1";\n  if (Number.isFinite(monthlyPivot.r2) && price > monthlyPivot.r2) return "acima de R2";\n  if (Number.isFinite(monthlyPivot.r1) && price > monthlyPivot.r1) return "acima de R1";`,
+            `  if (Number.isFinite(monthlyPivot.s3) && price < monthlyPivot.s3) return "abaixo de S3";\n  if (Number.isFinite(monthlyPivot.s2) && price < monthlyPivot.s2) return "abaixo de S2";\n  if (Number.isFinite(monthlyPivot.s1) && price < monthlyPivot.s1) return "abaixo de S1";\n  if (Number.isFinite(monthlyPivot.r3) && price > monthlyPivot.r3) return "acima de R3";\n  if (Number.isFinite(monthlyPivot.r2) && price > monthlyPivot.r2) return "acima de R2";\n  if (Number.isFinite(monthlyPivot.r1) && price > monthlyPivot.r1) return "acima de R1";`
+          );
+          market = market.replace(
+            `    r2: pivot + previousHigh - previousLow,\n    s1: 2 * pivot - previousHigh,\n    s2: pivot - previousHigh + previousLow,`,
+            `    r2: pivot + previousHigh - previousLow,\n    r3: previousHigh + 2 * (pivot - previousLow),\n    s1: 2 * pivot - previousHigh,\n    s2: pivot - previousHigh + previousLow,\n    s3: previousLow - 2 * (previousHigh - pivot),`
+          );
+
+          const requiredMarketMarkers = [
+            'monthlyPivot.s3',
+            'monthlyPivot.r3',
+            'abaixo de S3',
+            'acima de R3',
+            's3: previousLow - 2 * (previousHigh - pivot)',
+            'r3: previousHigh + 2 * (pivot - previousLow)',
+          ];
+          requiredMarketMarkers.forEach((marker) => {
+            if (!market.includes(marker)) throw new Error(`Missing market marker: ${marker}`);
+          });
+
+          fs.writeFileSync('src/market.js', market);
+          NODE
+
+      - name: Validate build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify pivot markers
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const files = ['src/CryptoChart.jsx', 'src/BtcQuadView.jsx', 'src/market.js'];
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            if (!text.includes('r3') || !text.includes('s3')) {
+              throw new Error(`${file} missing r3/s3 markers`);
+            }
+          }
+          NODE
+
+      - name: Commit source changes and remove workflow
+        run: |
+          rm .github/workflows/apply-pivot-r3-s3.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/CryptoChart.jsx src/BtcQuadView.jsx src/market.js .github/workflows/apply-pivot-r3-s3.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Show R3 and S3 pivot levels"
+          git push
