@@ -42,8 +42,10 @@ const ALT_PIVOT_LEVELS = [
   { key: "p", label: "P" },
   { key: "r1", label: "R1" },
   { key: "r2", label: "R2" },
+  { key: "r3", label: "R3" },
   { key: "s1", label: "S1" },
   { key: "s2", label: "S2" },
+  { key: "s3", label: "S3" },
 ];
 const ALT_PIVOT_PERIODS_BACK = 3;
 
@@ -958,8 +960,10 @@ function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
       p: pivot,
       r1: 2 * pivot - previousLow,
       r2: pivot + previousHigh - previousLow,
+      r3: previousHigh + 2 * (pivot - previousLow),
       s1: 2 * pivot - previousHigh,
       s2: pivot - previousHigh + previousLow,
+      s3: previousLow - 2 * (previousHigh - pivot),
     };
     const startTime = month.bars[0].time;
     const endTime = getNextUtcMonthStartSeconds(startTime);
@@ -1017,8 +1021,10 @@ function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBac
       p: pivot,
       r1: 2 * pivot - previousLow,
       r2: pivot + previousHigh - previousLow,
+      r3: previousHigh + 2 * (pivot - previousLow),
       s1: 2 * pivot - previousHigh,
       s2: pivot - previousHigh + previousLow,
+      s3: previousLow - 2 * (previousHigh - pivot),
     };
     const startTime = Math.max(month.time, chartStartTime);
     const endTime = next?.time ?? getNextUtcMonthStartSeconds(month.time);
