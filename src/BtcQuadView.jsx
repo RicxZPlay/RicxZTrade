@@ -58,7 +58,7 @@ const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const INITIAL_CANDLE_HISTORY_LIMIT = 4200;
-const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "renko-30m", "candles-15m-lsma"]);
+const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "candles-15m-lsma"]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -80,7 +80,6 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
-      chartCandles["renko-30m"],
       chartCandles["renko-4h"],
       chartCandles["candles-15m-lsma"],
       chartCandles["candles-1s"],
