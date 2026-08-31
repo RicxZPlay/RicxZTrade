@@ -40,7 +40,7 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
-const ALT_CHART_TIMEFRAMES = ["1h"];
+const ALT_CHART_TIMEFRAMES = ["5m"];
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
