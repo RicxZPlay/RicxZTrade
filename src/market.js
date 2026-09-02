@@ -908,9 +908,11 @@ function getAltPivotAlert(price, monthlyPivot) {
     { label: "S1", level: monthlyPivot.s1 },
     { label: "S2", level: monthlyPivot.s2 },
     { label: "S3", level: monthlyPivot.s3 },
+    { label: "S4", level: monthlyPivot.s4 },
     { label: "R1", level: monthlyPivot.r1 },
     { label: "R2", level: monthlyPivot.r2 },
     { label: "R3", level: monthlyPivot.r3 },
+    { label: "R4", level: monthlyPivot.r4 },
   ].filter((item) => Number.isFinite(item.level) && item.level > 0);
 
   const nearest = levels
@@ -924,9 +926,11 @@ function getAltPivotAlert(price, monthlyPivot) {
     return nearest[0].label === "P" ? "proximo P" : `proximo a ${nearest[0].label}`;
   }
 
+  if (Number.isFinite(monthlyPivot.s4) && price < monthlyPivot.s4) return "abaixo de S4";
   if (Number.isFinite(monthlyPivot.s3) && price < monthlyPivot.s3) return "abaixo de S3";
   if (Number.isFinite(monthlyPivot.s2) && price < monthlyPivot.s2) return "abaixo de S2";
   if (Number.isFinite(monthlyPivot.s1) && price < monthlyPivot.s1) return "abaixo de S1";
+  if (Number.isFinite(monthlyPivot.r4) && price > monthlyPivot.r4) return "acima de R4";
   if (Number.isFinite(monthlyPivot.r3) && price > monthlyPivot.r3) return "acima de R3";
   if (Number.isFinite(monthlyPivot.r2) && price > monthlyPivot.r2) return "acima de R2";
   if (Number.isFinite(monthlyPivot.r1) && price > monthlyPivot.r1) return "acima de R1";
@@ -965,9 +969,11 @@ function calculateLatestMonthlyWoodiePivot(candles) {
     r1: 2 * pivot - previousLow,
     r2: pivot + previousHigh - previousLow,
     r3: previousHigh + 2 * (pivot - previousLow),
+    r4: previousHigh + 3 * (pivot - previousLow),
     s1: 2 * pivot - previousHigh,
     s2: pivot - previousHigh + previousLow,
     s3: previousLow - 2 * (previousHigh - pivot),
+    s4: previousLow - 3 * (previousHigh - pivot),
   };
 }
 

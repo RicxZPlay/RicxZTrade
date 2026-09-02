@@ -42,9 +42,11 @@ const WOODIE_PIVOT_LEVELS = [
   { key: "r1", label: "R1" },
   { key: "r2", label: "R2" },
   { key: "r3", label: "R3" },
+  { key: "r4", label: "R4" },
   { key: "s1", label: "S1" },
   { key: "s2", label: "S2" },
   { key: "s3", label: "S3" },
+  { key: "s4", label: "S4" },
 ];
 const BTC_VWMA_COLOR = "#f8fafc";
 const STOCH_RSI_K_COLOR = "#38bdf8";
@@ -1420,9 +1422,11 @@ function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
       r1: 2 * pivot - previousLow,
       r2: pivot + previousHigh - previousLow,
       r3: previousHigh + 2 * (pivot - previousLow),
+      r4: previousHigh + 3 * (pivot - previousLow),
       s1: 2 * pivot - previousHigh,
       s2: pivot - previousHigh + previousLow,
       s3: previousLow - 2 * (previousHigh - pivot),
+      s4: previousLow - 3 * (previousHigh - pivot),
     };
     const startTime = month.bars[0].time;
     const endTime = getNextUtcMonthStartSeconds(startTime);
@@ -1460,9 +1464,11 @@ function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBac
       r1: 2 * pivot - previousLow,
       r2: pivot + previousHigh - previousLow,
       r3: previousHigh + 2 * (pivot - previousLow),
+      r4: previousHigh + 3 * (pivot - previousLow),
       s1: 2 * pivot - previousHigh,
       s2: pivot - previousHigh + previousLow,
       s3: previousLow - 2 * (previousHigh - pivot),
+      s4: previousLow - 3 * (previousHigh - pivot),
     };
     const startTime = Math.max(month.time, chartStartTime);
     const endTime = next?.time ?? getNextUtcMonthStartSeconds(month.time);
