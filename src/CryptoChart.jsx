@@ -14,7 +14,6 @@ import {
   ALT_CHART_VISIBLE_CANDLES,
   ALT_FAST_LSMA_PERIOD,
   ALT_LSMA_PERIOD,
-  ALT_MA_PERIOD,
   BTC_RENKO_INTERVALS,
   DEFAULT_ALT_CHART_TIMEFRAME,
   DEFAULT_BTC_RENKO_TIMEFRAME,
@@ -61,7 +60,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
   const upperBandSeriesRef = useRef(null);
   const middleBandSeriesRef = useRef(null);
   const lowerBandSeriesRef = useRef(null);
-  const altMaSeriesRef = useRef(null);
   const altFastLsmaSeriesRef = useRef(null);
   const altLsmaSeriesRef = useRef(null);
   const lastCenteredSymbolRef = useRef("");
@@ -93,10 +91,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     () => buildChartMeta(chartData, isAltChart ? altTimeframeConfig.fallbackSeconds : btcTimeframeConfig.fallbackSeconds, isAltChart),
     [altTimeframeConfig.fallbackSeconds, btcTimeframeConfig.fallbackSeconds, chartData, isAltChart]
   );
-  const altMa = useMemo(
-    () => isAltChart ? clipLineToChartData(toChartSma(candles, ALT_MA_PERIOD), chartData) : [],
-    [candles, chartData, isAltChart]
-  );
   const altFastLsma = useMemo(
     () => isAltChart ? clipLineToChartData(toChartLsma(candles, ALT_FAST_LSMA_PERIOD), chartData) : [],
     [candles, chartData, isAltChart]
@@ -115,10 +109,9 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     const previous = candles.at(-2);
     return {
       price: last?.close,
-      ma800: altMa.at(-1)?.value,
       change: last && previous ? ((last.close - previous.close) / previous.close) * 100 : null,
     };
-  }, [altMa, btcBoxSize, candles, isAltChart]);
+  }, [btcBoxSize, candles, isAltChart]);
 
   useEffect(() => {
     if (!containerRef.current) return undefined;
@@ -207,14 +200,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       title: isAltChart ? (isCompact ? "" : "BB 2000 Inf") : "BB Inferior",
     });
 
-    const altMaSeries = chart.addSeries(LineSeries, {
-      color: chartPalette.altSecondaryBand,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: isAltChart,
-      title: isCompact ? "" : "MA 800",
-    });
-
     const altFastLsmaSeries = chart.addSeries(LineSeries, {
       color: chartPalette.altFastLsma,
       lineWidth: 2,
@@ -236,7 +221,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     upperBandSeriesRef.current = upperBandSeries;
     middleBandSeriesRef.current = middleBandSeries;
     lowerBandSeriesRef.current = lowerBandSeries;
-    altMaSeriesRef.current = altMaSeries;
     altFastLsmaSeriesRef.current = altFastLsmaSeries;
     altLsmaSeriesRef.current = altLsmaSeries;
     setDrawingContext({ chart, series: candleSeries });
@@ -337,7 +321,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       upperBandSeriesRef.current = null;
       middleBandSeriesRef.current = null;
       lowerBandSeriesRef.current = null;
-      altMaSeriesRef.current = null;
       altFastLsmaSeriesRef.current = null;
       altLsmaSeriesRef.current = null;
     };
@@ -364,7 +347,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
     upperBandSeriesRef.current.setData(isAltChart ? [] : bands.upper);
     middleBandSeriesRef.current.setData(isAltChart ? [] : bands.middle);
     lowerBandSeriesRef.current.setData(isAltChart ? [] : bands.lower);
-    altMaSeriesRef.current?.setData(isAltChart ? altMa : []);
     altFastLsmaSeriesRef.current?.setData(isAltChart ? altFastLsma : []);
     altLsmaSeriesRef.current?.setData(isAltChart ? altLsma : []);
     setPricePaneHeight(getPricePaneHeight(chartRef.current));
@@ -373,7 +355,7 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
       showRecentCandles(chartRef.current, isAltChart ? 220 : 180, chartData.length);
       lastCenteredSymbolRef.current = symbol;
     }
-  }, [altFastLsma, altLsma, altMa, btcBoxSize, candles, chartData, isAltChart, symbol]);
+  }, [altFastLsma, altLsma, btcBoxSize, candles, chartData, isAltChart, symbol]);
 
   useEffect(() => {
     writeStoredDrawings(storageSymbol, drawings);
@@ -517,7 +499,6 @@ export default function CryptoChart({ symbol, candles, monthlyCandles = [], live
         {isAltChart ? (
           <>
             <Metric label="Preco" value={formatPrice(stats.price)} />
-            <Metric label="MA 800" value={formatPrice(stats.ma800)} />
             <Metric label="Candle atual" value={formatPercent(stats.change)} intent={stats.change < 0 ? "danger" : "success"} />
           </>
         ) : (

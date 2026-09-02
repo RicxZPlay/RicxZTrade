@@ -445,7 +445,6 @@ export default function App() {
 
           <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
-            <SelectedMetric label="MA 800" value={formatPrice(selected?.ma800)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
           </div>
