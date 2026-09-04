@@ -40,7 +40,10 @@ const CHART_MODES = {
   btc: "btc",
   alt: "alt",
 };
-const ALT_CHART_TIMEFRAMES = ["5m"];
+const ALT_CHART_TIMEFRAME_OPTIONS = [
+  { value: "1h", label: "1H" },
+  { value: "5m", label: "5m" },
+];
 
 export default function App() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -49,6 +52,7 @@ export default function App() {
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [chartSymbol, setChartSymbol] = useState(BTC_CHART_SYMBOL);
   const [chartMode, setChartMode] = useState(CHART_MODES.btc);
+  const [altChartTimeframe, setAltChartTimeframe] = useState(DEFAULT_ALT_CHART_TIMEFRAME);
   const [chartCandles, setChartCandles] = useState({});
   const [altMonthlyCandles, setAltMonthlyCandles] = useState([]);
   const [favoriteSymbols, setFavoriteSymbols] = useState(readStoredFavorites);
@@ -151,7 +155,7 @@ export default function App() {
       if (!controller.signal.aborted) {
         setChartCandles({});
         setAltMonthlyCandles([]);
-        setLiveStatus(Object.fromEntries(ALT_CHART_TIMEFRAMES.map((timeframe) => [timeframe, "loading"])));
+        setLiveStatus(Object.fromEntries([altChartTimeframe].map((timeframe) => [timeframe, "loading"])));
         setChartError({});
       }
     });
@@ -166,7 +170,7 @@ export default function App() {
         setAltMonthlyCandles([]);
       });
 
-    ALT_CHART_TIMEFRAMES.forEach((timeframe) => {
+    [altChartTimeframe].forEach((timeframe) => {
       const timeframeConfig = ALT_CHART_INTERVALS[timeframe] || ALT_CHART_INTERVALS[DEFAULT_ALT_CHART_TIMEFRAME];
       const targetInterval = timeframeConfig.interval;
       const targetLimit = timeframeConfig.historyLimit;
@@ -260,7 +264,7 @@ export default function App() {
       sockets.forEach((socket) => socket.close());
       pollTimers.forEach((pollTimer) => window.clearInterval(pollTimer));
     };
-  }, [chartMode, chartSymbol]);
+  }, [altChartTimeframe, chartMode, chartSymbol]);
 
   const favoriteSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const belowResults = useMemo(() => results.filter((item) => item.belowAnyAverage), [results]);
@@ -443,7 +447,27 @@ export default function App() {
             Fechar
           </button>
 
-          <div className={chartMode === CHART_MODES.alt ? "selected-strip" : "selected-strip btc-dashboard"}>
+          <div className={chartMode === CHART_MODES.alt ? "selected-strip with-timeframe" : "selected-strip btc-dashboard"}>
+            {chartMode === CHART_MODES.alt ? (
+              <div className="chart-timeframe-actions" aria-label="Tempo do grafico da altcoin">
+                {ALT_CHART_TIMEFRAME_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    className={altChartTimeframe === option.value ? "btc-chart-button active" : "btc-chart-button"}
+                    type="button"
+                    onClick={() => {
+                      if (altChartTimeframe === option.value) return;
+                      setAltChartTimeframe(option.value);
+                      setChartCandles({});
+                      setChartError({});
+                      setLiveStatus({ [option.value]: "loading" });
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <SelectedMetric label="Preco" value={formatPrice(selected?.price)} />
             <SelectedMetric label="ADX 14" value={formatNumber(selected?.adx)} />
             <SelectedMetric label="vs BTC 24h" value={formatPercent(selected?.relativeToBtcPercent)} danger={selected?.relativeToBtcPercent < 0} />
@@ -455,19 +479,17 @@ export default function App() {
 
           {chartMode === CHART_MODES.alt && (!isCompactLayout || chartOverlayOpen) ? (
               <div className="alt-chart-grid">
-                {ALT_CHART_TIMEFRAMES.map((timeframe) => (
-                  <CryptoChart
-                    key={`${chartMode}-${chartSymbol || "empty-chart"}-${timeframe}`}
-                    symbol={chartSymbol || BTC_CHART_SYMBOL}
-                    candles={chartCandles[timeframe] || []}
-                    liveStatus={liveStatus[timeframe] || "loading"}
-                    error={chartError[timeframe] || ""}
-                    theme={theme}
-                    mode={chartMode}
-                    timeframe={timeframe}
-                    monthlyCandles={altMonthlyCandles}
-                  />
-                ))}
+                <CryptoChart
+                  key={`${chartMode}-${chartSymbol || "empty-chart"}-${altChartTimeframe}`}
+                  symbol={chartSymbol || BTC_CHART_SYMBOL}
+                  candles={chartCandles[altChartTimeframe] || []}
+                  liveStatus={liveStatus[altChartTimeframe] || "loading"}
+                  error={chartError[altChartTimeframe] || ""}
+                  theme={theme}
+                  mode={chartMode}
+                  timeframe={altChartTimeframe}
+                  monthlyCandles={altMonthlyCandles}
+                />
               </div>
             ) : null}
         </section>

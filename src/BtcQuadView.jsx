@@ -60,7 +60,13 @@ const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const INITIAL_CANDLE_HISTORY_LIMIT = 4200;
-const BTC_MAIN_CHART_IDS = new Set(["renko-4h", "candles-15m-lsma"]);
+const BTC_CANDLE_CHART_ID = "candles-15m-lsma";
+const DEFAULT_BTC_CANDLE_TIMEFRAME = "1h";
+const BTC_CANDLE_TIMEFRAME_OPTIONS = [
+  { value: "1h", label: "1H", title: "BTC 1H", interval: "1h", historyLimit: 12000, fallbackSeconds: 3600 },
+  { value: "5m", label: "5m", title: "BTC 5m", interval: "5m", historyLimit: 12000, fallbackSeconds: 300 },
+];
+const BTC_MAIN_CHART_IDS = new Set(["renko-4h", BTC_CANDLE_CHART_ID]);
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -75,10 +81,19 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
   const [activeTool, setActiveTool] = useState(TOOLS.cursor);
   const [clearSignal, setClearSignal] = useState({ id: 0, target: null });
   const [selectedDrawing, setSelectedDrawing] = useState(null);
+  const [btcCandleTimeframe, setBtcCandleTimeframe] = useState(DEFAULT_BTC_CANDLE_TIMEFRAME);
   const isCompact = useMediaQuery("(max-width: 820px)");
+  const btcCandleTimeframeConfig = useMemo(
+    () => BTC_CANDLE_TIMEFRAME_OPTIONS.find((option) => option.value === btcCandleTimeframe) || BTC_CANDLE_TIMEFRAME_OPTIONS[0],
+    [btcCandleTimeframe]
+  );
   const visibleCharts = useMemo(
-    () => BTC_QUAD_CHARTS.filter((config) => BTC_MAIN_CHART_IDS.has(config.id)),
-    []
+    () => BTC_QUAD_CHARTS
+      .filter((config) => BTC_MAIN_CHART_IDS.has(config.id))
+      .map((config) => (config.id === BTC_CANDLE_CHART_ID
+        ? { ...config, ...btcCandleTimeframeConfig }
+        : config)),
+    [btcCandleTimeframeConfig]
   );
   const btcPrice = useMemo(() => {
     const sourceCandles = [
@@ -265,6 +280,23 @@ export default function BtcQuadView({ embedded = false, onClose, onFullscreen, t
           </div>
           <div className="btc-quad-quote-actions">
             <span className="btc-quad-price">{formatPrice(btcPrice)}</span>
+            <div className="btc-candle-timeframe-actions" aria-label="Tempo do grafico de velas BTC">
+              {BTC_CANDLE_TIMEFRAME_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  className={btcCandleTimeframe === option.value ? "btc-chart-button active" : "btc-chart-button"}
+                  type="button"
+                  onClick={() => {
+                    if (btcCandleTimeframe === option.value) return;
+                    setBtcCandleTimeframe(option.value);
+                    setChartCandles((current) => ({ ...current, [BTC_CANDLE_CHART_ID]: [] }));
+                    setErrors((current) => ({ ...current, [BTC_CANDLE_CHART_ID]: "" }));
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           {embedded ? (
             <button className="btc-quad-fullscreen" type="button" onClick={onFullscreen}>
