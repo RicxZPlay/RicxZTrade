@@ -65,6 +65,7 @@ const DEFAULT_BTC_CANDLE_TIMEFRAME = "1h";
 const BTC_CANDLE_TIMEFRAME_OPTIONS = [
   { value: "1h", label: "1H", title: "BTC 1H", interval: "1h", historyLimit: 12000, fallbackSeconds: 3600 },
   { value: "5m", label: "5m", title: "BTC 5m", interval: "5m", historyLimit: 12000, fallbackSeconds: 300 },
+  { value: "1m", label: "1m", title: "BTC 1m", interval: "1m", historyLimit: 12000, fallbackSeconds: 60 },
 ];
 const BTC_MAIN_CHART_IDS = new Set(["renko-4h", BTC_CANDLE_CHART_ID]);
 const TOOLS = {

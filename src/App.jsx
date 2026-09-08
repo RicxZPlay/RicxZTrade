@@ -43,6 +43,7 @@ const CHART_MODES = {
 const ALT_CHART_TIMEFRAME_OPTIONS = [
   { value: "1h", label: "1H" },
   { value: "5m", label: "5m" },
+  { value: "1m", label: "1m" },
 ];
 
 export default function App() {

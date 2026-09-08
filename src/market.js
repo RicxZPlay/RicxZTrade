@@ -9,8 +9,8 @@ const KUCOIN_DIRECT_ENDPOINT = "https://api.kucoin.com/api/v1/market";
 const HYPE_SYMBOL = "HYPEUSDC";
 const HYPE_KUCOIN_SYMBOL = "HYPE-USDC";
 const KUCOIN_CANDLE_BATCH_LIMIT = 1500;
-const INTERVAL_SECONDS = { "5m": 5 * 60, "15m": 15 * 60, "1h": 60 * 60, "1M": 30 * 24 * 60 * 60 };
-const KUCOIN_INTERVAL_TYPES = { "5m": "5min", "15m": "15min", "1h": "1hour", "1M": "1month" };
+const INTERVAL_SECONDS = { "1m": 60, "5m": 5 * 60, "15m": 15 * 60, "1h": 60 * 60, "1M": 30 * 24 * 60 * 60 };
+const KUCOIN_INTERVAL_TYPES = { "1m": "1min", "5m": "5min", "15m": "15min", "1h": "1hour", "1M": "1month" };
 
 const ALT_QUOTE_PRIORITY = ["USDT", "USDC"];
 const CMC_EXCLUDED_BASE_ASSETS = new Set(["U", "USD1", "USDE", "USDC", "USDT", "RLUSD", "TUSD"]);
@@ -72,6 +72,7 @@ export const ALT_CHART_INITIAL_HISTORY_LIMIT = 4200;
 export const ALT_CHART_INTERVALS = {
   "1h": { interval: "1h", historyLimit: 12000, fallbackSeconds: 3600 },
   "5m": { interval: "5m", historyLimit: 12000, fallbackSeconds: 300 },
+  "1m": { interval: "1m", historyLimit: 12000, fallbackSeconds: 60 },
 };
 export const ALT_CHART_VISIBLE_CANDLES = 12000;
 export const DEFAULT_ALT_CHART_TIMEFRAME = "1h";
