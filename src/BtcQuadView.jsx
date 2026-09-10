@@ -413,7 +413,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
     [chartData, extraBollingerBands, fullChartData]
   );
   const pivotLineData = useMemo(
-    () => showPivots ? toChartMonthlyWoodiePivots(fullChartData, pivotConfig.periodsBack, monthlyCandles) : [],
+    () => showPivots ? toChartPivots(fullChartData, pivotConfig, monthlyCandles) : [],
     [fullChartData, monthlyCandles, pivotConfig, showPivots]
   );
   const chartMeta = useMemo(
@@ -1116,7 +1116,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
     ...extraMovingAverages.map((ma) => formatMaLegend(ma.period, ma.offset)),
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
     showVwma ? `VWMA ${vwmaPeriod}` : null,
-    showPivots ? `Pivos Woodie mensal` : null,
+    showPivots ? formatPivotsLegend(pivotConfig) : null,
     showStochRsi ? formatStochRsiLegend(stochRsiConfig) : null,
   ].filter(Boolean);
 
@@ -1229,12 +1229,18 @@ function getChartExtraBollingerBands(config) {
 
 function getChartPivotsConfig(config) {
   const source = config?.pivots;
-  if (source?.type !== "woodie" || source?.timeframe !== "monthly") return null;
+  const type = source?.type === "traditional" ? "traditional" : source?.type === "woodie" ? "woodie" : null;
+  const timeframe = source?.timeframe === "daily" ? "daily" : source?.timeframe === "monthly" ? "monthly" : null;
+  if (!type || !timeframe) return null;
+  if (type === "woodie" && timeframe !== "monthly") return null;
+  if (type === "traditional" && timeframe !== "daily") return null;
 
   const periodsBack = Math.min(12, Math.max(1, Math.trunc(Number(source.periodsBack) || 0)));
   return {
     color: typeof source.color === "string" ? source.color : BTC_PIVOT_COLOR,
     periodsBack,
+    timeframe,
+    type,
   };
 }
 
@@ -1391,6 +1397,23 @@ function sanitizeChartData(data) {
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
+function formatPivotsLegend(config) {
+  if (!config) return "Pivos";
+  const type = config.type === "traditional" ? "Tradicional" : "Woodie";
+  const timeframe = config.timeframe === "daily" ? "diario" : "mensal";
+  return "Pivos " + type + " " + timeframe;
+}
+
+function toChartPivots(bars, config, monthlyCandles = []) {
+  if (config?.type === "woodie" && config?.timeframe === "monthly") {
+    return toChartMonthlyWoodiePivots(bars, config.periodsBack, monthlyCandles);
+  }
+  if (config?.type === "traditional" && config?.timeframe === "daily") {
+    return toChartDailyTraditionalPivots(bars, config.periodsBack);
+  }
+  return [];
+}
+
 function toChartMonthlyWoodiePivots(bars, periodsBack, monthlyCandles = []) {
   if (!Array.isArray(bars) || bars.length < 2) return [];
 
@@ -1488,6 +1511,66 @@ function toMonthlyWoodiePivotsFromMonthlyBars(monthlyBars, chartBars, periodsBac
       ],
     }));
   });
+}
+
+function toChartDailyTraditionalPivots(bars, periodsBack) {
+  if (!Array.isArray(bars) || bars.length < 2) return [];
+
+  const daysByKey = new Map();
+  bars.forEach((bar) => {
+    if (![bar?.time, bar?.open, bar?.high, bar?.low, bar?.close].every(Number.isFinite)) return;
+    const date = new Date(bar.time * 1000);
+    const key = date.getUTCFullYear() + "-" + date.getUTCMonth() + "-" + date.getUTCDate();
+    const day = daysByKey.get(key) || { bars: [] };
+    day.bars.push(bar);
+    daysByKey.set(key, day);
+  });
+
+  const days = [...daysByKey.values()].filter((day) => day.bars.length > 0);
+  const targets = days
+    .map((day, index) => ({ day, previous: days[index - 1], next: days[index + 1] }))
+    .filter(({ previous }) => previous)
+    .slice(-periodsBack);
+
+  return targets.flatMap(({ day, previous, next }) => {
+    const previousHigh = Math.max(...previous.bars.map((bar) => bar.high));
+    const previousLow = Math.min(...previous.bars.map((bar) => bar.low));
+    const previousClose = previous.bars.at(-1)?.close;
+    if (![previousHigh, previousLow, previousClose].every(Number.isFinite)) return [];
+
+    const pivot = (previousHigh + previousLow + previousClose) / 3;
+    const range = previousHigh - previousLow;
+    const levels = {
+      p: pivot,
+      r1: 2 * pivot - previousLow,
+      r2: pivot + range,
+      r3: pivot + 2 * range,
+      r4: pivot + 3 * range,
+      s1: 2 * pivot - previousHigh,
+      s2: pivot - range,
+      s3: pivot - 2 * range,
+      s4: pivot - 3 * range,
+    };
+    const startTime = day.bars[0].time;
+    const endTime = next?.bars[0]?.time ?? getNextUtcDayStartSeconds(startTime);
+    if (endTime <= startTime) return [];
+
+    return WOODIE_PIVOT_LEVELS.map(({ key, label }) => ({
+      key: startTime + "-" + key,
+      label,
+      data: [
+        { time: startTime, value: levels[key] },
+        { time: endTime, value: levels[key] },
+      ],
+    }));
+  });
+}
+
+function getNextUtcDayStartSeconds(time) {
+  if (!Number.isFinite(time)) return time;
+
+  const date = new Date(time * 1000);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1) / 1000;
 }
 
 function getNextUtcMonthStartSeconds(time) {
