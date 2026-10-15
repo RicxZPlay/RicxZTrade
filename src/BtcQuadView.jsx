@@ -60,9 +60,9 @@ const MOBILE_RENDERABLE_BARS = 2000;
 const DESKTOP_RENDERABLE_BARS = 3000;
 const HIGH_FREQUENCY_VISIBLE_BARS = 1500;
 const INITIAL_CANDLE_HISTORY_LIMIT = 4200;
-const BTC_CANDLE_CHART_ID = "candles-15m-lsma";
-const BTC_ONE_MINUTE_CHART_ID = "candles-1m";
-const BTC_MAIN_CHART_IDS = [BTC_ONE_MINUTE_CHART_ID, BTC_CANDLE_CHART_ID];
+const BTC_CANDLE_CHART_ID = "candles-1m";
+const BTC_RENKO_CHART_ID = "renko-30m";
+const BTC_MAIN_CHART_IDS = [BTC_CANDLE_CHART_ID, BTC_RENKO_CHART_ID];
 const TOOLS = {
   cursor: "cursor",
   trend: "trend",
@@ -827,7 +827,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
       centeredOnceRef.current = false;
       isInteractingRef.current = false;
     };
-  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraMovingAverages, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, vwmaColor]);
+  }, [bbColor, bbMiddleColor, config, extraBollingerBands, extraLsmas, extraMovingAverages, extraVwmaColor, isCompact, palette, pivotConfig, pivotLineCount, setSelectedDrawing, showBbMiddle, showBollingerBands, showEma, showExtraEma, showExtraLsma, showExtraVwma, showLrc, showLsma, showMa, showPivots, showStochRsi, showStochRsiD, showVwma, vwmaColor]);
 
   useEffect(() => {
     latestCandlesRef.current = candles;
@@ -1112,6 +1112,7 @@ const BtcQuadChart = memo(function BtcQuadChart({
     showLrc ? `LRC ${lrcPeriod}` : null,
     showLsma ? `LSMA ${lsmaPeriod}` : null,
     showExtraLsma ? `LSMA ${extraLsmaPeriod}` : null,
+    ...extraLsmas.map((line) => `LSMA ${line.period}`),
     showMa ? formatMaLegend(maPeriod, maOffset) : null,
     ...extraMovingAverages.map((ma) => formatMaLegend(ma.period, ma.offset)),
     showExtraVwma ? `VWMA ${extraVwmaPeriod}` : null,
